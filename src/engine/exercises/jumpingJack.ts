@@ -142,7 +142,7 @@ export function jumpingJackRules(
     {
       code: 'arms_low',
       kind: 'rep',
-      on: ['bottom', 'attempt'],
+      on: ['rep', 'attempt'],
       check: (c) => {
         // Смотрим на нижнюю руку: одна рука над головой, другая у плеча — тоже ошибка.
         const best = (pick: (m: JumpingJackMetrics) => number | null) =>
@@ -161,7 +161,7 @@ export function jumpingJackRules(
     {
       code: 'feet_narrow',
       kind: 'rep',
-      on: ['bottom', 'attempt'],
+      on: ['rep', 'attempt'],
       check: (c) => {
         const widest = Math.max(-Infinity, ...c.frames.map((m) => m.stance ?? -Infinity));
         return Number.isFinite(widest) && widest < cfg.feetMinRatio ? {} : null;

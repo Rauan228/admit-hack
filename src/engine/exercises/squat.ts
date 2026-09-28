@@ -241,8 +241,10 @@ export function squatRules(cfg: SquatConfig = ENGINE_CONFIG.exercises.squat): Ru
     {
       code: 'shallow_depth',
       kind: 'rep',
-      // И после засчитанного повтора, и после неглубокой попытки: человек должен услышать «глубже».
-      on: ['bottom', 'attempt'],
+      // По итогу повтора (самая глубокая точка), а не по первой «нижней»: отскок внизу не должен
+      // записывать «мало глубины» в повтор, который потом дошёл до параллели. И после неглубокой
+      // попытки тоже: человек должен услышать «глубже».
+      on: ['rep', 'attempt'],
       check: (c) => (c.summary.pMax < cfg.goodDepthProgress ? {} : null),
     },
     {
