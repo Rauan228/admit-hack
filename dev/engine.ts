@@ -6,6 +6,7 @@
 
 import { createRealEngine } from '../src/engine/Engine';
 import { createPoseDetector, type PoseDetector } from '../src/engine/pose';
+import { PoseRecorder } from '../src/engine/recorder';
 import {
   EXERCISES,
   type Engine,
@@ -49,11 +50,16 @@ const hud = document.querySelector<HTMLDivElement>('#hud')!;
 const button = document.querySelector<HTMLButtonElement>('#start')!;
 const modes = document.querySelector<HTMLDivElement>('#modes')!;
 const log = document.querySelector<HTMLPreElement>('#log')!;
+const recordButton = document.querySelector<HTMLButtonElement>('#record')!;
 const ctx = canvas.getContext('2d')!;
 
 const params = new URLSearchParams(location.search);
 const target = Number(params.get('target') ?? 10);
 let detector: PoseDetector | null = null;
+/** Запись фикстуры (E-15): пока включена, каждая сырая детекция идёт в файл. */
+let recorder: PoseRecorder | null = null;
+/** Режим, который стенд выставил движку последним (для имени файла записи). */
+let current: EngineMode = 'calibration';
 let engine: Engine | null = null;
 let red = new Set<number>();
 let pointer: { x: number; y: number } | null = null;
@@ -163,7 +169,10 @@ function onEvent(e: EngineEvent): void {
 for (const name of ['calibration', 'menu', ...EXERCISES]) {
   const b = document.createElement('button');
   b.textContent = name;
-  b.addEventListener('click', () => engine?.setMode(toMode(name)));
+  b.addEventListener('click', () => {
+    current = toMode(name);
+    engine?.setMode(current);
+  });
   modes.appendChild(b);
 }
 
@@ -176,9 +185,12 @@ async function start(): Promise<void> {
     (await createPoseDetector()).close();
   }
   hud.textContent = 'Загружаю модель…';
-  engine = createRealEngine({ createPoseDetector: async () => (detector = await createPoseDetector()) });
+  engine = createRealEngine({
+    createPoseDetector: async () => (detector = recording(await createPoseDetector())),
+  });
   engine.on(onEvent);
-  engine.setMode(toMode(params.get('mode')));
+  current = toMode(params.get('mode'));
+  engine.setMode(current);
   const t0 = performance.now();
   try {
     await engine.start(video);
@@ -188,6 +200,43 @@ async function start(): Promise<void> {
     button.disabled = false;
   }
 }
+
+/** Обёртка детектора: сырые точки (до сглаживания) уходят и в движок, и в запись. */
+function recording(inner: PoseDetector): PoseDetector {
+  return {
+    delegate: inner.delegate,
+    model: inner.model,
+    detect(v, t) {
+      const d = inner.detect(v, t);
+      recorder?.add(t, d, v.videoWidth / Math.max(1, v.videoHeight));
+      return d;
+    },
+    close: () => inner.close(),
+  };
+}
+
+/** Скачать запись как JSON — готовая фикстура для tests/fixtures (разметку meta.expected дописать руками). */
+function download(file: object, name: string): void {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(file)], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+recordButton.addEventListener('click', () => {
+  if (!recorder) {
+    recorder = new PoseRecorder();
+    recordButton.textContent = '■ Стоп и скачать';
+    return;
+  }
+  const exercise = typeof current === 'string' ? current : current.exercise;
+  const file = recorder.finish({ exercise, model: detector?.model, recordedAt: new Date().toISOString() });
+  recorder = null;
+  recordButton.textContent = '● Запись';
+  download(file, `forma-${exercise}-${Date.now()}.json`);
+});
 
 button.addEventListener('click', () => void start());
 if (params.get('autostart') === '1') void start();
