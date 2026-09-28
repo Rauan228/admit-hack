@@ -6,7 +6,7 @@
 //   Размер тела во время упражнения не проверяем: в приседе человек «уменьшается», в «звёздочке»
 //   руки уходят за край кадра — полная калибровка кричала бы «подойди ближе» посреди подхода.
 
-import { ENGINE_CONFIG } from './config';
+import { ENGINE_CONFIG, type Widen } from './config';
 import { dist2, isVisible, meanVisibility, pt, torsoLength, type PoseFrame } from './geometry';
 import { CALIBRATION_DETAIL_HINTS, CALIBRATION_HINTS, LM } from './hints';
 import type { CalibrationStatus } from './types';
@@ -16,7 +16,7 @@ export interface CalibrationVerdict {
   hint: string;
 }
 
-type CalibrationConfig = typeof ENGINE_CONFIG.calibration;
+type CalibrationConfig = Widen<typeof ENGINE_CONFIG.calibration>;
 
 const HEAD = [LM.nose] as const;
 const TORSO = [LM.leftShoulder, LM.rightShoulder, LM.leftHip, LM.rightHip] as const;

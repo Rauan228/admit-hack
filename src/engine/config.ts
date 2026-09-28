@@ -3,6 +3,20 @@
 
 export type PoseModel = 'lite' | 'full';
 
+/**
+ * Тип конфига без литералов: `200` → `number`. Конфиг объявлен `as const` (чтобы его нельзя было
+ * случайно изменить), а модули принимают любые значения — например, свои пороги в тестах.
+ */
+export type Widen<T> = T extends number
+  ? number
+  : T extends string
+    ? string
+    : T extends boolean
+      ? boolean
+      : T extends readonly (infer U)[]
+        ? readonly Widen<U>[]
+        : { readonly [K in keyof T]: Widen<T[K]> };
+
 /** Версия wasm должна совпадать с версией пакета @mediapipe/tasks-vision в package.json. */
 const TASKS_VISION_VERSION = '1.0.1';
 
@@ -101,6 +115,17 @@ export const ENGINE_CONFIG = {
     bothHandsGapMs: 150,
     /** Повторный жест — только после того, как руки опустились ниже плеч. */
     rearmBelowShoulder: 0.1,
+  },
+  /** Движок правил ошибок (E-09). */
+  rules: {
+    /** Покадровое нарушение засчитывается, если держится столько мс… */
+    holdMs: 200,
+    /** …и не меньше стольких кадров подряд (на 15 FPS 200 мс — всего 3 кадра). */
+    minFrames: 3,
+    /** Одна и та же фраза — не чаще раза в столько мс (PLAN §3: 4 с). */
+    cooldownMs: 4000,
+    /** Между двумя разными подсказками — не меньше, чтобы голос не перебивал сам себя. */
+    minGapMs: 1500,
   },
   /** Упражнения: пороги счётчика и ошибок. p — прогресс движения, 1 = полная амплитуда. */
   exercises: {

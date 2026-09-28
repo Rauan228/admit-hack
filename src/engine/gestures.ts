@@ -10,7 +10,7 @@
 // только после того, как руки опустились. Пока жест держится, курсор отпущен (pointer_lost),
 // чтобы он не скакал по кнопкам.
 
-import { ENGINE_CONFIG } from './config';
+import { ENGINE_CONFIG, type Widen } from './config';
 import { OneEuroFilter } from './filter';
 import { clamp, isVisible, mirrorX, torsoLength, type PoseFrame } from './geometry';
 import { LM } from './hints';
@@ -26,7 +26,7 @@ export interface GestureOptions {
   bothHandsUp: boolean;
 }
 
-type GestureConfig = typeof ENGINE_CONFIG.gestures;
+type GestureConfig = Widen<typeof ENGINE_CONFIG.gestures>;
 
 const SIDES: Record<Hand, { wrist: number; shoulder: number }> = {
   left: { wrist: LM.leftWrist, shoulder: LM.leftShoulder },
