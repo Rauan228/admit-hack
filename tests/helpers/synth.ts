@@ -26,6 +26,8 @@ export interface SynthParams {
   stance: number;
   /** Разница в глубине левой и правой ноги, градусы (асимметрия). */
   tilt: number;
+  /** Сдвиг таза вбок по исходной картинке, в ширинах таза (перенос веса на одну ногу). */
+  shift: number;
   /** Подъём рук от вертикали вниз, градусы (0 — вдоль тела, 180 — над головой). */
   arms: number;
   visibility: number;
@@ -42,6 +44,7 @@ export const STAND: SynthParams = {
   kneeIn: 0,
   stance: 1.2,
   tilt: 0,
+  shift: 0,
   arms: 10,
   visibility: 0.95,
 };
@@ -75,6 +78,7 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
   };
 
   let hipY = 0;
+  let hipZ = 0;
   for (const side of [1, -1] as const) {
     // side = +1 — левая сторона человека (справа на картинке).
     const thigh = p.thigh + (side > 0 ? p.tilt / 2 : -p.tilt / 2);
@@ -86,6 +90,7 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
     const hY = kneeY - thighL * Math.cos(rad(thigh));
     const hZ = kneeZ + thighL * Math.sin(rad(thigh));
     hipY += hY / 2;
+    hipZ += hZ / 2;
     const s =
       side > 0
         ? { ankle: 27, knee: 25, hip: 23, heel: 29, foot: 31 }
@@ -94,20 +99,24 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
     put(s.heel, ankleX, ankleY + 0.015 * H, 0.04 * H);
     put(s.foot, ankleX + side * 0.01 * H, ankleY + 0.02 * H, -0.12 * H);
     put(s.knee, kneeX, kneeY, kneeZ);
-    put(s.hip, cx + (side * hipW) / 2, hY, hZ);
+    put(s.hip, cx + p.shift * hipW + (side * hipW) / 2, hY, hZ);
   }
 
   const shoulderY = hipY - torsoL * Math.cos(rad(p.lean));
+  // Наклон вперёд — плечи уходят к камере (минус по z).
+  const shoulderZ = hipZ - torsoL * Math.sin(rad(p.lean));
   const noseY = shoulderY - headL * Math.cos(rad(p.lean));
-  put(0, cx, noseY);
-  for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) put(i, cx + (i % 2 ? 1 : -1) * 0.02 * H, noseY - 0.01 * H);
+  const noseZ = shoulderZ - headL * Math.sin(rad(p.lean));
+  put(0, cx, noseY, noseZ);
+  for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    put(i, cx + (i % 2 ? 1 : -1) * 0.02 * H, noseY - 0.01 * H, noseZ);
   for (const side of [1, -1] as const) {
     const s =
       side > 0
         ? { sh: 11, el: 13, wr: 15, pi: 17, ix: 19, th: 21 }
         : { sh: 12, el: 14, wr: 16, pi: 18, ix: 20, th: 22 };
     const shX = cx + (side * shoulderW) / 2;
-    put(s.sh, shX, shoulderY);
+    put(s.sh, shX, shoulderY, shoulderZ);
     const a = rad(p.arms);
     const wrX = shX + side * Math.sin(a) * armL;
     const wrY = shoulderY + Math.cos(a) * armL;
