@@ -6,7 +6,7 @@
 // сглаживался бы по-разному.
 
 import { ENGINE_CONFIG } from './config';
-import type { Vec3 } from './geometry';
+import { torsoLength, type PoseFrame, type Vec3 } from './geometry';
 import type { Landmark } from './types';
 
 export interface OneEuroParams {
@@ -111,4 +111,24 @@ export class LandmarkSmoother {
     }
     return f;
   }
+}
+
+/**
+ * Один шаг конвейера: сырые точки детектора → сглаженный кадр позы.
+ * Масштаб для нормализации скорости — длина корпуса по сырым точкам (или четверть кадра, если её нет).
+ */
+export function smoothPose(
+  smoother: LandmarkSmoother,
+  image: readonly Landmark[],
+  world: readonly Vec3[] | null,
+  tMs: number,
+  aspect: number,
+): PoseFrame {
+  const scale = torsoLength({ t: tMs, aspect, image: image as Landmark[], world: null }) || 0.25;
+  return {
+    t: tMs,
+    aspect,
+    image: smoother.smoothImage(image, tMs, scale),
+    world: world ? smoother.smoothWorld(world, tMs) : null,
+  };
 }
