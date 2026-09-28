@@ -23,6 +23,16 @@ export interface FsmThresholds {
   reversal: number;
   /** Повтор дольше этого — сбрасываем без засчёта (человек ушёл, сел отдохнуть). */
   maxRepMs: number;
+  /**
+   * Движение короче этого — сбой детектора, а не повтор: выброс точки на 2–3 кадра давал «повтор» за 0,13 с.
+   * Сбрасываем молча, без повтора и без попытки.
+   */
+  minRepMs: number;
+  /**
+   * Повтор закрывается, только если человек пробыл в исходном положении хотя бы столько мс.
+   * Короткий провал детекции в нижней точке (колено на миг «пропало») иначе рвал выпад на два.
+   */
+  returnHoldMs: number;
 }
 
 /** Итог одного движения (засчитанного или нет). */
@@ -56,6 +66,8 @@ export class RepCounter {
   private localMax = 0;
   /** Минимум p на подъёме: от него считаем повторное опускание («отскок»). */
   private pMinUp = Infinity;
+  /** С какого момента p снова ниже startMax на подъёме (ждём подтверждения возврата). */
+  private returnSince: number | null = null;
 
   constructor(private readonly th: FsmThresholds) {}
 
@@ -107,7 +119,9 @@ export class RepCounter {
           this.go('up', t, ev);
           this.pMinUp = p;
         } else if (p < th.startMax) {
-          if (this.pMax >= th.attemptMin) ev.push({ kind: 'attempt', summary: this.summary(t) });
+          if (this.pMax >= th.attemptMin && t - this.startT >= th.minRepMs) {
+            ev.push({ kind: 'attempt', summary: this.summary(t) });
+          }
           this.go('start', t, ev);
         }
         break;
@@ -121,9 +135,14 @@ export class RepCounter {
 
       case 'up':
         if (p < th.startMax) {
-          ev.push({ kind: 'rep', summary: this.summary(t) });
-          this.go('start', t, ev);
+          this.returnSince ??= t;
+          if (t - this.returnSince >= th.returnHoldMs) {
+            this.returnSince = null;
+            if (t - this.startT >= th.minRepMs) ev.push({ kind: 'rep', summary: this.summary(t) });
+            this.go('start', t, ev);
+          }
         } else {
+          this.returnSince = null;
           this.pMinUp = Math.min(this.pMinUp, p);
           // «Отскок»: привстал и снова опустился до полной амплитуды — это тот же повтор, а не новый.
           // Мелкие покачивания на подъёме фазу не меняют, иначе UI мигал бы up/bottom.
@@ -143,6 +162,7 @@ export class RepCounter {
     this.pMax = 0;
     this.localMax = 0;
     this.pMinUp = Infinity;
+    this.returnSince = null;
   }
 
   private summary(endT: number): RepSummary {

@@ -8,6 +8,8 @@ const TH: FsmThresholds = {
   attemptMin: 0.3,
   reversal: 0.12,
   maxRepMs: 12000,
+  minRepMs: 250,
+  returnHoldMs: 0,
 };
 
 /** Прогон значений p с шагом 33 мс. */
@@ -105,6 +107,22 @@ describe('счётчик повторений', () => {
     expect(r.summary.durationMs).toBeGreaterThan(900);
     expect(r.summary.bottomT).toBeGreaterThan(r.summary.startT);
     expect(r.summary.endT).toBeGreaterThan(r.summary.bottomT);
+  });
+
+  it('выброс детектора на 3 кадра (0,1 с) — не повтор и не попытка', () => {
+    const ev = feed([0, 0, 0, 1.4, 0.8, 0, 0, 0]);
+    expect(kinds(ev, 'rep')).toHaveLength(0);
+    expect(kinds(ev, 'attempt')).toHaveLength(0);
+  });
+
+  it('короткий провал на подъёме не закрывает повтор, если ждём подтверждения возврата', () => {
+    const th = { ...TH, returnHoldMs: 150 };
+    // Внизу на 2 кадра сигнал «провалился» к нулю и вернулся — это один повтор, а не два.
+    const ev = feed(
+      [...ramp(0, 1.2, 20), 1.2, 0.05, 0.05, 1.2, 1.2, ...ramp(1.2, 0, 20), 0, 0, 0, 0, 0, 0],
+      th,
+    );
+    expect(kinds(ev, 'rep')).toHaveLength(1);
   });
 
   it('NaN игнорируется', () => {
