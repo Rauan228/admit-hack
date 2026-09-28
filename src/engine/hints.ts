@@ -188,6 +188,19 @@ export const CALIBRATION_HINTS: Record<CalibrationStatus, string> = {
   ok: 'Отлично, тебя видно целиком',
 };
 
+/**
+ * Уточнённые подсказки калибровки: статус тот же, но причина конкретнее.
+ * Например, partial бывает, когда обрезаны ноги, а бывает, когда человек стоит у края кадра.
+ */
+export const CALIBRATION_DETAIL_HINTS = {
+  center: 'Встань в центр кадра',
+  faceCamera: 'Повернись лицом к камере',
+  showLegs: 'Отойди на шаг назад — нужно видеть ноги целиком',
+  showHead: 'Отойди на шаг назад — голова не помещается в кадр',
+  lostBody: 'Вернись в кадр — я тебя не вижу',
+  lostJoints: 'Встань так, чтобы тебя было видно целиком',
+} as const;
+
 export function formErrorsFor(exercise: ExerciseId): FormErrorDef[] {
   return FORM_ERRORS[exercise];
 }
