@@ -191,8 +191,10 @@ class RealEngine implements Engine {
       return;
     }
 
+    // Яркость меряем всегда (сам замер — раз в 0,5 с): стемнело посреди подхода — скажем «добавь света».
+    const brightness = this.deps.measureBrightness(video, t);
     if (mode === 'menu') {
-      this.trackPresence(frame ? OK : lost(null), t);
+      this.trackPresence(frame ? OK : lost(null, brightness), t);
       this.emitAll(this.gestures.update(frame, t, { pointer: true, bothHandsUp: true }));
       return;
     }
@@ -206,7 +208,7 @@ class RealEngine implements Engine {
     const cfg = ENGINE_CONFIG.presence;
     const missing = session.unmeasuredFor(t);
     // Человека нет (или не видно нужных суставов) дольше lostMs — пауза и подсказка вернуться.
-    this.trackPresence(missing >= cfg.lostMs && !session.done ? lost(frame) : OK, t);
+    this.trackPresence(missing >= cfg.lostMs && !session.done ? lost(frame, brightness) : OK, t);
     if (missing >= cfg.resetAfterMs) events.push(...session.interrupt());
     this.emitAll(events);
     this.emitAll(
@@ -223,7 +225,14 @@ class RealEngine implements Engine {
   }
 
   private emit(e: EngineEvent): void {
-    this.listeners.forEach((cb) => cb(e));
+    for (const cb of this.listeners) {
+      try {
+        cb(e);
+      } catch (err) {
+        // Ошибка в одном обработчике UI не должна останавливать движок и остальных подписчиков.
+        console.error('[engine] обработчик события упал', err);
+      }
+    }
   }
 
   private emitAll(events: readonly EngineEvent[]): void {
@@ -231,8 +240,11 @@ class RealEngine implements Engine {
   }
 }
 
-/** Вердикт «потеряли человека»: никого в кадре или не видно нужных суставов. */
-function lost(frame: PoseFrame | null): CalibrationVerdict {
+/** Вердикт «потеряли человека»: темно, никого в кадре или не видно нужных суставов. */
+function lost(frame: PoseFrame | null, brightness: number | null): CalibrationVerdict {
+  if (brightness !== null && brightness < ENGINE_CONFIG.calibration.darkLuma) {
+    return { status: 'dark', hint: CALIBRATION_HINTS.dark };
+  }
   return frame
     ? { status: 'partial', hint: CALIBRATION_DETAIL_HINTS.lostJoints }
     : { status: 'no_person', hint: CALIBRATION_DETAIL_HINTS.lostBody };

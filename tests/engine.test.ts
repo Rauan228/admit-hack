@@ -307,6 +307,41 @@ describe('реальный движок: режимы и протокол соб
     engine.stop();
   });
 
+  it('стемнело посреди подхода — подсказка «Слишком темно», а не «вернись в кадр»', async () => {
+    let dark = false;
+    const noise = gaussian(0.002, 8);
+    const frames = squatTrack({ reps: 1, depth: 100 }).map(({ t, thigh }) =>
+      synthFrame(squatPose(thigh), t, noise),
+    );
+    const all = script(frames);
+    const w = fakeWorld((t) => (dark ? null : all(t)));
+    w.deps.measureBrightness = () => (dark ? 15 : 120);
+    const { engine, events } = await started(w, { exercise: 'squat', targetReps: 5 });
+    w.run(frames.at(-1)!.t);
+    dark = true;
+    w.run(1500);
+    expect(ofType(events, 'calibration').map((e) => e.status)).toEqual(['dark']);
+    engine.stop();
+  });
+
+  it('упавший обработчик UI не останавливает движок и остальных подписчиков', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const w = fakeWorld(standing);
+    const engine = createRealEngine(w.deps);
+    let good = 0;
+    engine.on(() => {
+      throw new Error('UI упал');
+    });
+    engine.on(() => {
+      good += 1;
+    });
+    await engine.start(w.video);
+    w.run(500);
+    error.mockRestore();
+    expect(good).toBeGreaterThan(10);
+    engine.stop();
+  });
+
   it('упражнение, которого движок не знает, не роняет UI', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const w = fakeWorld(standing);
