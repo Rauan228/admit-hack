@@ -1,0 +1,44 @@
+/* Базовые стили. Токены дизайн-системы появятся в U-01. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0d12;
+  --fg: #eef1f6;
+  --muted: #8a93a6;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.boot {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  padding: 16px;
+}
+
+.boot h1 {
+  font-size: clamp(48px, 12vw, 120px);
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+
+.muted {
+  color: var(--muted);
+}
