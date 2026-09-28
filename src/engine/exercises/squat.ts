@@ -10,14 +10,14 @@
 // отношение то же. Первая версия делила на бедро стоя, и уход от камеры выглядел как начало
 // приседа: счётчик уходил в «down» и зависал (поймал тест).
 
-import { ENGINE_CONFIG } from '../config';
+import { ENGINE_CONFIG, type Widen } from '../config';
 import { isVisible, pt, type PoseFrame } from '../geometry';
 import { LM } from '../hints';
 import type { Phase } from '../types';
 import { SlidingMax } from './baseline';
 import type { BaseMetrics, ExerciseDef, ExerciseMeter } from './types';
 
-type SquatConfig = typeof ENGINE_CONFIG.exercises.squat;
+type SquatConfig = Widen<typeof ENGINE_CONFIG.exercises.squat>;
 
 export interface SquatMetrics extends BaseMetrics {
   /** Глубина по бедру: 1 — стоя, 0 — бедро параллельно полу, < 0 — ниже. */
@@ -84,5 +84,6 @@ export function createSquat(cfg: SquatConfig = ENGINE_CONFIG.exercises.squat): E
     armsOverhead: false,
     fsm: cfg.fsm,
     createMeter: () => new SquatMeter(cfg),
+    rules: [],
   };
 }
