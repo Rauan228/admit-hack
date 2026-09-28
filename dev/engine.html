@@ -39,12 +39,33 @@
         white-space: pre;
         font-family: ui-monospace, monospace;
       }
-      button {
+      #controls {
         position: fixed;
         top: 8px;
         right: 8px;
-        padding: 10px 16px;
-        font-size: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: flex-end;
+      }
+      #modes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        justify-content: flex-end;
+        max-width: 60vw;
+      }
+      button {
+        padding: 8px 12px;
+        font-size: 14px;
+      }
+      #log {
+        max-width: 960px;
+        margin: 8px auto;
+        padding: 8px;
+        font-size: 12px;
+        white-space: pre-wrap;
+        color: #9ca3af;
       }
     </style>
   </head>
@@ -55,7 +76,11 @@
       <canvas id="overlay"></canvas>
     </div>
     <div id="hud">Нажми «Старт»</div>
-    <button id="start">Старт</button>
+    <div id="controls">
+      <button id="start">Старт</button>
+      <div id="modes"></div>
+    </div>
+    <pre id="log"></pre>
     <script type="module" src="./engine.ts"></script>
   </body>
 </html>
