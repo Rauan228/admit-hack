@@ -5,6 +5,7 @@
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createExercise } from '../src/engine/exercises';
+import { ExerciseSession } from '../src/engine/session';
 import type { ExerciseId } from '../src/engine/types';
 import { loadFixture } from './helpers/replay';
 import { fixtureFrames, runSession } from './helpers/session';
@@ -48,6 +49,17 @@ describe('записи поз из tests/fixtures', () => {
         expect(res.reps.length).toBeGreaterThanOrEqual(meta.expected.reps - tol);
         expect(res.reps.length).toBeLessThanOrEqual(meta.expected.reps + tol);
         if (meta.expected.noErrors) expect(res.reps.flatMap((r) => r.errors)).toEqual([]);
+      });
+
+      it('боевой путь (ExerciseSession с фильтром правдоподобия): тот же счёт и те же ошибки', () => {
+        const session = new ExerciseSession(createExercise(meta.exercise)!, 1000, 0);
+        const reps = fixtureFrames(file)
+          .flatMap((f, i) => session.update(f, f?.t ?? i * 33))
+          .filter((e) => e.type === 'rep');
+        expect(reps.length).toBeGreaterThanOrEqual(meta.expected.reps - tol);
+        expect(reps.length).toBeLessThanOrEqual(meta.expected.reps + tol);
+        if (meta.expected.noErrors)
+          expect(reps.flatMap((e) => (e.type === 'rep' ? e.errors : []))).toEqual([]);
       });
     });
   }

@@ -8,6 +8,7 @@ import type {
   PoseLandmarker,
 } from '@mediapipe/tasks-vision';
 import { ENGINE_CONFIG, type PoseModel } from './config';
+import { PersonSelector } from './person';
 import type { Vec3 } from './geometry';
 import type { Landmark } from './types';
 
@@ -33,6 +34,8 @@ export interface PoseDetectorOptions {
   model?: PoseModel;
   /** Принудительно CPU: для отладки и слабых устройств. */
   delegate?: PoseDelegate;
+  /** Сколько людей искать в кадре (по умолчанию из конфига). */
+  numPoses?: number;
 }
 
 /** Приводит точки MediaPipe к формату контракта (visibility → v). */
@@ -90,7 +93,7 @@ export async function createPoseDetector(options: PoseDetectorOptions = {}): Pro
     PoseLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: cfg.modelUrls[modelFor(delegate)], delegate },
       runningMode: 'VIDEO',
-      numPoses: cfg.numPoses,
+      numPoses: options.numPoses ?? (delegate === 'GPU' ? cfg.numPosesGpu : cfg.numPosesCpu),
       minPoseDetectionConfidence: cfg.minPoseDetectionConfidence,
       minPosePresenceConfidence: cfg.minPosePresenceConfidence,
       minTrackingConfidence: cfg.minTrackingConfidence,
@@ -108,15 +111,18 @@ export async function createPoseDetector(options: PoseDetectorOptions = {}): Pro
   }
 
   let lastTs = -1;
+  const selector = new PersonSelector();
   return {
     delegate,
     model: modelFor(delegate),
     detect(video, timestampMs) {
       lastTs = nextTimestamp(lastTs, timestampMs);
       const result = landmarker.detectForVideo(video, lastTs);
-      const first = result.landmarks[0];
-      if (!first || first.length === 0) return null;
-      return { image: toLandmarks(first), world: toWorld(result.worldLandmarks[0]) };
+      const people = result.landmarks.filter((p) => p.length > 0).map(toLandmarks);
+      const i = selector.pick(people);
+      const image = people[i];
+      if (!image) return null;
+      return { image, world: toWorld(result.worldLandmarks[i]) };
     },
     close() {
       landmarker.close();
