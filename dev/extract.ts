@@ -16,6 +16,7 @@ const from = Number(q.get('from') ?? 0);
 const toParam = Number(q.get('to') ?? Infinity);
 const model = (q.get('model') ?? 'full') as PoseModel;
 const delegate = (q.get('delegate') ?? 'CPU') as 'CPU' | 'GPU';
+const numPoses = Number(q.get('numPoses') ?? 1);
 const log = document.querySelector('#log')!;
 
 declare global {
@@ -47,7 +48,7 @@ async function main(): Promise<void> {
   video.src = src;
   await once(video, 'loadeddata');
 
-  const detector = await createPoseDetector({ model, delegate });
+  const detector = await createPoseDetector({ model, delegate, numPoses });
   const to = Math.min(toParam, video.duration);
   const frames: FixtureFile['frames'] = [];
   const step = 1 / fps;
