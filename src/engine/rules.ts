@@ -40,7 +40,7 @@ export type RepMoment = 'bottom' | 'rep' | 'attempt';
 
 export interface RepContext<M> {
   summary: RepSummary;
-  /** Метрики всех кадров движения (от выхода из исходного положения). */
+  /** Метрики кадров движения — с предысторией prerollMs до выхода из исходного положения. */
   frames: M[];
   /** Метрики в момент наибольшей амплитуды. */
   atBottom: M;
