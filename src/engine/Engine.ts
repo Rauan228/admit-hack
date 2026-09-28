@@ -4,8 +4,8 @@
 
 import { openCamera, stopCamera } from './camera';
 import { FpsCounter } from './fps';
-import { createPoseDetector, type PoseDetector } from './pose';
-import type { Engine, EngineEvent, EngineMode, Landmark } from './types';
+import { createPoseDetector, type PoseDetection, type PoseDetector } from './pose';
+import type { Engine, EngineEvent, EngineMode } from './types';
 
 /** Всё, что трогает браузер, передаётся снаружи: в тестах подменяем на фейки. */
 export interface EngineDeps {
@@ -102,16 +102,16 @@ class RealEngine implements Engine {
     this.lastVideoTime = video.currentTime;
 
     const now = this.deps.now();
-    let landmarks: Landmark[] | null;
+    let detection: PoseDetection | null;
     try {
-      landmarks = detector.detect(video, now);
+      detection = detector.detect(video, now);
     } catch (err) {
       // Один битый кадр не должен ронять тренировку.
       console.warn('[engine] кадр пропущен', err);
       return;
     }
     // Пустой массив = в кадре никого: UI стирает скелет. Статус no_person придёт из калибровки (E-06).
-    this.emit({ type: 'frame', landmarks: landmarks ?? [], fps: this.fps.tick(now) });
+    this.emit({ type: 'frame', landmarks: detection?.image ?? [], fps: this.fps.tick(now) });
   };
 
   private emit(e: EngineEvent): void {

@@ -5,7 +5,7 @@ import type { EngineEvent, Landmark } from '../src/engine/types';
 const POSE: Landmark[] = Array.from({ length: 33 }, (_, i) => ({ x: i / 33, y: 0.5, z: 0, v: 1 }));
 
 /** Фейковый браузер: кадры крутим вручную через flush(), время задаём сами. */
-function fakeWorld(detect: PoseDetector['detect'] = () => POSE) {
+function fakeWorld(detect: PoseDetector['detect'] = () => ({ image: POSE, world: null })) {
   let queued: (() => void) | null = null;
   let clock = 0;
   const video = { readyState: 4, currentTime: 0 } as HTMLVideoElement & { currentTime: number };
@@ -83,7 +83,7 @@ describe('реальный движок (E-04)', () => {
     const w = fakeWorld(() => {
       calls++;
       if (calls === 1) throw new Error('GPU hiccup');
-      return POSE;
+      return { image: POSE, world: null };
     });
     const engine = createRealEngine(w.deps);
     const seen: EngineEvent[] = [];
