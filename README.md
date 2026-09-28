@@ -26,6 +26,17 @@ npm run dev        # http://localhost:5173
 | `npm run lint`   | ESLint                                      |
 | `npm run format` | Prettier                                    |
 
+## Деплой (HTTPS)
+
+Камера в браузере работает только по HTTPS, поэтому приложение выкладывается двумя путями:
+
+- **GitHub Pages (работает сейчас):** форк [abdigaliarslan/admit-hack](https://github.com/abdigaliarslan/admit-hack)
+  раз в 15 минут сам подтягивает `main` этого репозитория, прогоняет тесты и выкладывает сборку
+  (`.github/workflows/pages.yml`). Приложение: https://abdigaliarslan.github.io/admit-hack/ ,
+  стенд движка: https://abdigaliarslan.github.io/admit-hack/dev/engine.html (можно открыть с телефона).
+- **Vercel:** импортировать репозиторий на vercel.com — настройки уже в `vercel.json` (сборка, заголовки
+  `Permissions-Policy: camera=(self)`, кэш ассетов). Автодеплой из `main` включается сам.
+
 ## Архитектура
 
 ```
