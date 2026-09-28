@@ -16,6 +16,8 @@
 | `squat-side-goblet.json` | 6 глубоких приседов, между ними возня с гирей | сбоку | 6 повторов | [Squat and Frontal Raise](https://commons.wikimedia.org/wiki/File:Squat_and_Frontal_Raise.webm), Taco fleur | CC BY-SA 4.0 |
 | `squat-side-backlit.json` | 6 приседов, силуэт против неба | сбоку, контровой свет | 6 повторов | [Kettlebell Racked Squats (side view)](https://commons.wikimedia.org/wiki/File:Kettlebell_Racked_Squats_(side_view).webm), Taco fleur | CC BY-SA 4.0 |
 | `jumping-jack-front.json` | 6 «звёздочек», между ними бёрпи (не должны считаться) | анфас | 6 повторов, 0 ошибок | [Jumping jacks and burpees](https://commons.wikimedia.org/wiki/File:Jumping_jacks_and_burpees.webm), Taco fleur | CC BY-SA 4.0 |
+| `lunge-front-hold.json` | 2 выпада с гирей над головой и поворотом корпуса, удержание внизу 11 и 13 с | анфас | 2 повтора, 0 ошибок | [Overhead Lunge and Twist](https://commons.wikimedia.org/wiki/File:Overhead_Lunge_and_Twist.webm), Taco fleur | CC BY-SA 4.0 |
+| `lunge-front-backlit.json` | 5 обратных выпадов со сменой ног, между ними рывок гири; левая нога в силуэте почти не видна | анфас, против света | 5 ± 1 повтор; 3 выпада с правой ногой сзади — без ошибок | [Dead Snatch into Reverse Lunge](https://commons.wikimedia.org/wiki/File:Dead_Snatch_into_Reverse_Lunge.webm), Taco fleur | CC BY-SA 4.0 |
 
 Файлы, полученные из материалов под CC BY-SA, распространяются на тех же условиях (CC BY-SA 4.0)
 с указанием авторов выше.

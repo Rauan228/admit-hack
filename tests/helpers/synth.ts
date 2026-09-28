@@ -231,3 +231,138 @@ export function jackFrames(opts: {
   }
   return out;
 }
+
+export interface LungeParams {
+  /** 0 — стоя, 1 — заднее колено у пола, переднее бедро горизонтально. */
+  depth: number;
+  /** Какая нога сзади. */
+  back: 'left' | 'right';
+  /** Колено передней ноги впереди носка, метры (ошибка «колено за носком»). */
+  kneeForward?: number;
+  /** Наклон корпуса вперёд, градусы. */
+  lean?: number;
+  aspect?: number;
+  height?: number;
+  footY?: number;
+}
+
+/**
+ * Выпад анфас. Мировые точки — в метрах (рост 1,7 м), ось y вниз, z — от камеры, как у MediaPipe.
+ * Переднее бедро уходит к горизонтали (на камеру), заднее колено опускается к полу, задняя стопа — на носке.
+ */
+export function lungeFrame(p: LungeParams, t: number, noise: () => number = () => 0): PoseFrame {
+  const aspect = p.aspect ?? 4 / 3;
+  const H = p.height ?? 0.75;
+  const footY = p.footY ?? 0.92;
+  const M = 1.7 / H; // доли кадра → метры
+  const shin = 0.25 * H;
+  const thigh = 0.245 * H;
+  const torso = 0.3 * H;
+  const hipW = 0.1 * H;
+  const shoulderW = 0.22 * H;
+  const cx = 0.5 * aspect;
+  const d = p.depth;
+  const hipY = footY - (shin + thigh) + d * thigh;
+  const image: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0, v: 0.95 }));
+  const world: Vec3[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }));
+  const put = (i: number, x: number, y: number, z: number) => {
+    image[i] = { x: x / aspect + noise(), y: y + noise(), z: 0, v: 0.95 };
+    world[i] = { x: (x - cx) * M, y: (y - hipY) * M, z: z * M };
+  };
+  const I = {
+    left: { hip: 23, knee: 25, ankle: 27, heel: 29, toe: 31, sign: 1 },
+    right: { hip: 24, knee: 26, ankle: 28, heel: 30, toe: 32, sign: -1 },
+  };
+  const front = p.back === 'left' ? I.right : I.left;
+  const back = p.back === 'left' ? I.left : I.right;
+  // Передняя нога: голень вертикальна, бедро наклоняется вперёд (на камеру) до горизонтали.
+  const frontKneeY = footY - shin;
+  const cosF = Math.max(-1, Math.min(1, (frontKneeY - hipY) / thigh));
+  const step = thigh * Math.sqrt(1 - cosF * cosF); // вынос колена вперёд
+  const fx = cx + (front.sign * hipW) / 2;
+  const kf = (p.kneeForward ?? 0) / M;
+  const toeZ = -step - 0.1 * H;
+  // Обычно колено над щиколоткой, позади носка; «колено вперёд» — впереди носка на kneeForward метров.
+  const kneeZ = kf > 0 ? toeZ - kf : -step - 0.02 * H;
+  put(front.hip, fx, hipY, 0);
+  put(front.knee, fx, frontKneeY, kneeZ);
+  put(front.ankle, fx, footY, -step);
+  put(front.heel, fx, footY + 0.01 * H, -step + 0.03 * H);
+  put(front.toe, fx, footY + 0.02 * H, toeZ);
+  // Задняя нога: бедро почти вертикально, колено опускается к полу, стопа сзади на носке.
+  const bx = cx + (back.sign * hipW) / 2;
+  const backKneeY = hipY + thigh * Math.cos(0.25 * d);
+  const backShinDrop = Math.max(0, footY - 0.03 * H * d - backKneeY);
+  const backShinBack = Math.sqrt(Math.max(0, shin * shin - backShinDrop * backShinDrop));
+  put(back.hip, bx, hipY, 0);
+  put(back.knee, bx, backKneeY, thigh * Math.sin(0.25 * d));
+  put(back.ankle, bx, backKneeY + backShinDrop, thigh * Math.sin(0.25 * d) + backShinBack);
+  put(back.heel, bx, backKneeY + backShinDrop, thigh * Math.sin(0.25 * d) + backShinBack + 0.02 * H);
+  put(back.toe, bx, footY, thigh * Math.sin(0.25 * d) + backShinBack - 0.05 * H);
+  // Корпус, голова, руки (руки на поясе).
+  const lean = ((p.lean ?? 0) * Math.PI) / 180;
+  const shY = hipY - torso * Math.cos(lean);
+  const shZ = -torso * Math.sin(lean);
+  put(0, cx, shY - 0.1 * H, shZ - 0.03 * H);
+  for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    put(i, cx + (i % 2 ? 1 : -1) * 0.02 * H, shY - 0.11 * H, shZ);
+  for (const [sh, el, wr, sign] of [
+    [11, 13, 15, 1],
+    [12, 14, 16, -1],
+  ] as const) {
+    const sx = cx + (sign * shoulderW) / 2;
+    put(sh, sx, shY, shZ);
+    put(el, sx + sign * 0.06 * H, shY + 0.14 * H, shZ);
+    put(wr, cx + (sign * hipW) / 2 + sign * 0.03 * H, hipY - 0.02 * H, 0);
+    for (const i of sign > 0 ? [17, 19, 21] : [18, 20, 22])
+      put(i, cx + (sign * hipW) / 2 + sign * 0.03 * H, hipY, 0);
+  }
+  return { t, aspect, image, world };
+}
+
+/** Подход выпадов: ноги чередуются; hold — удержание внизу, мс. */
+export function lungeSet(opts: {
+  reps: number;
+  depth?: number;
+  fps?: number;
+  downMs?: number;
+  holdMs?: number;
+  upMs?: number;
+  restMs?: number;
+  kneeForward?: number;
+  lean?: number;
+  sigma?: number;
+  seed?: number;
+}): PoseFrame[] {
+  const { reps, depth = 1, fps = 30, downMs = 900, holdMs = 300, upMs = 900, restMs = 700 } = opts;
+  const noise = gaussian(opts.sigma ?? 0.003, opts.seed ?? 21);
+  const cycle = downMs + holdMs + upMs + restMs;
+  const lead = 1500;
+  const out: PoseFrame[] = [];
+  const ease = (x: number) => 0.5 - 0.5 * Math.cos(Math.PI * x);
+  for (let t = 0; t <= lead + reps * cycle + 1200; t += 1000 / fps) {
+    const u = t - lead;
+    let d = 0;
+    let rep = 0;
+    if (u >= 0 && u < reps * cycle) {
+      rep = Math.floor(u / cycle);
+      const c = u % cycle;
+      if (c < downMs) d = ease(c / downMs);
+      else if (c < downMs + holdMs) d = 1;
+      else if (c < downMs + holdMs + upMs) d = 1 - ease((c - downMs - holdMs) / upMs);
+    }
+    out.push(
+      lungeFrame(
+        {
+          depth: d * depth,
+          back: rep % 2 === 0 ? 'right' : 'left',
+          kneeForward: (opts.kneeForward ?? 0) * d,
+          lean: (opts.lean ?? 0) * d,
+        },
+        t,
+        noise,
+      ),
+    );
+  }
+  return out;
+}
