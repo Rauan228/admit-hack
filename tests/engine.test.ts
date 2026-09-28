@@ -1,7 +1,7 @@
 import { createRealEngine, type EngineDeps } from '../src/engine/Engine';
 import type { PoseFrame } from '../src/engine/geometry';
 import type { PoseDetection, PoseDetector } from '../src/engine/pose';
-import type { EngineEvent, EngineMode, Landmark } from '../src/engine/types';
+import type { EngineEvent, EngineMode, ExerciseId, Landmark } from '../src/engine/types';
 import { BOTH_HANDS_UP, body, buildPose } from '../src/mocks/poses';
 import { gaussian, jackFrames, squatPose, squatTrack, synthFrame } from './helpers/synth';
 
@@ -379,7 +379,7 @@ describe('реальный движок: режимы и протокол соб
   it('упражнение, которого движок не знает, не роняет UI', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const w = fakeWorld(standing);
-    const { engine, events } = await started(w, { exercise: 'arm_raise', targetReps: 5 });
+    const { engine, events } = await started(w, { exercise: 'yoga' as ExerciseId, targetReps: 5 });
     w.run(300);
     warn.mockRestore();
     expect(ofType(events, 'frame').length).toBeGreaterThan(0);
