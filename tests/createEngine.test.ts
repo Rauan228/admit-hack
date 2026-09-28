@@ -1,5 +1,5 @@
 import { createEngine, isMockRequested } from '../src/engine/createEngine';
-import { NotImplementedYetError } from '../src/engine/Engine';
+import { CameraError } from '../src/engine/camera';
 
 describe('фабрика движка', () => {
   it('понимает флаг ?mock в URL', () => {
@@ -26,9 +26,10 @@ describe('фабрика движка', () => {
     expect(seen).toContain('frame');
   });
 
-  it('без флага отдаёт реальный движок, который честно говорит, что ещё не готов', async () => {
+  it('без флага отдаёт реальный движок, который идёт за камерой', async () => {
     const engine = await createEngine({ search: '' });
-    await expect(engine.start({} as HTMLVideoElement)).rejects.toBeInstanceOf(NotImplementedYetError);
+    // В Node камеры нет: реальный движок честно отвечает понятной ошибкой, а не молчит.
+    await expect(engine.start({} as HTMLVideoElement)).rejects.toBeInstanceOf(CameraError);
     engine.stop();
   });
 });
