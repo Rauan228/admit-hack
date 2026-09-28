@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Сквозная проверка движка на видео вместо камеры.
 //
-//   node scripts/e2e-video.mjs <video> <mode> [секунд] [--from 2.5] [--to 23]
+//   node scripts/e2e-video.mjs <video> <mode> [секунд] [--from 2.5] [--to 23] [--base https://…/]
 //
 // Видео превращается ffmpeg в «камеру» Chrome (--use-file-for-fake-video-capture), в начало
 // добавляется 15 с неподвижного первого кадра — пока грузится модель (бывает и 10 с). Дальше открывается
@@ -25,9 +25,13 @@ const flag = (name) => {
 };
 const from = flag('--from');
 const to = flag('--to');
+/** Проверить уже выложенный сайт (например, GitHub Pages) вместо локального сервера. */
+const base = flag('--base');
 const [video, mode = 'squat', secondsArg] = args;
 if (!video) {
-  console.error('usage: node scripts/e2e-video.mjs <video> <mode> [seconds] [--from s] [--to s]');
+  console.error(
+    'usage: node scripts/e2e-video.mjs <video> <mode> [seconds] [--from s] [--to s] [--base url]',
+  );
   process.exit(2);
 }
 
@@ -63,13 +67,16 @@ const duration = Number(
 );
 const seconds = Number(secondsArg ?? Math.ceil(duration));
 
-const server = await createServer({
-  root,
-  logLevel: 'error',
-  server: { port: 0, host: '127.0.0.1', hmr: false, watch: null },
-  optimizeDeps: { include: ['@mediapipe/tasks-vision'] },
-});
-await server.listen();
+const server = base
+  ? null
+  : await createServer({
+      root,
+      logLevel: 'error',
+      server: { port: 0, host: '127.0.0.1', hmr: false, watch: null },
+      optimizeDeps: { include: ['@mediapipe/tasks-vision'] },
+    });
+await server?.listen();
+const origin = base ?? server?.resolvedUrls?.local[0];
 const browser = await chromium.launch({
   channel: 'chrome',
   headless: true,
@@ -83,9 +90,7 @@ try {
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(
-    `${server.resolvedUrls.local[0]}dev/engine.html?mode=${mode}&target=100&autostart=1&prewarm=1`,
-  );
+  await page.goto(`${origin}dev/engine.html?mode=${mode}&target=100&autostart=1&prewarm=1`);
   // Камера в Chrome зациклена. Отсчёт — от первого кадра движка: к этому моменту ролик прошёл меньше
   // паузы в начале, а после конца ролика снова идёт неподвижная пауза, где ничего не считается.
   await page.waitForFunction(() => (window.__events ?? []).some((e) => e.type === 'frame'), null, {
@@ -126,6 +131,6 @@ try {
   if (errors.length) console.log(`ошибки страницы: ${errors.join(' | ')}`);
 } finally {
   await browser.close();
-  await server.close();
+  await server?.close();
   rmSync(tmp, { recursive: true, force: true });
 }
