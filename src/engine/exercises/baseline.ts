@@ -65,3 +65,39 @@ export class SlidingMin {
     this.inner.reset();
   }
 }
+
+/**
+ * Скользящая квантиль (например, медиана) за последние N мс. Устойчива к выбросам детектора:
+ * в тёмном силуэте максимум ловил случайные всплески, и эталон «стоя» завышался на 40 %.
+ */
+export class SlidingQuantile {
+  private samples: { t: number; v: number }[] = [];
+  private last: number | null = null;
+
+  constructor(
+    private readonly windowMs: number,
+    private readonly q: number,
+  ) {}
+
+  push(v: number, tMs: number): void {
+    if (!Number.isFinite(v)) return;
+    this.samples.push({ t: tMs, v });
+    this.expire(tMs);
+    const sorted = this.samples.map((s) => s.v).sort((a, b) => a - b);
+    this.last = sorted[Math.min(sorted.length - 1, Math.floor(this.q * (sorted.length - 1) + 0.5))] as number;
+  }
+
+  get value(): number | null {
+    return this.last;
+  }
+
+  expire(tMs: number): void {
+    while (this.samples.length > 1 && (this.samples[0] as { t: number }).t < tMs - this.windowMs)
+      this.samples.shift();
+  }
+
+  reset(): void {
+    this.samples = [];
+    this.last = null;
+  }
+}
