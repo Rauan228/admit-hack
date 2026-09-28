@@ -1,6 +1,7 @@
 // Прогон подхода: сглаживание → измеритель → счётчик → правила. Повторяет порядок движка:
 // сначала счётчик (фаза), потом покадровые правила в новой фазе, потом разовые проверки моментов.
 
+import { ENGINE_CONFIG } from '../../src/engine/config';
 import { RepCounter, type FsmEvent } from '../../src/engine/exercises/fsm';
 import type { BaseMetrics, ExerciseDef } from '../../src/engine/exercises/types';
 import { LandmarkSmoother, smoothPose } from '../../src/engine/filter';
@@ -31,35 +32,37 @@ export function runSession<M extends BaseMetrics>(
   const res: SessionResult<M> = { reps: [], attempts: [], shown: [], events: [] };
   let repFrames: M[] = [];
   let atBottom: M | null = null;
+  /** Кадры исходного положения за последние prerollMs — предыстория движения. */
+  let recent: { t: number; m: M }[] = [];
   const show = (ev: FormErrorEvent | null) => ev && res.shown.push(ev);
 
   for (const frame of frames) {
     if (!frame) continue;
     const m = meter.measure(frame, counter.phase);
     if (!m) continue;
+    const wasStart = counter.phase === 'start';
     const evs = counter.update(m.progress, frame.t);
     res.events.push(...evs);
-    if (evs.some((e) => e.kind === 'phase' && e.phase === 'down') && repFrames.length === 0) {
+    if (wasStart && counter.phase !== 'start') {
+      // Движение началось: новый повтор, предыстория — в его кадры.
       rules.beginRep();
+      repFrames = recent.map((r) => r.m);
+      atBottom = null;
+      recent = [];
     }
-    if (counter.phase !== 'start' || evs.length > 0) {
+    if (counter.phase === 'start' && !evs.some((e) => e.kind === 'rep' || e.kind === 'attempt')) {
+      recent.push({ t: frame.t, m });
+      recent = recent.filter((r) => r.t >= frame.t - ENGINE_CONFIG.rules.prerollMs);
+    }
+    if (!wasStart || counter.phase !== 'start') {
       repFrames.push(m);
       if (!atBottom || m.progress >= atBottom.progress) atBottom = m;
     }
     show(rules.onFrame(m, counter.phase, frame.t));
     for (const e of evs) {
       if (e.kind === 'phase' && e.phase === 'up' && atBottom) {
-        show(
-          rules.onRepMoment(
-            'bottom',
-            {
-              summary: { startT: 0, bottomT: 0, endT: frame.t, pMax: atBottom.progress, durationMs: 0 },
-              frames: repFrames,
-              atBottom,
-            },
-            frame.t,
-          ),
-        );
+        const summary = { startT: 0, bottomT: 0, endT: frame.t, pMax: atBottom.progress, durationMs: 0 };
+        show(rules.onRepMoment('bottom', { summary, frames: repFrames, atBottom }, frame.t));
       }
       if ((e.kind === 'rep' || e.kind === 'attempt') && atBottom) {
         const ctx: RepContext<M> = { summary: e.summary, frames: repFrames, atBottom };
@@ -67,12 +70,7 @@ export function runSession<M extends BaseMetrics>(
         if (e.kind === 'rep') res.reps.push({ errors: rules.repErrors, ctx });
         else res.attempts.push({ errors: rules.repErrors, ctx });
       }
-      if (
-        e.kind === 'rep' ||
-        e.kind === 'attempt' ||
-        e.kind === 'timeout' ||
-        (e.kind === 'phase' && e.phase === 'start')
-      ) {
+      if (e.kind === 'rep' || e.kind === 'attempt' || e.kind === 'timeout') {
         repFrames = [];
         atBottom = null;
       }

@@ -23,7 +23,7 @@ const def = (code: string, priority: number, phases: Phase[] = ['down', 'bottom'
 });
 
 const CATALOG = [def('a', 1), def('b', 2), def('c', 3, ['bottom']), def('shallow', 1, ['bottom'])];
-const CFG = { holdMs: 200, minFrames: 3, cooldownMs: 4000, minGapMs: 1500 };
+const CFG = { holdMs: 200, minFrames: 3, cooldownMs: 4000, minGapMs: 1500, prerollMs: 500 };
 
 const RULES: RuleDef<M>[] = [
   { code: 'a', kind: 'frame', check: (m) => (m.a ? {} : null) },
