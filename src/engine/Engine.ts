@@ -18,7 +18,8 @@ import { FpsCounter } from './fps';
 import type { PoseFrame } from './geometry';
 import { GestureTracker } from './gestures';
 import { CALIBRATION_DETAIL_HINTS, CALIBRATION_HINTS } from './hints';
-import { createPoseDetector, type PoseDetection, type PoseDetector } from './pose';
+import { AdaptivePerf } from './perf';
+import { createPoseDetector, type PoseDetection, type PoseDetector, type PoseDetectorOptions } from './pose';
 import { ExerciseSession } from './session';
 import type { Engine, EngineEvent, EngineMode } from './types';
 
@@ -26,7 +27,7 @@ import type { Engine, EngineEvent, EngineMode } from './types';
 export interface EngineDeps {
   openCamera(video: HTMLVideoElement): Promise<MediaStream>;
   stopCamera(stream: MediaStream | null): void;
-  createPoseDetector(): Promise<PoseDetector>;
+  createPoseDetector(options?: PoseDetectorOptions): Promise<PoseDetector>;
   requestFrame(cb: () => void): number;
   cancelFrame(id: number): void;
   now(): number;
@@ -39,7 +40,7 @@ function browserDeps(): EngineDeps {
   return {
     openCamera,
     stopCamera,
-    createPoseDetector: () => createPoseDetector(),
+    createPoseDetector: (options) => createPoseDetector(options),
     requestFrame: (cb) => requestAnimationFrame(cb),
     cancelFrame: (id) => cancelAnimationFrame(id),
     now: () => performance.now(),
@@ -58,6 +59,7 @@ class RealEngine implements Engine {
   private readonly calibration = new CalibrationTracker();
   /** «Есть ли человек» в меню и на подходе; начинаем с ok, чтобы не слать лишнее при входе в режим. */
   private readonly presence = new CalibrationTracker();
+  private perf = new AdaptivePerf();
   private mode: EngineMode = 'calibration';
   private session: ExerciseSession | null = null;
   private lastCalibrationAt = -Infinity;
@@ -101,6 +103,7 @@ class RealEngine implements Engine {
     this.lastVideoTime = -1;
     this.fps.reset();
     this.smoother.reset();
+    this.perf = new AdaptivePerf();
     this.enterMode(this.mode, this.deps.now());
     this.frameId = this.deps.requestFrame(this.loop);
   }
@@ -160,6 +163,8 @@ class RealEngine implements Engine {
     this.lastVideoTime = video.currentTime;
 
     const now = this.deps.now();
+    // Слабое устройство: не чаще throttleFps, чтобы главный поток оставался интерфейсу.
+    if (!this.perf.shouldProcess(now)) return;
     let detection: PoseDetection | null;
     try {
       detection = detector.detect(video, now);
@@ -168,6 +173,7 @@ class RealEngine implements Engine {
       console.warn('[engine] кадр пропущен', err);
       return;
     }
+    if (this.perf.record(now, this.deps.now() - now) === 'downgrade') this.downgradeModel(detector);
     const aspect =
       video.videoWidth > 0 && video.videoHeight > 0 ? video.videoWidth / video.videoHeight : 4 / 3;
     const frame = detection ? smoothPose(this.smoother, detection.image, detection.world, now, aspect) : null;
@@ -175,6 +181,25 @@ class RealEngine implements Engine {
     this.emit({ type: 'frame', landmarks: frame?.image ?? [], fps: this.fps.tick(now) });
     this.process(frame, video, now);
   };
+
+  /**
+   * Медленно даже в среднем — один раз переходим на лёгкую модель, не останавливая камеру:
+   * пока новая грузится, работает старая.
+   */
+  private downgradeModel(current: PoseDetector): void {
+    if (current.model === 'lite') return;
+    const gen = this.generation;
+    this.deps
+      .createPoseDetector({ model: 'lite', delegate: current.delegate })
+      .then((lite) => {
+        if (gen !== this.generation || this.detector !== current) return lite.close();
+        this.detector = lite;
+        current.close();
+        this.perf.resetMeasurements();
+        console.info('[engine] медленно — переключился на лёгкую модель');
+      })
+      .catch((err: unknown) => console.warn('[engine] не удалось переключиться на лёгкую модель', err));
+  }
 
   /** Логика режима на один кадр. */
   private process(frame: PoseFrame | null, video: HTMLVideoElement, t: number): void {
