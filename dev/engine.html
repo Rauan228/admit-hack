@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FORMA — стенд движка</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0b0d10;
+        color: #e8eaed;
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+      }
+      .stage {
+        position: relative;
+        width: min(100vw, 960px);
+        margin: 0 auto;
+      }
+      video,
+      canvas {
+        width: 100%;
+        display: block;
+        transform: scaleX(-1);
+      }
+      canvas {
+        position: absolute;
+        inset: 0;
+        height: 100%;
+      }
+      #hud {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        background: #0009;
+        padding: 8px 12px;
+        border-radius: 8px;
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+      }
+      button {
+        position: fixed;
+        top: 8px;
+        right: 8px;
+        padding: 10px 16px;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Dev-стенд движка (не прод, в сборку не попадает): npm run dev → /dev/engine.html -->
+    <div class="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+    </div>
+    <div id="hud">Нажми «Старт»</div>
+    <button id="start">Старт</button>
+    <script type="module" src="./engine.ts"></script>
+  </body>
+</html>
