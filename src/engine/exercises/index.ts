@@ -1,6 +1,7 @@
 // Реестр упражнений: id из контракта → описание (измеритель, пороги, правила).
 
 import type { ExerciseId } from '../types';
+import { createArmRaise } from './armRaise';
 import { createJumpingJack } from './jumpingJack';
 import { createLunge } from './lunge';
 import { createSquat } from './squat';
@@ -10,6 +11,7 @@ const FACTORIES: Partial<Record<ExerciseId, () => ExerciseDef<BaseMetrics>>> = {
   squat: createSquat as () => ExerciseDef<BaseMetrics>,
   jumping_jack: createJumpingJack as () => ExerciseDef<BaseMetrics>,
   lunge: createLunge as () => ExerciseDef<BaseMetrics>,
+  arm_raise: createArmRaise as () => ExerciseDef<BaseMetrics>,
 };
 
 /** Описание упражнения или null, если движок его пока не умеет. */

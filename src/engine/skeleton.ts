@@ -31,6 +31,10 @@ export interface SynthParams {
   shift: number;
   /** Подъём рук от вертикали вниз, градусы (0 — вдоль тела, 180 — над головой). */
   arms: number;
+  /** Отдельный угол для левой руки (иначе как у обеих). */
+  armsL?: number;
+  /** Сгиб в локте, градусы (0 — прямая рука): предплечье поворачивается к голове. */
+  elbow?: number;
   visibility: number;
 }
 
@@ -118,10 +122,14 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
         : { sh: 12, el: 14, wr: 16, pi: 18, ix: 20, th: 22 };
     const shX = cx + (side * shoulderW) / 2;
     put(s.sh, shX, shoulderY, shoulderZ);
-    const a = rad(p.arms);
-    const wrX = shX + side * Math.sin(a) * armL;
-    const wrY = shoulderY + Math.cos(a) * armL;
-    put(s.el, (shX + wrX) / 2, (shoulderY + wrY) / 2);
+    const a = rad(side > 0 && p.armsL !== undefined ? p.armsL : p.arms);
+    const bend = rad(p.elbow ?? 0);
+    const elX = shX + (side * Math.sin(a) * armL) / 2;
+    const elY = shoulderY + (Math.cos(a) * armL) / 2;
+    // Предплечье продолжает плечо, повёрнутое на сгиб локтя (к голове).
+    const wrX = elX + (side * Math.sin(a + bend) * armL) / 2;
+    const wrY = elY + (Math.cos(a + bend) * armL) / 2;
+    put(s.el, elX, elY);
     put(s.wr, wrX, wrY);
     for (const i of [s.pi, s.ix, s.th]) put(i, wrX, wrY + 0.02 * H);
   }
