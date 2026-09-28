@@ -39,3 +39,29 @@ export class SlidingMax {
     this.last = null;
   }
 }
+
+/** Скользящий минимум — та же очередь на отрицаниях (например, стойка «ноги вместе» в покое). */
+export class SlidingMin {
+  private readonly inner: SlidingMax;
+
+  constructor(windowMs: number) {
+    this.inner = new SlidingMax(windowMs);
+  }
+
+  push(v: number, tMs: number): void {
+    this.inner.push(-v, tMs);
+  }
+
+  get value(): number | null {
+    const v = this.inner.value;
+    return v === null ? null : -v;
+  }
+
+  expire(tMs: number): void {
+    this.inner.expire(tMs);
+  }
+
+  reset(): void {
+    this.inner.reset();
+  }
+}
