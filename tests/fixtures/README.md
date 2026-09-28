@@ -15,6 +15,7 @@
 | `squat-rear-barbell.json` | 2 приседа со штангой ниже параллели | со спины | 2 повтора | [Squat — exercise demonstration video](https://commons.wikimedia.org/wiki/File:Squat_-_exercise_demonstration_video.webm), Fitness Science | CC BY 3.0 |
 | `squat-side-goblet.json` | 6 глубоких приседов, между ними возня с гирей | сбоку | 6 повторов | [Squat and Frontal Raise](https://commons.wikimedia.org/wiki/File:Squat_and_Frontal_Raise.webm), Taco fleur | CC BY-SA 4.0 |
 | `squat-side-backlit.json` | 6 приседов, силуэт против неба | сбоку, контровой свет | 6 повторов | [Kettlebell Racked Squats (side view)](https://commons.wikimedia.org/wiki/File:Kettlebell_Racked_Squats_(side_view).webm), Taco fleur | CC BY-SA 4.0 |
+| `jumping-jack-front.json` | 6 «звёздочек», между ними бёрпи (не должны считаться) | анфас | 6 повторов, 0 ошибок | [Jumping jacks and burpees](https://commons.wikimedia.org/wiki/File:Jumping_jacks_and_burpees.webm), Taco fleur | CC BY-SA 4.0 |
 
 Файлы, полученные из материалов под CC BY-SA, распространяются на тех же условиях (CC BY-SA 4.0)
 с указанием авторов выше.

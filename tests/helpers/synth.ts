@@ -178,3 +178,56 @@ export function squatTrack(opts: {
   }
   return out;
 }
+
+/** Прыжки «звёздочка»: руки вверх и ноги в стороны по косинусу; ноги могут отставать на legLagMs. */
+export function jackFrames(opts: {
+  reps: number;
+  periodMs?: number;
+  fps?: number;
+  armTop?: number;
+  armTopL?: number;
+  stanceRest?: number;
+  stanceTop?: number;
+  legLagMs?: number;
+  leadMs?: number;
+  sigma?: number;
+  seed?: number;
+}): PoseFrame[] {
+  const {
+    reps,
+    periodMs = 900,
+    fps = 30,
+    armTop = 170,
+    armTopL,
+    stanceRest = 1.0,
+    stanceTop = 4.0,
+    legLagMs = 0,
+    leadMs = 1500,
+    sigma = 0.003,
+    seed = 11,
+  } = opts;
+  const noise = gaussian(sigma, seed);
+  const wave = (u: number) =>
+    u < 0 || u >= reps * periodMs ? 0 : 0.5 - 0.5 * Math.cos((2 * Math.PI * (u % periodMs)) / periodMs);
+  const out: PoseFrame[] = [];
+  const total = leadMs + reps * periodMs + legLagMs + 1200;
+  for (let t = 0; t <= total; t += 1000 / fps) {
+    const a = wave(t - leadMs);
+    const l = wave(t - leadMs - legLagMs);
+    const params = {
+      ...STAND,
+      arms: 10 + a * (armTop - 10),
+      stance: stanceRest + l * (stanceTop - stanceRest),
+      thigh: l * 10,
+      shin: l * 4,
+    };
+    const frame = synthFrame(params, t, noise);
+    if (armTopL !== undefined) {
+      // Левая рука поднимается ниже: пересчитываем только её (запястье, локоть).
+      const one = synthFrame({ ...params, arms: 10 + a * (armTopL - 10) }, t, noise);
+      for (const i of [13, 15, 17, 19, 21]) frame.image[i] = one.image[i]!;
+    }
+    out.push(frame);
+  }
+  return out;
+}
