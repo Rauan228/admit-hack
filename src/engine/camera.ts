@@ -2,6 +2,7 @@
 // UI показывает CameraError.message как есть и по code решает, какую инструкцию дать.
 
 import { ENGINE_CONFIG } from './config';
+import { isMobileDevice } from './perf';
 
 export type CameraErrorCode = 'insecure' | 'unsupported' | 'denied' | 'not_found' | 'busy' | 'unknown';
 
@@ -50,7 +51,9 @@ export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> 
   const mediaDevices = globalThis.navigator?.mediaDevices;
   if (!mediaDevices?.getUserMedia) throw new CameraError('unsupported');
 
-  const { facingMode, width, height, frameRate } = ENGINE_CONFIG.camera;
+  const { facingMode, frameRate } = ENGINE_CONFIG.camera;
+  // На телефоне — 480×360: модели хватает, а копировать кадр и считать — заметно быстрее.
+  const { width, height } = isMobileDevice() ? ENGINE_CONFIG.perf.mobileCamera : ENGINE_CONFIG.camera;
   let stream: MediaStream;
   try {
     stream = await mediaDevices.getUserMedia({

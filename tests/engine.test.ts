@@ -11,26 +11,38 @@ const POSE: Landmark[] = Array.from({ length: 33 }, (_, i) => ({ x: i / 33, y: 0
  * Фейковый браузер: кадры крутим вручную через flush(), время задаём сами.
  * detect получает текущее время — так сценарий «человека» можно описать функцией от времени.
  */
-function fakeWorld(detect: (tMs: number) => PoseDetection | null = () => ({ image: POSE, world: null })) {
+function fakeWorld(
+  detect: (tMs: number) => PoseDetection | null = () => ({ image: POSE, world: null }),
+  /** Сколько «думает» детектор, мс (для проверки адаптации под слабое устройство). */
+  detectMs = 0,
+) {
   let queued: (() => void) | null = null;
   let clock = 0;
   const video = { readyState: 4, currentTime: 0, videoWidth: 640, videoHeight: 480 } as HTMLVideoElement & {
     currentTime: number;
   };
   const stream = { stopped: false } as unknown as MediaStream & { stopped: boolean };
-  const detector = {
-    delegate: 'CPU',
-    model: 'lite',
-    detect: vi.fn((_v: unknown, t: number) => detect(t)),
+  const makeDetector = (model: string) => ({
+    delegate: 'GPU',
+    model,
+    detect: vi.fn((_v: unknown, t: number) => {
+      clock += model === 'lite' ? detectMs / 3 : detectMs;
+      return detect(t);
+    }),
     close: vi.fn(),
-  };
+  });
+  const detector = makeDetector('lite');
 
   const deps: EngineDeps = {
     openCamera: vi.fn(async () => stream),
     stopCamera: vi.fn((s) => {
       if (s) (s as typeof stream).stopped = true;
     }),
-    createPoseDetector: vi.fn(async () => detector as unknown as PoseDetector),
+    createPoseDetector: vi.fn(async (options?: { model?: string }) =>
+      options?.model
+        ? (makeDetector(options.model) as unknown as PoseDetector)
+        : (detector as unknown as PoseDetector),
+    ),
     requestFrame: (cb) => {
       queued = cb;
       return 1;
@@ -53,7 +65,7 @@ function fakeWorld(detect: (tMs: number) => PoseDetection | null = () => ({ imag
   const run = (ms: number) => {
     for (let t = 0; t < ms; t += 1000 / 30) flush();
   };
-  return { deps, video, stream, detector, flush, run };
+  return { deps, video, stream, detector, flush, run, makeDetector };
 }
 
 /** Сценарий из списка кадров с временами (берём последний кадр не позже t). */
@@ -339,6 +351,28 @@ describe('реальный движок: режимы и протокол соб
     w.run(500);
     error.mockRestore();
     expect(good).toBeGreaterThan(10);
+    engine.stop();
+  });
+
+  it('слабое устройство: детекция 60 мс на full — движок сам переходит на lite, камера не останавливается', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const w = fakeWorld(standing, 60);
+    const full = w.makeDetector('full');
+    w.deps.createPoseDetector = vi.fn(async (options?: { model?: string }) =>
+      options?.model
+        ? (w.makeDetector(options.model) as unknown as PoseDetector)
+        : (full as unknown as PoseDetector),
+    );
+    const { engine, events } = await started(w, 'menu');
+    w.run(4000);
+    await Promise.resolve();
+    await Promise.resolve();
+    w.run(1000);
+    info.mockRestore();
+    expect(w.deps.createPoseDetector).toHaveBeenCalledWith({ model: 'lite', delegate: 'GPU' });
+    expect(full.close).toHaveBeenCalled();
+    expect(w.stream.stopped).toBe(false);
+    expect(ofType(events, 'frame').length).toBeGreaterThan(50);
     engine.stop();
   });
 

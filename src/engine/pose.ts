@@ -8,6 +8,7 @@ import type {
   PoseLandmarker,
 } from '@mediapipe/tasks-vision';
 import { ENGINE_CONFIG, type PoseModel } from './config';
+import { isMobileDevice } from './perf';
 import { PersonSelector } from './person';
 import type { Vec3 } from './geometry';
 import type { Landmark } from './types';
@@ -83,8 +84,9 @@ export function preferredDelegate(renderer: string | null = webglRenderer()): Po
 
 export async function createPoseDetector(options: PoseDetectorOptions = {}): Promise<PoseDetector> {
   const cfg = ENGINE_CONFIG.pose;
+  // На телефоне и без GPU — lite; full — только на компьютере с видеокартой.
   const modelFor = (delegate: PoseDelegate): PoseModel =>
-    options.model ?? (delegate === 'GPU' ? cfg.model : cfg.cpuModel);
+    options.model ?? (delegate === 'GPU' && !isMobileDevice() ? cfg.model : cfg.cpuModel);
   // Динамический импорт: MediaPipe (~1 МБ) не попадает в бандл, пока UI работает на моке.
   const { FilesetResolver, PoseLandmarker } = await import('@mediapipe/tasks-vision');
   const fileset = await FilesetResolver.forVisionTasks(cfg.wasmBaseUrl);
