@@ -2,17 +2,30 @@
 // GPU берём только на аппаратном WebGL; если его нет или GPU падает при создании — CPU.
 // Модель и wasm грузятся с CDN.
 
-import type { NormalizedLandmark, PoseLandmarker } from '@mediapipe/tasks-vision';
+import type {
+  Landmark as MpWorldLandmark,
+  NormalizedLandmark,
+  PoseLandmarker,
+} from '@mediapipe/tasks-vision';
 import { ENGINE_CONFIG, type PoseModel } from './config';
+import type { Vec3 } from './geometry';
 import type { Landmark } from './types';
 
 export type PoseDelegate = 'GPU' | 'CPU';
 
+/** Результат детекции одного человека. */
+export interface PoseDetection {
+  /** 33 нормализованные точки (формат контракта). */
+  image: Landmark[];
+  /** 33 точки в метрах, начало координат между бёдер; null, если модель их не дала. */
+  world: Vec3[] | null;
+}
+
 export interface PoseDetector {
   readonly delegate: PoseDelegate;
   readonly model: PoseModel;
-  /** 33 точки первого человека в кадре или null, если никого нет. */
-  detect(video: HTMLVideoElement, timestampMs: number): Landmark[] | null;
+  /** Человек в кадре или null, если никого нет. */
+  detect(video: HTMLVideoElement, timestampMs: number): PoseDetection | null;
   close(): void;
 }
 
@@ -25,6 +38,12 @@ export interface PoseDetectorOptions {
 /** Приводит точки MediaPipe к формату контракта (visibility → v). */
 export function toLandmarks(points: readonly NormalizedLandmark[]): Landmark[] {
   return points.map((p) => ({ x: p.x, y: p.y, z: p.z, v: p.visibility ?? 0 }));
+}
+
+/** Мировые точки MediaPipe → Vec3 (метры). */
+export function toWorld(points: readonly MpWorldLandmark[] | undefined): Vec3[] | null {
+  if (!points || points.length === 0) return null;
+  return points.map((p) => ({ x: p.x, y: p.y, z: p.z }));
 }
 
 /**
@@ -96,7 +115,8 @@ export async function createPoseDetector(options: PoseDetectorOptions = {}): Pro
       lastTs = nextTimestamp(lastTs, timestampMs);
       const result = landmarker.detectForVideo(video, lastTs);
       const first = result.landmarks[0];
-      return first && first.length > 0 ? toLandmarks(first) : null;
+      if (!first || first.length === 0) return null;
+      return { image: toLandmarks(first), world: toWorld(result.worldLandmarks[0]) };
     },
     close() {
       landmarker.close();
