@@ -1,5 +1,7 @@
 # FORMA — AI-тренер через веб-камеру
 
+[![CI](https://github.com/Rauan228/admit-hack/actions/workflows/ci.yml/badge.svg)](https://github.com/Rauan228/admit-hack/actions/workflows/ci.yml) [![Pages](https://github.com/abdigaliarslan/admit-hack/actions/workflows/pages.yml/badge.svg)](https://abdigaliarslan.github.io/admit-hack/)
+
 Кейс ADMIT Hackathon «Motion: камера вместо джойстика».
 FORMA — фитнес-тренер в браузере, которым управляют только телом, включая меню.
 Он считает повторения, замечает ошибки техники и говорит, как их исправить.
@@ -25,6 +27,22 @@ npm run dev        # http://localhost:5173
 | `npm test`       | юнит-тесты (vitest)                         |
 | `npm run lint`   | ESLint                                      |
 | `npm run format` | Prettier                                    |
+
+## Тесты
+
+```bash
+npm test          # vitest: геометрия, фильтр, калибровка, жесты, счётчик, правила, оценка, движок
+```
+
+- **Записанные позы** (`tests/fixtures/`, 7 роликов с Wikimedia Commons, прогнаны через тот же MediaPipe):
+  `tests/fixtures.test.ts` проверяет число повторов и отсутствие ложных ошибок на каждой записи — на 30 и на 15 FPS.
+  Ожидания размечены вручную по раскадровке и лежат в `meta.expected` самой записи.
+- **Синтетика** (`tests/helpers/synth.ts`): человек анфас с честной кинематикой + шум модели — каждая ошибка
+  техники воспроизводится и проверяется со своей подсказкой, суставами и стрелкой.
+- **Сквозные** (`tests/engine.test.ts`): реальный движок с фейковой камерой проходит все режимы.
+- **На видео вместо камеры**: `node scripts/e2e-video.mjs <видео> squat` — настоящий Chrome + MediaPipe.
+
+CI (GitHub Actions): проверка типов, линтер, тесты, сборка — на каждый push и PR.
 
 ## Деплой (HTTPS)
 
