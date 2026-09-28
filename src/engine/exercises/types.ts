@@ -2,6 +2,7 @@
 // Упражнение = измеритель (кадр → метрики и прогресс) + пороги автомата + правила ошибок.
 
 import type { PoseFrame } from '../geometry';
+import type { RuleDef } from '../rules';
 import type { ExerciseId, Phase } from '../types';
 import type { FsmThresholds } from './fsm';
 
@@ -27,4 +28,6 @@ export interface ExerciseDef<M extends BaseMetrics = BaseMetrics> {
   armsOverhead: boolean;
   fsm: FsmThresholds;
   createMeter(): ExerciseMeter<M>;
+  /** Правила ошибок: код из каталога hints.ts + проверка. Текст, суставы, фазы, важность — из каталога. */
+  rules: readonly RuleDef<M>[];
 }
