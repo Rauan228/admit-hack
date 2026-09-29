@@ -45,7 +45,7 @@ const waitText = (text, timeout = 30000) => page.getByText(text).first().waitFor
 
 try {
   await page.goto('http://localhost:5199/?mock=1&nodwell');
-  await waitText('не нужны руки');
+  await waitText('нужны руки');
   await page.waitForTimeout(1200);
   await shot('01-landing');
 
