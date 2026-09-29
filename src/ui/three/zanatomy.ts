@@ -30,8 +30,7 @@ import {
   type BufferGeometry,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import type { ExerciseId } from '../../engine/types';
-import { MUSCLES, activation, athleteBounds, type Muscle } from '../lib/athlete';
+import { MUSCLES, activation, athleteBounds, type GhostId, type Muscle } from '../lib/athlete';
 import { sharedRenderer, blitTo } from './renderer';
 import J from './zanatomyJoints.json';
 
@@ -331,7 +330,7 @@ function muscleOf(part: string): { muscle: Muscle | 'pecs'; act: string } | null
     case 'abductors':
       return { muscle: g, act: g };
     case 'pecs':
-      return { muscle: 'pecs', act: 'traps' };
+      return { muscle: 'pecs', act: 'pecs' };
     default:
       return null;
   }
@@ -404,7 +403,7 @@ export class ZAthleteView {
   private readonly headMesh = new Mesh(new SphereGeometry(1, 28, 20), SKIN);
   private readonly neckMesh = new Mesh(new SphereGeometry(1, 20, 14), SKIN);
 
-  constructor(readonly exercise: ExerciseId) {
+  constructor(readonly exercise: GhostId) {
     this.scene.add(new HemisphereLight('#ffffff', '#0f172a', 0.7));
     const key = new DirectionalLight('#ffffff', 1.9);
     key.position.set(1.6, 3.2, 3.4);
@@ -465,7 +464,7 @@ export class ZAthleteView {
   }
 
   private fit(aspect: number): void {
-    const b = athleteBounds();
+    const b = athleteBounds(this.exercise);
     const cam = this.camera;
     cam.aspect = aspect;
     const vfov = (cam.fov * Math.PI) / 180;

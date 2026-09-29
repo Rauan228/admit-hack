@@ -2,16 +2,19 @@
 // Единственный клик — «Начать»: браузеру нужен жест, чтобы дать камеру и звук. Дальше всё управляется телом.
 
 import { useEffect, useState } from 'react';
-import { EXERCISES, type ExerciseId } from '../../engine/types';
+import { EXERCISES } from '../../engine/types';
 import { Ghost } from '../components/Ghost';
 import { Icon } from '../components/Icon';
-import { MUSCLE_NAMES } from '../lib/athlete';
+import { MUSCLE_NAMES, type GhostId } from '../lib/athlete';
 import { EXERCISE_META } from '../lib/exercises';
 import { order } from '../lib/motion';
 import './Landing.css';
 
 /** Сколько атлет показывает одно упражнение, прежде чем перейти к следующему. */
 const SHOW_MS = 7000;
+/** Что показывает атлет: упражнения платформы и бёрпи — эталон уже готов, распознавание на подходе. */
+const SHOWCASE: GhostId[] = [...EXERCISES, 'burpee'];
+const TITLE = (ex: GhostId) => (ex === 'burpee' ? 'Бёрпи' : EXERCISE_META[ex].title);
 
 const STEPS = [
   { n: '01', title: 'Встань', text: 'Камера находит 33 точки тела — ничего не нужно надевать.' },
@@ -22,7 +25,7 @@ const STEPS = [
 const MODES = ['Быстрая тренировка', 'Одно упражнение', 'Челлендж 60 с'];
 
 export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () => void }) {
-  const [shown, setShown] = useState<ExerciseId>(EXERCISES[0]!);
+  const [shown, setShown] = useState<GhostId>(SHOWCASE[0]!);
   const reduced =
     typeof window !== 'undefined' &&
     (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
@@ -30,7 +33,7 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
   useEffect(() => {
     if (reduced) return;
     const id = setInterval(() => {
-      setShown((ex) => EXERCISES[(EXERCISES.indexOf(ex) + 1) % EXERCISES.length]!);
+      setShown((ex) => SHOWCASE[(SHOWCASE.indexOf(ex) + 1) % SHOWCASE.length]!);
     }, SHOW_MS);
     return () => clearInterval(id);
   }, [reduced]);
@@ -71,11 +74,11 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
         <figure className="hero__stage rise" style={order(2)}>
           <Ghost key={shown} exercise={shown} className="hero__ghost" sway />
           <figcaption className="hero__caption">
-            <b>{EXERCISE_META[shown].title}</b>
+            <b>{TITLE(shown)}</b>
             <span>{MUSCLE_NAMES[shown].join(' · ')}</span>
           </figcaption>
           <div className="hero__dots" aria-hidden="true">
-            {EXERCISES.map((ex) => (
+            {SHOWCASE.map((ex) => (
               <span key={ex} className={ex === shown ? 'is-on' : ''} />
             ))}
           </div>

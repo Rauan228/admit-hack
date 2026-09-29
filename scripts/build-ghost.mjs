@@ -16,6 +16,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { specMotion } from './ghost-spec.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FRAMES = 60; // кадров на цикл
@@ -437,6 +438,9 @@ out.jumping_jack = pack(
 );
 out.lunge = pack(lunges(body, FRAMES * 2), 5600, 'кинематика: правая + левая нога = 1 повтор');
 out.arm_raise = pack(armRaise(body, FRAMES), 2600, 'кинематика: прямые руки через стороны');
+// Бёрпи — по спецификации движения (motion-specs/burpee.json, разбор ролика покадрово).
+const burpee = JSON.parse(readFileSync(resolve(root, 'motion-specs/burpee.json'), 'utf8'));
+out.burpee = pack(specMotion(burpee, body, 240), burpee.cycle_ms, 'motion-specs/burpee.json');
 
 const target = resolve(root, 'src/ui/lib/athleteMotion.json');
 writeFileSync(target, JSON.stringify(out));

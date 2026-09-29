@@ -29,8 +29,7 @@ import {
   type BufferGeometry,
   type Material,
 } from 'three';
-import type { ExerciseId } from '../../engine/types';
-import { MUSCLES, activation, athleteBounds, type Muscle } from '../lib/athlete';
+import { MUSCLES, activation, athleteBounds, type GhostId, type Muscle } from '../lib/athlete';
 import { blitTo, sharedRenderer } from './renderer';
 
 type V3 = { x: number; y: number; z: number };
@@ -194,7 +193,7 @@ export class AthleteView {
   private head: Mesh;
   private neck: Mesh;
 
-  constructor(readonly exercise: ExerciseId) {
+  constructor(readonly exercise: GhostId) {
     const A = sharedAssets();
     const muscles = new Set(MUSCLES[exercise]);
     this.scene.add(this.body);
@@ -314,7 +313,7 @@ export class AthleteView {
   }
 
   private fit(aspect: number): void {
-    const b = athleteBounds();
+    const b = athleteBounds(this.exercise);
     const cam = this.camera;
     cam.aspect = aspect;
     const vfov = (cam.fov * Math.PI) / 180;

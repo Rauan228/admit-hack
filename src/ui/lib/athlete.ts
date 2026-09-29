@@ -4,6 +4,9 @@
 // конечности — сужающиеся капсулы, под ногами — тень.
 
 import type { ExerciseId } from '../../engine/types';
+
+/** Что умеет показывать атлет: упражнения движка + эталоны, для которых распознавание ещё впереди (бёрпи). */
+export type GhostId = ExerciseId | 'burpee';
 import motionData from './athleteMotion.json';
 import { capsulePath, mixHex, type Pt } from './shapes';
 
@@ -15,11 +18,11 @@ interface Motion {
   frames: number[][];
 }
 
-const MOTION = motionData as unknown as Record<ExerciseId, Motion>;
+const MOTION = motionData as unknown as Record<GhostId, Motion>;
 
 /** Кадры упражнения как массивы 33 точек (незаписанные — null). */
-const cache = new Map<ExerciseId, (V3 | null)[][]>();
-function framesOf(exercise: ExerciseId): (V3 | null)[][] {
+const cache = new Map<GhostId, (V3 | null)[][]>();
+function framesOf(exercise: GhostId): (V3 | null)[][] {
   const hit = cache.get(exercise);
   if (hit) return hit;
   const m = MOTION[exercise];
@@ -35,19 +38,21 @@ function framesOf(exercise: ExerciseId): (V3 | null)[][] {
 }
 
 /** Ракурс по умолчанию: присед и выпад читаются на три четверти (таз назад, шаг, колено у пола), остальное — анфас. */
-export const PREFERRED_YAW: Record<ExerciseId, number> = {
+export const PREFERRED_YAW: Record<GhostId, number> = {
   squat: 0.35,
   jumping_jack: 0.18,
   lunge: 0.75,
   arm_raise: 0.15,
+  // Бёрпи — сбоку: иначе планку и прыжок назад не видно.
+  burpee: 1.15,
 };
 
-export function durationOf(exercise: ExerciseId): number {
+export function durationOf(exercise: GhostId): number {
   return MOTION[exercise].durationMs;
 }
 
 /** Поза в момент tMs (петля), линейная интерполяция между кадрами. */
-export function athletePose(exercise: ExerciseId, tMs: number): (V3 | null)[] {
+export function athletePose(exercise: GhostId, tMs: number): (V3 | null)[] {
   const frames = framesOf(exercise);
   const dur = MOTION[exercise].durationMs;
   const u = ((((tMs % dur) + dur) % dur) / dur) * frames.length;
@@ -66,27 +71,33 @@ export function athletePose(exercise: ExerciseId, tMs: number): (V3 | null)[] {
  * Габариты (метры) по всем кадрам всех упражнений в проекции на экран при типичных поворотах:
  * атлеты везде одного роста, фигура не «прыгает» и не обрезается.
  */
-let bounds: { w: number; h: number } | null = null;
-export function athleteBounds(): { w: number; h: number } {
-  return boundsOf();
-}
+const boundsCache = new Map<string, { w: number; h: number }>();
+/** Эталоны со своим масштабом: бёрпи с планкой в полтора метра уменьшил бы всех остальных атлетов. */
+const OWN_BOUNDS = new Set<GhostId>(['burpee']);
 
-function boundsOf(): { w: number; h: number } {
-  if (bounds) return bounds;
+export function athleteBounds(exercise?: GhostId): { w: number; h: number } {
+  const own = exercise && OWN_BOUNDS.has(exercise);
+  const key = own ? exercise : '*';
+  const hit = boundsCache.get(key);
+  if (hit) return hit;
+  const list = own ? [exercise] : (Object.keys(MOTION) as GhostId[]).filter((ex) => !OWN_BOUNDS.has(ex));
+  const yaws = own
+    ? [PREFERRED_YAW[exercise] - 0.3, PREFERRED_YAW[exercise], PREFERRED_YAW[exercise] + 0.3]
+    : [0, 0.35, 0.7];
   let w = 0;
   let h = 0;
-  for (const exercise of Object.keys(MOTION) as ExerciseId[]) {
-    for (const f of framesOf(exercise)) {
+  for (const ex of list) {
+    for (const f of framesOf(ex)) {
       for (const p of f) {
         if (!p) continue;
-        for (const yaw of [0, 0.35, 0.7])
-          w = Math.max(w, Math.abs(p.x * Math.cos(yaw) - p.z * Math.sin(yaw)) * 2);
+        for (const yaw of yaws) w = Math.max(w, Math.abs(p.x * Math.cos(yaw) - p.z * Math.sin(yaw)) * 2);
         h = Math.max(h, -p.y);
       }
     }
   }
-  bounds = { w: Math.max(w, 0.9), h: h + 0.14 };
-  return bounds;
+  const b = { w: Math.max(w, 0.9), h: h + 0.14 };
+  boundsCache.set(key, b);
+  return b;
 }
 
 export interface AthleteStyle {
@@ -107,20 +118,22 @@ export interface AthleteStyle {
  * «звёздочка» — дельты, отводящие мышцы бедра, икры; подъём рук — средние и передние дельты, трапеции.
  */
 export type Muscle =
-  'quads' | 'hamstrings' | 'adductors' | 'glutes' | 'calves' | 'delts' | 'traps' | 'abductors';
-export const MUSCLES: Record<ExerciseId, Muscle[]> = {
+  'quads' | 'hamstrings' | 'adductors' | 'glutes' | 'calves' | 'delts' | 'traps' | 'abductors' | 'pecs';
+export const MUSCLES: Record<GhostId, Muscle[]> = {
   squat: ['quads', 'glutes', 'adductors'],
   lunge: ['quads', 'glutes', 'hamstrings', 'calves'],
   jumping_jack: ['delts', 'abductors', 'calves'],
   arm_raise: ['delts', 'traps'],
+  burpee: ['quads', 'glutes', 'pecs', 'delts'],
 };
 
 /** Названия для подписей в интерфейсе. */
-export const MUSCLE_NAMES: Record<ExerciseId, string[]> = {
+export const MUSCLE_NAMES: Record<GhostId, string[]> = {
   squat: ['квадрицепсы', 'ягодичные', 'приводящие'],
   lunge: ['квадрицепсы', 'ягодичные', 'бицепс бедра', 'икры'],
   jumping_jack: ['дельты', 'отводящие бедра', 'икры'],
   arm_raise: ['дельты', 'трапеции'],
+  burpee: ['квадрицепсы', 'ягодичные', 'грудные', 'дельты'],
 };
 
 /** Радиусы частей тела в метрах: [сустав A, сустав B, r у A, r у B]. */
@@ -156,14 +169,14 @@ export function drawAthlete(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
-  exercise: ExerciseId,
+  exercise: GhostId,
   pose: (V3 | null)[],
   s: AthleteStyle = {},
 ): void {
   const yaw = s.yaw ?? 0.35;
   const glow = s.glow !== false;
   const muscles = s.muscles !== false ? new Set(MUSCLES[exercise]) : new Set<Muscle>();
-  const b = boundsOf();
+  const b = athleteBounds(exercise);
   const scale = Math.min((W * 0.86) / b.w, (H * 0.9) / b.h);
   const floorY = H * 0.95;
   const cx = W / 2;
@@ -286,7 +299,7 @@ export function drawAthlete(
 }
 
 /** Нагрузка мышц 0..1 из самой позы: сгиб колена, подъём рук, ширина стойки. */
-export function activation(exercise: ExerciseId, pose: (V3 | null)[]) {
+export function activation(exercise: GhostId, pose: (V3 | null)[]) {
   const bend = (h: number, k: number, a: number) => {
     const H = pose[h];
     const K = pose[k];
@@ -316,6 +329,18 @@ export function activation(exercise: ExerciseId, pose: (V3 | null)[]) {
   const deltsL = lift(11, 13);
   const deltsR = lift(12, 14);
   const knees = Math.max(kneeL, kneeR);
+  // Упор на руки (планка, упор присев): корпус к горизонтали и кисти ниже плеч — работают грудь и плечи.
+  const sh = pose[11];
+  const hp = pose[23];
+  const wr = pose[15];
+  const flat =
+    sh && hp
+      ? Math.max(
+          0,
+          Math.min(1, 1.6 * (1 - Math.abs(sh.y - hp.y) / (Math.hypot(sh.y - hp.y, sh.z - hp.z) || 1))),
+        )
+      : 0;
+  const support = wr && sh && wr.y > sh.y + 0.3 ? flat : 0;
   return {
     quadsL: kneeL,
     quadsR: kneeR,
@@ -326,6 +351,10 @@ export function activation(exercise: ExerciseId, pose: (V3 | null)[]) {
     deltsR,
     traps: Math.max(deltsL, deltsR),
     abductors: spread,
+    pecs: support,
+    ...(exercise === 'burpee'
+      ? { deltsL: Math.max(deltsL, support), deltsR: Math.max(deltsR, support) }
+      : {}),
   };
 }
 

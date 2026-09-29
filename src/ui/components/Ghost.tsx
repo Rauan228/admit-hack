@@ -5,11 +5,10 @@
 
 import { useEffect, useRef } from 'react';
 import { isMobileDevice } from '../../engine/perf';
-import type { ExerciseId } from '../../engine/types';
-import { PREFERRED_YAW, athletePose, drawAthlete } from '../lib/athlete';
+import { PREFERRED_YAW, athletePose, drawAthlete, type GhostId } from '../lib/athlete';
 
 export interface GhostProps {
-  exercise: ExerciseId;
+  exercise: GhostId;
   className?: string;
   /** Поворот вокруг вертикали, рад. */
   yaw?: number;
