@@ -1,13 +1,15 @@
 // U-03: сцена — зеркальное видео камеры и объёмная фигура поверх, на всех экранах одна и та же.
-// Рисуем сами на canvas (а не <video> + CSS), чтобы видео и фигура прошли одно преобразование cover.
+// Рисуем сами на canvas (а не <video> + CSS), чтобы видео и скелет прошли одно преобразование cover.
+// Скелет — тонкий трекинг (lib/trace.ts) со сглаживанием One Euro.
 // На чистом повторе — вспышка фигуры, ударная волна и частицы из центра тела.
 
 import { useEffect, useRef } from 'react';
 import { isMobileDevice } from '../../engine/perf';
 import { live } from '../engine/bus';
 import { ERROR_TTL_MS, overlay } from '../engine/overlay';
-import { bodyCenter, drawBody } from '../lib/body';
+import { bodyCenter } from '../lib/body';
 import { coverView, drawHintArrows } from '../lib/skeleton';
+import { LandmarkSmoother, drawTrace } from '../lib/trace';
 import { COLORS } from '../theme';
 import './Stage.css';
 
@@ -42,6 +44,7 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
     let lastFlash = 0;
     let wave: { x: number; y: number; at: number; color: string } | null = null;
     const particles: Particle[] = [];
+    const smoother = new LandmarkSmoother();
 
     const burst = (x: number, y: number, clean: boolean) => {
       if (reduced) return;
@@ -118,18 +121,10 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
       }
 
       if (fresh && lms) {
-        const k = flashing ? 1 - flashAge / FLASH_MS : 0;
-        drawBody(ctx, view, lms, {
-          fill: flashing
-            ? overlay.flashClean
-              ? `rgba(34, 197, 94, ${0.28 + 0.3 * k})`
-              : `rgba(250, 204, 21, ${0.25 + 0.25 * k})`
-            : 'rgba(249, 115, 22, 0.26)',
-          line: flashing ? flashColor : COLORS.primary2,
-          glow: MOBILE ? null : flashing ? flashColor : 'rgba(249, 115, 22, 0.85)',
-          alpha: overlay.skeleton,
-          dots: true,
-          core: true,
+        drawTrace(ctx, view, smoother.smooth(lms, now), {
+          color: flashing ? flashColor : COLORS.primary2,
+          glow: MOBILE ? null : flashing ? flashColor : 'rgba(249, 115, 22, 0.7)',
+          alpha: overlay.skeleton * (flashing ? 1 : 0.92),
           errorJoints: errorActive ? overlay.errorJoints : undefined,
           errorColor,
           pulse: 0.5 + 0.5 * Math.sin(now / 130),
