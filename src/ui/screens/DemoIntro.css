@@ -1,118 +1,119 @@
-.demo-intro {
+/* Демо без камеры: слева текст и шаги, справа сплошная карточка с атлетом на тёплом свете (как герой меню). */
+.demo-intro__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  gap: var(--s-7);
-  align-items: safe center;
-  max-width: 1280px;
-  margin: 0 auto;
-  padding-top: 76px;
-  overflow-y: auto;
-  background: radial-gradient(70% 60% at 75% 45%, rgba(249, 115, 22, 0.1), transparent 70%);
-}
-
-.demo-intro__back {
-  position: absolute;
-  top: max(var(--s-5), env(safe-area-inset-top));
-  left: max(var(--s-5), env(safe-area-inset-left));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: clamp(24px, 4vw, 64px);
+  align-items: center;
+  min-height: calc(100svh - 76px - 48px);
 }
 
 .demo-intro__text {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--s-4);
 }
 
+.demo-intro__badge {
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .demo-intro__title {
-  font-family: var(--font-display);
-  font-size: clamp(40px, 4.6vw, 72px);
-  line-height: 0.95;
-  text-transform: uppercase;
-  text-wrap: balance;
-  margin: 0;
+  font-size: clamp(30px, 3.2vw, 46px);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  max-width: 18ch;
 }
 
 .demo-intro__lead {
+  max-width: 48ch;
   font-size: var(--text-md);
-  line-height: 1.5;
-  max-width: 54ch;
-  margin: 0;
+  line-height: 1.55;
 }
 
+/* Шаги — чистый нумерованный список без линеек. */
 .demo-intro__steps {
   list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--s-2);
-}
-
-.demo-intro__steps {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.demo-intro__steps li:last-child {
-  grid-column: 1 / -1;
+  width: 100%;
+  margin: var(--s-2) 0 0;
+  padding: var(--s-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
 }
 
 .demo-intro__steps li {
   display: flex;
   align-items: center;
   gap: var(--s-4);
-  padding: 10px var(--s-4);
-  border: 1px solid var(--line);
+  padding: 10px var(--s-3);
   border-radius: var(--r-md);
-  background: var(--glass);
 }
 
 .demo-intro__steps b {
   display: block;
-  font-size: var(--text-sm);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .demo-intro__steps small {
-  font-size: var(--text-xs);
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .demo-intro__num {
   flex: none;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 22px;
+  background: var(--surface-3);
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .demo-intro__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-4);
+  gap: var(--s-3);
+  margin-top: var(--s-2);
 }
 
 .demo-intro__note {
-  font-size: var(--text-sm);
-  margin: 0;
-  max-width: 60ch;
+  max-width: 56ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--faint);
 }
 
+/* Атлет на тёплом радиальном свете и две «живые» плашки анализа — мягкие заливки без рамок. */
 .demo-intro__visual {
   position: relative;
-  height: min(76vh, 700px);
+  height: min(70svh, 620px);
   border-radius: var(--r-xl);
-  border: 1px solid var(--line);
-  background: radial-gradient(60% 50% at 50% 55%, rgba(249, 115, 22, 0.14), transparent 70%), var(--bg-deep);
+  background: radial-gradient(55% 55% at 50% 58%, rgba(249, 115, 22, 0.22), transparent 70%), var(--surface);
   overflow: hidden;
 }
 
 .demo-intro__ghost {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: 6% 10% 4%;
+  width: 80%;
+  height: 90%;
 }
 
 .demo-intro__tag {
@@ -120,69 +121,110 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 8px 14px;
+  max-width: calc(100% - 32px);
+  min-height: 40px;
+  padding: 8px 14px 8px 10px;
   border-radius: var(--r-full);
-  font-weight: 700;
-  font-size: var(--text-sm);
-  backdrop-filter: blur(10px);
-  animation: demo-tag 5s var(--ease) infinite;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .demo-intro__tag--a {
-  top: 14%;
-  left: 6%;
-  background: var(--good-soft);
-  color: var(--good);
-  border: 1px solid rgba(34, 197, 94, 0.4);
+  top: 20px;
+  right: 20px;
+  background: rgba(10, 42, 23, 0.92);
+  color: #86efac;
 }
 
 .demo-intro__tag--b {
-  bottom: 12%;
-  right: 6%;
-  background: var(--warn-soft);
-  color: var(--warn);
-  border: 1px solid rgba(250, 204, 21, 0.4);
-  animation-delay: 2.5s;
-}
-
-@keyframes demo-tag {
-  0%,
-  100% {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  10%,
-  45% {
-    opacity: 1;
-    transform: none;
-  }
-  55% {
-    opacity: 0;
-  }
+  bottom: 20px;
+  left: 20px;
+  background: rgba(56, 17, 19, 0.92);
+  color: #fca5a5;
 }
 
 @media (max-width: 900px) {
-  .demo-intro__steps {
+  .demo-intro__grid {
     grid-template-columns: 1fr;
-  }
-  .demo-intro {
-    grid-template-columns: 1fr;
+    min-height: 0;
     gap: var(--s-5);
-    padding-top: 72px;
-    align-content: start;
   }
+
+  .demo-intro__text {
+    display: contents;
+  }
+
+  .demo-intro__text > .back-link {
+    order: 1;
+    margin-bottom: calc(var(--s-5) * -1 + var(--s-2));
+  }
+
+  .demo-intro__text > .demo-intro__badge {
+    order: 2;
+    justify-self: start;
+    margin-bottom: calc(var(--s-5) * -1 + var(--s-3));
+  }
+
+  .demo-intro__title {
+    order: 3;
+  }
+
+  .demo-intro__lead {
+    order: 4;
+    margin-top: calc(var(--s-5) * -1 + var(--s-3));
+  }
+
+  .demo-intro__actions {
+    order: 5;
+  }
+
   .demo-intro__visual {
-    order: -1;
-    height: 38vh;
+    order: 6;
+    height: 38svh;
+    min-height: 280px;
   }
-  .demo-intro__actions .btn {
-    flex: 1 1 100%;
-    justify-content: center;
+
+  .demo-intro__steps {
+    order: 7;
+    margin: 0;
+  }
+
+  .demo-intro__note {
+    order: 8;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+@media (max-width: 620px) {
+  .demo-intro__title {
+    font-size: 30px;
+  }
+
+  .demo-intro__visual {
+    border-radius: var(--r-lg);
+  }
+
   .demo-intro__tag {
-    animation: none;
+    font-size: 13px;
+    min-height: 36px;
+  }
+
+  .demo-intro__tag--a {
+    top: 14px;
+    right: 14px;
+  }
+
+  .demo-intro__tag--b {
+    bottom: 14px;
+    left: 14px;
+  }
+
+  .demo-intro__steps li {
+    gap: var(--s-3);
+  }
+
+  .demo-intro__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
   }
 }

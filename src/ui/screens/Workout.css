@@ -1,5 +1,12 @@
+/* Экран подхода поверх живого видео: тёмные скруглённые панели по краям, центр кадра свободен для тела.
+   «Тёмный премиум» (Whoop / Oura): без рамок и тех-декора, крупные дружелюбные цифры — читаются с 2–3 м. */
 .workout {
-  padding-top: 96px;
+  --wk-top: 76px;
+  --wk-edge: max(var(--s-5), env(safe-area-inset-left));
+  --wk-side: 224px;
+  --wk-bg: rgba(9, 9, 11, 0.78);
+  --wk-inner: rgba(255, 255, 255, 0.07);
+  padding: 0;
   pointer-events: none;
 }
 
@@ -7,239 +14,497 @@
   pointer-events: auto;
 }
 
-.workout__info {
-  position: absolute;
-  left: max(var(--s-5), env(safe-area-inset-left));
-  bottom: max(var(--s-5), env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-3);
-  max-width: 340px;
+.wk-panel {
+  background: var(--wk-bg);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.workout__title {
-  font-size: var(--text-xl);
-}
-
-.workout__timer {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.workout__timer.is-urgent {
-  color: var(--bad);
-  animation: pulse 0.8s var(--ease) infinite alternate;
-}
-
-@keyframes pulse {
-  to {
-    opacity: 0.55;
-  }
-}
-
-.phasebar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  width: 100%;
-}
-
-.phasebar__track {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-
-.phasebar__track span {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--surface-3);
-  transition:
-    background var(--t-fast) var(--ease),
-    box-shadow var(--t-fast) var(--ease);
-}
-
-.phasebar__track span.is-on {
-  background: var(--primary);
-  box-shadow: 0 0 12px rgba(249, 115, 22, 0.6);
-}
-
-.phasebar__label {
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.wk-label {
+  font: 500 14px / 1.3 var(--font-body);
   color: var(--muted);
 }
 
-/* Счётчик — главный объект экрана: читается с 3 метров. */
-.workout__counter {
+/* ——— Счётчик: слева сверху ——— */
+.wk-count {
   position: absolute;
+  top: var(--wk-top);
+  left: var(--wk-edge);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 260px;
+  max-width: 360px;
+  padding: var(--s-5) var(--s-6) var(--s-5) var(--s-5);
+}
+
+.wk-count__title {
+  font-size: clamp(20px, 1.8vw, 26px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.wk-count__value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+  line-height: 0.9;
+}
+
+.wk-count__num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(96px, 10vw, 164px);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  animation: wk-bump var(--t-slow) var(--ease-out);
+}
+
+@keyframes wk-bump {
+  from {
+    transform: translateY(-6px) scale(1.04);
+    color: var(--primary);
+  }
+}
+
+.wk-count__of {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(24px, 2.4vw, 36px);
+  letter-spacing: -0.02em;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+/* Выпады: какая нога уже сделана в паре. */
+.wk-count__half {
+  align-self: flex-start;
+  margin-top: var(--s-4);
+  padding: 8px 14px;
+  border-radius: var(--r-full);
+  background: var(--wk-inner);
+  font: 600 15px / 1.2 var(--font-body);
+  color: var(--fg);
+  animation: rise var(--t-med) var(--ease-out) both;
+}
+
+/* ——— Справа: оценка, фаза, серия ——— */
+.wk-side {
+  position: absolute;
+  top: var(--wk-top);
   right: max(var(--s-5), env(safe-area-inset-right));
-  top: 50%;
-  transform: translateY(-50%);
-  width: clamp(200px, 26vw, 360px);
-  aspect-ratio: 1;
+  width: var(--wk-side);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.wk-score {
+  position: relative;
   display: grid;
   place-items: center;
+  aspect-ratio: 1;
+  padding: var(--s-3);
 }
 
-.workout__ring {
+.wk-score.is-flash {
+  animation: wk-flash 700ms var(--ease-out);
+}
+
+@keyframes wk-flash {
+  0% {
+    transform: scale(1.04);
+  }
+}
+
+.wk-score__ring {
   position: absolute;
-  inset: 0;
+  inset: 18px;
+  width: calc(100% - 36px);
+  height: calc(100% - 36px);
   transform: rotate(-90deg);
-  filter: drop-shadow(0 0 24px rgba(249, 115, 22, 0.35));
 }
 
-.workout__ring-track {
-  fill: rgba(11, 17, 32, 0.72);
-  stroke: var(--surface-3);
+/* Кольцо в духе Whoop: толстая скруглённая дуга на мягкой дорожке, цвет — по оценке. */
+.wk-score__track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
   stroke-width: 9;
 }
 
-.workout__ring-fill {
+.wk-score__fill {
   fill: none;
-  stroke: var(--primary);
+  stroke: var(--surface-3);
   stroke-width: 9;
   stroke-linecap: round;
   stroke-dasharray: 1;
-  transition: stroke-dashoffset var(--t-med) var(--ease);
+  transition:
+    stroke-dashoffset var(--t-slow) var(--ease-out),
+    stroke var(--t-med) var(--ease);
 }
 
-.workout__count {
+.wk-score__body {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  line-height: 0.85;
+  gap: 6px;
+  text-align: center;
 }
 
-.workout__num {
+.wk-score__num {
   font-family: var(--font-display);
-  font-weight: 900;
-  font-size: clamp(96px, 12vw, 190px);
+  font-weight: 700;
+  font-size: clamp(40px, 3.4vw, 52px);
+  line-height: 1;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
-  animation: bump var(--t-slow) var(--ease-out);
 }
 
-@keyframes bump {
+.wk-score__label {
+  font: 500 13px / 1.25 var(--font-body);
+  color: var(--muted);
+  max-width: 10ch;
+}
+
+.wk-phase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4) var(--s-5) var(--s-5);
+}
+
+.wk-phase__value {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 2.1vw, 32px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+/* Фаза — простая сегментная полоска. */
+.wk-phase__track {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: var(--s-1);
+}
+
+.wk-phase__track span {
+  height: 8px;
+  border-radius: var(--r-full);
+  background: rgba(255, 255, 255, 0.1);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.wk-phase__track span.is-on {
+  background: var(--primary);
+}
+
+/* Мини-график: оценки последних повторов, скруглённые столбики. */
+.wk-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 56px;
+  margin-top: var(--s-3);
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.wk-bars i {
+  flex: 1;
+  max-width: 12px;
+  border-radius: 4px;
+  animation: wk-bar var(--t-slow) var(--ease-out) both;
+  transform-origin: bottom;
+}
+
+@keyframes wk-bar {
   from {
-    transform: scale(1.35);
-    color: var(--good);
+    transform: scaleY(0);
   }
 }
 
-.workout__target {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-lg);
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.workout__score {
-  position: absolute;
-  bottom: -14px;
-  padding: var(--s-1) var(--s-4);
+/* Серия чистых повторов — мягкая зелёная пилюля. */
+.streak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: 48px;
+  padding: 0 var(--s-4);
   border-radius: var(--r-full);
-  background: var(--surface-2);
-  border: 1px solid var(--line-strong);
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: var(--text-lg);
-  animation: screen-in var(--t-med) var(--ease-out);
+  background: rgba(10, 40, 22, 0.9);
+  color: #86efac;
+  font: 600 16px / 1 var(--font-body);
+  animation: streak-pop 420ms var(--ease-out) both;
 }
 
-.workout__score small {
-  font-size: 0.6em;
-  color: var(--muted);
+.streak b {
+  font-size: 1.2em;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Подсказка техники: сверху по центру, крупно, с цветом тяжести. */
+@keyframes streak-pop {
+  from {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+/* ——— Подсказка техники: мягкий баннер сверху по центру, без рамок ——— */
 .hint {
   position: absolute;
   left: 50%;
-  top: 96px;
+  top: var(--wk-top);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: var(--s-4);
-  width: min(900px, calc(100% - 2 * var(--s-5)));
-  padding: var(--s-5) var(--s-6);
+  width: max-content;
+  max-width: min(620px, calc(100% - 2 * (var(--wk-side) + 48px)));
+  padding: var(--s-4) var(--s-6) var(--s-4) var(--s-4);
   border-radius: var(--r-xl);
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: 800;
-  line-height: 1.05;
-  text-transform: uppercase;
-  box-shadow: var(--shadow);
+  background: var(--bg-c);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   animation: hint-in var(--t-med) var(--ease-out);
 }
 
 .hint--bad {
-  background: var(--bad);
-  color: #fff;
+  --bg-c: rgba(56, 17, 19, 0.92);
+  --soft: rgba(239, 68, 68, 0.2);
+  --ic: #fca5a5;
 }
 
 .hint--warn {
-  background: var(--warn);
-  color: var(--on-warn);
+  --bg-c: rgba(46, 38, 10, 0.92);
+  --soft: rgba(250, 204, 21, 0.18);
+  --ic: #fde68a;
 }
 
 .hint--good {
-  background: var(--good);
-  color: var(--on-good);
+  --bg-c: rgba(10, 42, 23, 0.92);
+  --soft: rgba(34, 197, 94, 0.2);
+  --ic: #86efac;
+}
+
+.hint__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--ic);
+}
+
+.hint__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hint__label {
+  font: 600 14px / 1.3 var(--font-body);
+  color: var(--ic);
+}
+
+.hint__text {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2vw, 28px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--fg);
 }
 
 @keyframes hint-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -24px) scale(0.96);
+    transform: translate(-50%, -16px);
   }
 }
 
-.workout__exit {
+/* Серьёзная ошибка — баннер слегка вздрагивает, чтобы его заметили боковым зрением. */
+.hint--bad {
+  animation:
+    hint-in var(--t-med) var(--ease-out),
+    shake 380ms var(--ease) 180ms;
+}
+
+@keyframes shake {
+  25%,
+  75% {
+    transform: translateX(calc(-50% - 5px));
+  }
+  50% {
+    transform: translateX(calc(-50% + 5px));
+  }
+}
+
+/* ——— Низ: таймер и прогресс подхода ——— */
+.wk-bottom {
   position: absolute;
+  left: var(--wk-edge);
   right: max(var(--s-5), env(safe-area-inset-right));
   bottom: max(var(--s-5), env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-3) var(--s-4);
+}
+
+.wk-timer {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  padding: var(--s-2) var(--s-4);
+  flex: none;
+  min-height: 52px;
+  padding: 0 var(--s-5) 0 var(--s-4);
   border-radius: var(--r-full);
-  background: var(--glass);
+  background: var(--wk-inner);
+  color: var(--muted);
+}
+
+.wk-timer span {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.wk-timer.is-urgent {
+  background: var(--bad-soft);
+  animation: pulse 0.8s var(--ease) infinite alternate;
+}
+
+.wk-timer.is-urgent,
+.wk-timer.is-urgent span {
+  color: #fca5a5;
+}
+
+@keyframes pulse {
+  to {
+    opacity: 0.6;
+  }
+}
+
+.wk-progress {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.wk-progress .wk-label {
+  font-size: 13px;
+}
+
+/* Прогресс — скруглённые сегменты. */
+.wk-pips {
+  display: flex;
+  gap: 6px;
+}
+
+.wk-pips i {
+  flex: 1;
+  height: 10px;
+  border-radius: var(--r-full);
+  background: rgba(255, 255, 255, 0.1);
+  transition: background var(--t-med) var(--ease);
+}
+
+.wk-pips i.is-done {
+  background: var(--primary);
+}
+
+.wk-pips i.is-next {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.wk-bar {
+  height: 10px;
+  border-radius: var(--r-full);
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.wk-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transform-origin: left center;
+  transition: transform var(--t-med) var(--ease);
+}
+
+.wk-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+  min-height: 52px;
+  padding: 0 var(--s-5);
+  border-radius: var(--r-full);
+  background: var(--wk-inner);
   font-size: var(--text-sm);
+  color: var(--muted);
   white-space: nowrap;
 }
 
+/* ——— Пауза: человек вышел из кадра ——— */
 .pause {
   position: absolute;
   inset: 0;
   z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--s-5);
+  background: rgba(9, 9, 11, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: screen-in var(--t-med) var(--ease);
+}
+
+.pause__card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--s-4);
+  gap: var(--s-3);
+  width: min(520px, 100%);
+  padding: var(--s-7) var(--s-6);
   text-align: center;
-  padding: var(--s-5);
-  background: rgba(7, 11, 22, 0.82);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.pause__icon {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  margin-bottom: var(--s-2);
+  border-radius: 50%;
+  background: var(--warn-soft);
   color: var(--warn);
-  animation: screen-in var(--t-med) var(--ease);
 }
 
 .pause h2 {
   font-size: var(--text-2xl);
-  color: var(--fg);
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .pause p {
@@ -253,158 +518,7 @@
   color: var(--muted);
 }
 
-/* U-15: телефон вертикально — счётчик снизу, подсказка сверху, инфо компактно. */
-@media (orientation: portrait), (max-width: 720px) {
-  .workout__info {
-    top: 84px;
-    bottom: auto;
-    left: var(--s-4);
-    right: var(--s-4);
-    max-width: none;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    padding: var(--s-3) var(--s-4);
-  }
-
-  .workout__title {
-    font-size: var(--text-lg);
-  }
-
-  .workout__timer {
-    font-size: var(--text-lg);
-    margin-left: auto;
-  }
-
-  .phasebar {
-    width: 100%;
-  }
-
-  .workout__counter {
-    top: auto;
-    bottom: max(56px, env(safe-area-inset-bottom));
-    right: 50%;
-    transform: translateX(50%);
-    width: min(46vw, 200px);
-  }
-
-  .workout__num {
-    font-size: clamp(72px, 20vw, 120px);
-  }
-
-  .hint {
-    top: 190px;
-    font-size: var(--text-lg);
-    padding: var(--s-4);
-  }
-
-  .hint svg {
-    width: 30px;
-    height: 30px;
-    flex: none;
-  }
-
-  .workout__exit {
-    right: 50%;
-    transform: translateX(50%);
-    bottom: var(--s-2);
-    font-size: var(--text-xs);
-  }
-}
-
-/* ——— Динамика подхода ——— */
-
-/* Ударная волна от счётчика на каждый повтор. */
-.workout__shock {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 6px solid var(--good);
-  pointer-events: none;
-  animation: shock 700ms var(--ease-out) both;
-}
-
-@keyframes shock {
-  from {
-    transform: scale(0.85);
-    opacity: 0.9;
-  }
-  to {
-    transform: scale(1.45);
-    opacity: 0;
-  }
-}
-
-/* «+95» всплывает над счётчиком и тает. */
-.workout__float {
-  position: absolute;
-  top: -6%;
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: var(--text-2xl);
-  text-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
-  pointer-events: none;
-  animation: float-up 1100ms var(--ease-out) both;
-}
-
-@keyframes float-up {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.7);
-  }
-  25% {
-    opacity: 1;
-    transform: translateY(0) scale(1.1);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-60px) scale(1);
-  }
-}
-
-/* Кольцо дышит, когда до цели осталось немного. */
-.workout__ring.is-near {
-  animation: ring-glow 1s var(--ease) infinite alternate;
-}
-
-@keyframes ring-glow {
-  to {
-    filter: drop-shadow(0 0 40px rgba(249, 115, 22, 0.8));
-  }
-}
-
-/* Серия чистых повторов. */
-.streak {
-  position: absolute;
-  right: max(var(--s-5), env(safe-area-inset-right));
-  top: 96px;
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: var(--text-xl);
-  text-transform: uppercase;
-  color: var(--warn);
-  text-shadow: 0 0 30px rgba(250, 204, 21, 0.55);
-  animation: streak-pop 520ms var(--ease-out) both;
-}
-
-.streak b {
-  font-size: 1.35em;
-}
-
-@keyframes streak-pop {
-  from {
-    opacity: 0;
-    transform: scale(1.8) rotate(-6deg);
-  }
-  60% {
-    transform: scale(0.94) rotate(1deg);
-  }
-}
-
-/* Вспышка краёв экрана. */
+/* Вспышка краёв экрана: мягкая, без неона. */
 .edge {
   position: fixed;
   inset: 0;
@@ -414,85 +528,244 @@
 }
 
 .edge--good {
-  box-shadow: inset 0 0 120px 20px rgba(34, 197, 94, 0.55);
+  box-shadow: inset 0 0 90px 6px rgba(34, 197, 94, 0.28);
 }
 
 .edge--bad {
-  box-shadow: inset 0 0 140px 24px rgba(239, 68, 68, 0.6);
+  box-shadow: inset 0 0 110px 10px rgba(239, 68, 68, 0.34);
 }
 
 .edge--warn {
-  box-shadow: inset 0 0 120px 20px rgba(250, 204, 21, 0.45);
+  box-shadow: inset 0 0 90px 6px rgba(250, 204, 21, 0.24);
 }
 
 @keyframes edge {
-  from {
-    opacity: 1;
-  }
   to {
     opacity: 0;
   }
 }
 
-/* Серьёзная ошибка — плашка вздрагивает, чтобы её заметили боковым зрением. */
-.hint--bad {
-  animation:
-    hint-in var(--t-med) var(--ease-out),
-    shake 420ms var(--ease) 180ms;
-}
-
-@keyframes shake {
-  20%,
-  60% {
-    transform: translateX(calc(-50% - 10px));
-  }
-  40%,
-  80% {
-    transform: translateX(calc(-50% + 10px));
-  }
-}
-
-.workout__num {
-  text-shadow: 0 0 40px rgba(249, 115, 22, 0.35);
-}
-
+/* ——— U-15: телефон вертикально ——— */
 @media (orientation: portrait), (max-width: 720px) {
+  .workout {
+    --wk-top: 68px;
+    --wk-edge: 12px;
+    --wk-side: 108px;
+  }
+
+  .wk-panel {
+    border-radius: var(--r-lg);
+  }
+
+  .wk-count {
+    right: 12px;
+    max-width: none;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label value'
+      'title value'
+      'half half';
+    align-items: center;
+    column-gap: var(--s-3);
+    row-gap: 2px;
+    padding: var(--s-3) var(--s-4) var(--s-3) var(--s-5);
+  }
+
+  .wk-count > .wk-label {
+    grid-area: label;
+    font-size: 13px;
+  }
+
+  .wk-count__title {
+    grid-area: title;
+    font-size: 20px;
+  }
+
+  .wk-count__value {
+    grid-area: value;
+    margin: 0;
+    gap: var(--s-2);
+  }
+
+  .wk-count__num {
+    font-size: clamp(56px, 16vw, 76px);
+  }
+
+  .wk-count__of {
+    font-size: 20px;
+  }
+
+  .wk-count__half {
+    grid-area: half;
+    margin-top: var(--s-2);
+    font-size: 13px;
+  }
+
+  .wk-side {
+    top: calc(var(--wk-top) + 108px);
+    right: 12px;
+    gap: var(--s-2);
+  }
+
+  .wk-score {
+    padding: var(--s-2);
+  }
+
+  .wk-score__ring {
+    inset: 8px;
+    width: calc(100% - 16px);
+    height: calc(100% - 16px);
+  }
+
+  .wk-score__track,
+  .wk-score__fill {
+    stroke-width: 10;
+  }
+
+  .wk-score__num {
+    font-size: 26px;
+  }
+
+  .wk-score__label {
+    display: none;
+  }
+
+  .wk-phase {
+    padding: var(--s-3);
+    gap: 6px;
+  }
+
+  .wk-phase > .wk-label {
+    font-size: 12px;
+  }
+
+  .wk-phase__value {
+    font-size: 18px;
+  }
+
+  .wk-phase__track {
+    gap: 4px;
+  }
+
+  .wk-phase__track span {
+    height: 6px;
+  }
+
+  .wk-bars {
+    display: none;
+  }
+
   .streak {
-    top: auto;
-    bottom: calc(max(56px, env(safe-area-inset-bottom)) + min(46vw, 200px) + 16px);
-    right: 50%;
-    transform: translateX(50%);
-    font-size: var(--text-lg);
+    min-height: 36px;
+    padding: 0 var(--s-2);
+    font-size: 13px;
+  }
+
+  .streak svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .hint {
+    top: calc(var(--wk-top) + 108px);
+    left: 12px;
+    right: calc(var(--wk-side) + 20px);
+    width: auto;
+    max-width: none;
+    transform: none;
+    gap: var(--s-3);
+    padding: var(--s-3) var(--s-4) var(--s-3) var(--s-3);
+    border-radius: var(--r-lg);
+  }
+
+  .hint__icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .hint__icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .hint__label {
+    font-size: 12px;
+  }
+
+  .hint__text {
+    font-size: 18px;
+  }
+
+  @keyframes hint-in {
+    from {
+      opacity: 0;
+      transform: translateY(-12px);
+    }
+  }
+
+  @keyframes shake {
+    25%,
+    75% {
+      transform: translateX(-5px);
+    }
+    50% {
+      transform: translateX(5px);
+    }
+  }
+
+  .wk-bottom {
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    flex-wrap: wrap;
+    gap: var(--s-3);
+    padding: var(--s-3);
+  }
+
+  .wk-timer {
+    min-height: 44px;
+    padding: 0 var(--s-4) 0 var(--s-3);
+  }
+
+  .wk-timer span {
+    font-size: 22px;
+  }
+
+  .wk-exit {
+    flex-basis: 100%;
+    justify-content: center;
+    min-height: 40px;
+    font-size: var(--text-xs);
+  }
+}
+
+/* Производительность на телефоне: размытие поверх живого видео заменяем плотной подложкой. */
+@media (pointer: coarse), (max-width: 980px) {
+  .wk-panel,
+  .hint {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .wk-panel {
+    background: rgba(9, 9, 11, 0.86);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workout__shock,
-  .workout__float,
-  .workout__ring.is-near,
+  .wk-score.is-flash,
+  .wk-count__num,
+  .wk-bars i,
   .streak,
   .edge,
-  .hint--bad {
+  .hint--bad,
+  .wk-timer.is-urgent {
     animation: none;
   }
 
-  .workout__shock,
-  .workout__float,
   .edge {
     display: none;
   }
-}
-
-/* Выпады: какая нога уже сделана в паре. */
-.workout__half {
-  margin-top: var(--s-2);
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-md);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--warn);
-  text-align: center;
-  line-height: 1.1;
-  animation: rise var(--t-med) var(--ease-out) both;
 }

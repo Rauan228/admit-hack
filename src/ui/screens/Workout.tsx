@@ -56,6 +56,8 @@ export function Workout({
   const [streak, setStreak] = useState(0);
   /** Вспышка краёв экрана: зелёная на чистый повтор, красная на ошибку. */
   const [edge, setEdge] = useState<{ id: number; tone: 'good' | 'bad' | 'warn' } | null>(null);
+  /** Оценки повторов по порядку — только для мини-графика. */
+  const [scores, setScores] = useState<number[]>([]);
 
   const acc = useRef(new SetAccumulator());
   const finished = useRef(false);
@@ -128,6 +130,7 @@ export function Workout({
         const clean = e.errors.length === 0;
         setCount(e.count);
         setLastScore(e.score);
+        setScores((l) => [...l, e.score]);
         setHalf(null);
         // Планка: «повтор» — каждая секунда удержания; вспышка и голос — раз в 5 секунд, а не каждую.
         const quiet = meta.unit === 'sec' && e.count % 5 !== 0;
@@ -172,112 +175,148 @@ export function Workout({
   );
   const phaseLabel = PHASES[phaseIndex]?.label ?? '';
   const progress = timeLimit ? Math.min(1, elapsed / timeLimit) : Math.min(1, count / item.target);
-  const timeText = timeLimit ? formatDuration(timeLimit - elapsed) : formatDuration(elapsed);
+  const timeText = timeLimit
+    ? `${formatDuration(elapsed)} / ${formatDuration(timeLimit)}`
+    : formatDuration(elapsed);
+  // Точки подхода — когда цель небольшая; иначе (планка, челлендж) — сплошная полоса.
+  const pips = !timeLimit && item.target <= 20 ? item.target : 0;
+  const recent = scores.slice(-12);
+  const hintLabel = hint?.tone === 'good' ? 'Чисто' : hint?.tone === 'warn' ? 'Подсказка' : 'Ошибка техники';
 
   return (
     <main className="screen workout">
-      <section className="workout__info card">
-        {plan.items.length > 1 && (
-          <span className="eyebrow">
-            Упражнение {index + 1} из {plan.items.length}
+      <section className="wk-count wk-panel" aria-live="polite">
+        <span className="wk-label">
+          {plan.items.length > 1 ? `Упражнение ${index + 1} из ${plan.items.length}` : 'Подход'}
+        </span>
+        <h2 className="wk-count__title">{meta.title}</h2>
+        <div className="wk-count__value">
+          <span key={count} className="wk-count__num">
+            {count}
+          </span>
+          <span className="wk-count__of">
+            {timeLimit ? 'повторов' : meta.unit === 'sec' ? `из ${item.target} сек` : `из ${item.target}`}
+          </span>
+        </div>
+        {item.exercise === 'lunge' && (
+          <span key={half ?? 'none'} className="wk-count__half">
+            {half === 'right'
+              ? 'Правая ✓ — теперь левая'
+              : half === 'left'
+                ? 'Левая ✓ — теперь правая'
+                : 'Правая + левая = 1'}
           </span>
         )}
-        <h2 className="workout__title">{meta.title}</h2>
-        <div className={`workout__timer ${timeLimit && timeLimit - elapsed < 10 ? 'is-urgent' : ''}`}>
-          <Icon name="timer" size={24} /> {timeText}
+      </section>
+
+      <aside className="wk-side">
+        <div key={`s${count}`} className={`wk-score wk-panel ${lastScore !== null ? 'is-flash' : ''}`}>
+          <svg className="wk-score__ring" viewBox="0 0 100 100" aria-hidden="true">
+            <circle cx="50" cy="50" r="42" className="wk-score__track" />
+            <circle
+              cx="50"
+              cy="50"
+              r="42"
+              pathLength="1"
+              className="wk-score__fill"
+              style={{
+                strokeDashoffset: 1 - (lastScore ?? 0) / 100,
+                stroke: lastScore !== null ? scoreColor(lastScore) : undefined,
+              }}
+            />
+          </svg>
+          <div className="wk-score__body">
+            <span
+              className="wk-score__num"
+              style={lastScore !== null ? { color: scoreColor(lastScore) } : undefined}
+            >
+              {lastScore !== null ? `+${lastScore}` : '—'}
+            </span>
+            <span className="wk-score__label">Оценка повтора</span>
+          </div>
         </div>
-        <div className="phasebar" aria-label={`Фаза движения: ${phaseLabel}`}>
-          <div className="phasebar__track">
+
+        <div className="wk-phase wk-panel" aria-label={`Фаза движения: ${phaseLabel}`}>
+          <span className="wk-label">Фаза движения</span>
+          <b className="wk-phase__value">{phaseLabel}</b>
+          <div className="wk-phase__track">
             {PHASES.map((p, i) => (
               <span key={p.id} className={i <= phaseIndex ? 'is-on' : ''} />
             ))}
           </div>
-          <span className="phasebar__label">{phaseLabel}</span>
-        </div>
-      </section>
-
-      <section className="workout__counter" aria-live="polite">
-        <svg
-          className={`workout__ring ${progress >= 0.8 ? 'is-near' : ''}`}
-          viewBox="0 0 120 120"
-          aria-hidden="true"
-        >
-          <circle cx="60" cy="60" r="52" className="workout__ring-track" />
-          <circle
-            cx="60"
-            cy="60"
-            r="52"
-            pathLength="1"
-            className="workout__ring-fill"
-            style={{ strokeDashoffset: 1 - progress }}
-          />
-        </svg>
-        <div className="workout__count">
-          <span key={count} className="workout__num">
-            {count}
-          </span>
-          <span className="workout__target">
-            {timeLimit ? 'повторов' : meta.unit === 'sec' ? `из ${item.target} сек` : `из ${item.target}`}
-          </span>
-          {item.exercise === 'lunge' && (
-            <span key={half ?? 'none'} className="workout__half">
-              {half === 'right'
-                ? 'Правая ✓ — теперь левая'
-                : half === 'left'
-                  ? 'Левая ✓ — теперь правая'
-                  : 'Правая + левая = 1'}
-            </span>
+          {recent.length > 0 && (
+            <div className="wk-bars" aria-hidden="true">
+              {recent.map((v, i) => (
+                <i
+                  key={scores.length - recent.length + i}
+                  style={{ height: `${Math.max(8, v)}%`, background: scoreColor(v) }}
+                />
+              ))}
+            </div>
           )}
         </div>
-        {lastScore !== null && (
-          <span className="workout__score" style={{ color: scoreColor(lastScore) }} key={`s${count}`}>
-            {lastScore}
-            <small>/100</small>
-          </span>
-        )}
-        {count > 0 && <span key={`w${count}`} className="workout__shock" aria-hidden="true" />}
-        {lastScore !== null && (
-          <span
-            key={`f${count}`}
-            className="workout__float"
-            style={{ color: scoreColor(lastScore) }}
-            aria-hidden="true"
-          >
-            +{lastScore}
-          </span>
-        )}
-      </section>
 
-      {streak >= 2 && (
-        <div key={`st${streak}`} className="streak" aria-live="polite">
-          <Icon name="zap" size={34} />
-          <span>
-            Серия <b>×{streak}</b>
-          </span>
-        </div>
-      )}
+        {streak >= 2 && (
+          <div key={`st${streak}`} className="streak" aria-live="polite">
+            <Icon name="zap" size={20} />
+            <span>
+              Серия <b>×{streak}</b>
+            </span>
+          </div>
+        )}
+      </aside>
 
       {edge && <div key={edge.id} className={`edge edge--${edge.tone}`} aria-hidden="true" />}
 
       {hint && (
         <div key={hint.id} className={`hint hint--${hint.tone}`} role="status">
-          <Icon name={hint.tone === 'good' ? 'check' : 'alert'} size={40} />
-          <span>{hint.text}</span>
+          <span className="hint__icon">
+            <Icon name={hint.tone === 'good' ? 'check' : 'alert'} size={26} />
+          </span>
+          <span className="hint__body">
+            <span className="hint__label">{hintLabel}</span>
+            <span className="hint__text">{hint.text}</span>
+          </span>
         </div>
       )}
 
-      {meta.handsUpToFinish && !timeLimit && (
-        <p className="workout__exit muted">
-          <Icon name="flag" size={20} /> Обе руки над головой — закончить
-        </p>
-      )}
+      <section className="wk-bottom wk-panel">
+        <div className={`wk-timer ${timeLimit && timeLimit - elapsed < 10 ? 'is-urgent' : ''}`}>
+          <Icon name="timer" size={20} />
+          <span>{timeText}</span>
+        </div>
+        <div className="wk-progress">
+          <span className="wk-label">Прогресс подхода</span>
+          {pips > 0 ? (
+            <div className="wk-pips">
+              {Array.from({ length: pips }, (_, i) => (
+                <i key={i} className={i < count ? 'is-done' : i === count ? 'is-next' : ''} />
+              ))}
+            </div>
+          ) : (
+            <div className="wk-bar">
+              <span style={{ transform: `scaleX(${progress})` }} />
+            </div>
+          )}
+        </div>
+        {meta.handsUpToFinish && !timeLimit && (
+          <p className="wk-exit">
+            <Icon name="flag" size={18} /> Обе руки над головой — закончить
+          </p>
+        )}
+      </section>
 
       {paused && (
         <div className="pause" role="alert">
-          <Icon name="user" size={64} />
-          <h2>Пауза</h2>
-          <p>{paused}</p>
-          <p className="muted">Счёт продолжится, когда я снова тебя увижу</p>
+          <div className="pause__card">
+            <span className="pause__icon">
+              <Icon name="user" size={36} />
+            </span>
+            <span className="wk-label">Нет в кадре</span>
+            <h2>Пауза</h2>
+            <p>{paused}</p>
+            <p className="muted">Счёт продолжится, когда я снова тебя увижу</p>
+          </div>
         </div>
       )}
     </main>

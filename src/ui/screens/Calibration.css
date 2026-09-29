@@ -1,173 +1,313 @@
+/* Калибровка поверх живого видео: спокойно и без тех-декора.
+   Заголовок слева сверху, мягкая скруглённая рамка-ориентир по центру, карточка-чеклист справа. */
 .calib {
-  align-items: center;
-  justify-content: flex-end;
-  padding-top: 96px;
+  --calib-bg: rgba(9, 9, 11, 0.8);
+  padding: 0;
 }
 
+/* ——— Заголовок и статус ——— */
+.calib__head {
+  position: absolute;
+  top: 84px;
+  left: max(var(--s-5), env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  max-width: min(420px, 32vw);
+}
+
+.calib__title {
+  font-size: clamp(24px, 2.1vw, 32px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6);
+}
+
+.calib__chip {
+  --c: var(--fg);
+  --bg-c: var(--calib-bg);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  padding: 8px var(--s-4) 8px var(--s-3);
+  border-radius: var(--r-full);
+  background: var(--bg-c);
+  color: var(--c);
+  font: 600 15px / 1.3 var(--font-body);
+  transition:
+    background var(--t-med) var(--ease),
+    color var(--t-med) var(--ease);
+  animation: rise var(--t-med) var(--ease-out) both;
+}
+
+.calib__chip i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.calib__chip.is-bad {
+  --c: #fde68a;
+  --bg-c: rgba(46, 38, 10, 0.9);
+}
+
+.calib__chip.is-ok {
+  --c: #86efac;
+  --bg-c: rgba(10, 42, 23, 0.9);
+}
+
+/* ——— Рамка-ориентир: мягкий скруглённый контур ——— */
 .calib__frame {
   position: absolute;
-  top: 12%;
-  bottom: 30%;
+  top: 14%;
+  bottom: 8%;
   left: 50%;
   aspect-ratio: 1 / 2;
+  max-width: 60vw;
   transform: translateX(-50%);
-  max-width: 80vw;
-  --c: rgba(255, 255, 255, 0.6);
-  transition: filter var(--t-med) var(--ease);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 56px;
+  pointer-events: none;
+  transition:
+    border-color var(--t-med) var(--ease),
+    background var(--t-med) var(--ease);
 }
 
 .calib__frame.is-bad {
-  --c: var(--primary);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .calib__frame.is-ok {
-  --c: var(--good);
-  filter: drop-shadow(0 0 24px rgba(34, 197, 94, 0.6));
+  border-color: rgba(34, 197, 94, 0.7);
+  background: rgba(34, 197, 94, 0.05);
+  animation: frame-ok 600ms var(--ease-out);
 }
 
-.calib__silhouette {
-  width: 100%;
-  height: 100%;
-  fill: none;
-  stroke: var(--c);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-dasharray: 6 6;
-  opacity: 0.55;
+@keyframes frame-ok {
+  50% {
+    transform: translateX(-50%) scale(1.02);
+  }
 }
 
-.calib__frame.is-ok .calib__silhouette {
-  stroke-dasharray: none;
-  opacity: 0.8;
-}
-
-.calib__corner {
-  position: absolute;
-  width: 44px;
-  height: 44px;
-  border: 6px solid var(--c);
-  transition: border-color var(--t-med) var(--ease);
-}
-
-.calib__corner--tl {
-  top: -8%;
-  left: -30%;
-  border-right: 0;
-  border-bottom: 0;
-  border-radius: 14px 0 0 0;
-}
-
-.calib__corner--tr {
-  top: -8%;
-  right: -30%;
-  border-left: 0;
-  border-bottom: 0;
-  border-radius: 0 14px 0 0;
-}
-
-.calib__corner--bl {
-  bottom: -8%;
-  left: -30%;
-  border-right: 0;
-  border-top: 0;
-  border-radius: 0 0 0 14px;
-}
-
-.calib__corner--br {
-  bottom: -8%;
-  right: -30%;
-  border-left: 0;
-  border-top: 0;
-  border-radius: 0 0 14px 0;
-}
-
+/* ——— Карточка-чеклист ——— */
 .calib__panel {
-  position: relative;
+  position: absolute;
+  top: 50%;
+  right: max(var(--s-5), env(safe-area-inset-right));
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
   gap: var(--s-4);
-  width: min(760px, 100%);
+  width: 300px;
+  padding: var(--s-5);
+  border-radius: var(--r-xl);
+  background: var(--calib-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.calib__hint {
-  font-size: var(--text-xl);
+.calib__panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.calib__panel-head b {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.calib__count {
+  font-size: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.calib__checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.calib__checks li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 52px;
+  padding: 6px var(--s-3) 6px 6px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+  transition:
+    color var(--t-med) var(--ease),
+    background var(--t-med) var(--ease);
+}
+
+.calib__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--muted);
+  transition:
+    background var(--t-med) var(--ease),
+    color var(--t-med) var(--ease);
+}
+
+.calib__checks li.is-done {
+  color: var(--fg);
+}
+
+.calib__checks li.is-done .calib__mark {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.calib__checks li.is-bad {
+  background: rgba(250, 204, 21, 0.08);
+  color: #fde68a;
+}
+
+.calib__checks li.is-bad .calib__mark {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+/* Всё прошло — карточка зеленеет. */
+.calib__panel.is-ok .calib__checks li {
+  background: rgba(34, 197, 94, 0.08);
 }
 
 .calib__progress {
   width: 100%;
-  height: 10px;
+  height: 8px;
   border-radius: var(--r-full);
-  background: var(--surface-3);
+  background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
 
 .calib__progress span {
   display: block;
   height: 100%;
+  border-radius: inherit;
   background: var(--good);
   transform-origin: left center;
 }
 
 .calib__tip {
   font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--muted);
 }
 
 .calib__skip {
-  position: absolute;
-  top: var(--s-3);
-  right: var(--s-3);
-  min-height: 40px;
-  font-size: var(--text-xs);
+  align-self: stretch;
+  justify-content: center;
+  color: var(--muted);
 }
 
-@media (max-width: 640px) {
-  .calib__skip {
-    position: static;
+/* ——— Телефон вертикально ——— */
+@media (orientation: portrait), (max-width: 720px) {
+  .calib__head {
+    top: 72px;
+    left: var(--s-4);
+    right: var(--s-4);
+    max-width: none;
+    gap: var(--s-2);
+  }
+
+  .calib__title {
+    font-size: 22px;
+  }
+
+  .calib__chip {
+    min-height: 36px;
+    font-size: 13px;
   }
 
   .calib__frame {
-    bottom: 38%;
+    top: 25%;
+    bottom: 36%;
+    max-width: 50vw;
+    border-radius: 36px;
+  }
+
+  .calib__panel {
+    top: auto;
+    left: var(--s-3);
+    right: var(--s-3);
+    bottom: max(var(--s-3), env(safe-area-inset-bottom));
+    transform: none;
+    width: auto;
+    gap: var(--s-3);
+    padding: var(--s-4);
+    border-radius: var(--r-lg);
+  }
+
+  .calib__panel-head b {
+    font-size: 16px;
+  }
+
+  .calib__checks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .calib__checks li {
+    min-height: 44px;
+    gap: var(--s-2);
+    padding: 4px var(--s-2) 4px 4px;
+    font-size: 13px;
+    line-height: 1.2;
+  }
+
+  .calib__mark {
+    width: 34px;
+    height: 34px;
+  }
+
+  .calib__mark svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .calib__tip {
+    font-size: 13px;
+  }
+
+  .calib__skip {
+    min-height: 44px;
   }
 }
 
-/* Сканирующая линия бежит по рамке, пока человека ищут. */
-.calib__scan {
-  position: absolute;
-  left: -30%;
-  right: -30%;
-  top: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, var(--c), transparent);
-  box-shadow: 0 0 24px var(--c);
-  animation: scan 2.4s var(--ease) infinite alternate;
-}
-
-.calib__frame.is-ok .calib__scan {
-  opacity: 0;
-  transition: opacity var(--t-med) var(--ease);
-}
-
-@keyframes scan {
-  to {
-    top: 100%;
-  }
-}
-
-.calib__frame.is-ok .calib__corner {
-  animation: corner-ok 700ms var(--ease-out);
-}
-
-@keyframes corner-ok {
-  50% {
-    transform: scale(1.25);
+@media (pointer: coarse), (max-width: 980px) {
+  .calib__panel {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(9, 9, 11, 0.88);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .calib__scan,
-  .calib__corner {
+  .calib__frame,
+  .calib__chip {
     animation: none !important;
   }
 }

@@ -6,10 +6,27 @@ import type { CalibrationStatus } from '../../engine/types';
 import { isMobileDevice } from '../../engine/perf';
 import { say } from '../audio/voice';
 import { sfx } from '../audio/sfx';
+import { Icon, type IconName } from '../components/Icon';
 import { useEngineEvents } from '../engine/bus';
 import './Calibration.css';
 
 const HOLD_MS = 1500;
+
+const CHECKS: { label: string; icon: IconName }[] = [
+  { label: 'Свет', icon: 'zap' },
+  { label: 'Человек в кадре', icon: 'user' },
+  { label: 'Видно целиком', icon: 'scan' },
+  { label: 'Расстояние', icon: 'target' },
+];
+/** На какой проверке остановился статус движка. */
+const FAIL_STEP: Record<CalibrationStatus, number> = {
+  dark: 0,
+  no_person: 1,
+  partial: 2,
+  too_close: 3,
+  too_far: 3,
+  ok: 4,
+};
 
 export function Calibration({ onDone }: { onDone: () => void }) {
   const [status, setStatus] = useState<CalibrationStatus | null>(null);
@@ -60,29 +77,46 @@ export function Calibration({ onDone }: { onDone: () => void }) {
   }, [okSince, onDone]);
 
   const ok = status === 'ok';
+  // Проверки кадра идут по порядку (как в движке): свет → человек → целиком → расстояние.
+  // Статус называет первую непройденную; всё до неё — пройдено, после — ещё не проверено.
+  const failed = status === null ? -1 : FAIL_STEP[status];
   return (
     <main className="screen calib">
-      <div className={`calib__frame ${ok ? 'is-ok' : status ? 'is-bad' : ''}`} aria-hidden="true">
-        <svg viewBox="0 0 100 200" preserveAspectRatio="xMidYMid meet" className="calib__silhouette">
-          <circle cx="50" cy="22" r="13" />
-          <path d="M50 37v62M50 99l-17 80M50 99l17 80M22 52l28 8 28-8M22 52l-6 46M78 52l6 46" />
-        </svg>
-        <span className="calib__scan" />
-        <span className="calib__corner calib__corner--tl" />
-        <span className="calib__corner calib__corner--tr" />
-        <span className="calib__corner calib__corner--bl" />
-        <span className="calib__corner calib__corner--br" />
-      </div>
+      {/* Мягкая скруглённая рамка-ориентир: куда встать. Зелёная, когда всё хорошо. */}
+      <div className={`calib__frame ${ok ? 'is-ok' : status ? 'is-bad' : ''}`} aria-hidden="true" />
 
-      <section className="calib__panel card" aria-live="polite">
-        <span className={`eyebrow ${ok ? 'eyebrow--good' : ''}`}>
-          {ok ? 'Вижу тебя целиком' : 'Калибровка'}
+      <header className="calib__head">
+        <h1 className="calib__title">Встань так, чтобы тебя было видно целиком</h1>
+        <span className={`calib__chip ${ok ? 'is-ok' : status ? 'is-bad' : ''}`} aria-live="polite">
+          {ok ? <Icon name="check" size={16} /> : <i />}
+          {ok ? 'Вижу тебя целиком' : hint}
         </span>
-        <h2 className="calib__hint">{hint}</h2>
+      </header>
+
+      <section className={`calib__panel ${ok ? 'is-ok' : ''}`} aria-live="polite">
+        <div className="calib__panel-head">
+          <b>Проверка кадра</b>
+          <span className="calib__count">
+            {Math.max(0, Math.min(CHECKS.length, failed))} из {CHECKS.length}
+          </span>
+        </div>
+        <ul className="calib__checks">
+          {CHECKS.map((c, i) => {
+            const state = failed < 0 ? 'wait' : i < failed ? 'done' : i === failed ? 'bad' : 'wait';
+            return (
+              <li key={c.label} className={`is-${state}`}>
+                <span className="calib__mark">
+                  <Icon name={state === 'done' ? 'check' : state === 'bad' ? 'alert' : c.icon} size={18} />
+                </span>
+                <span className="calib__check-label">{c.label}</span>
+              </li>
+            );
+          })}
+        </ul>
         <div className="calib__progress" role="progressbar" aria-valuenow={Math.round(progress * 100)}>
           <span style={{ transform: `scaleX(${progress})` }} />
         </div>
-        <p className="muted calib__tip">
+        <p className="calib__tip">
           {mobile
             ? 'Поставь телефон вертикально у стены на уровне пояса и отойди на 2–3 шага.'
             : 'Отойди на 2–3 метра от камеры, чтобы в кадр попали голова и стопы.'}
