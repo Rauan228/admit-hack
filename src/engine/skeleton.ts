@@ -35,6 +35,17 @@ export interface SynthParams {
   armsL?: number;
   /** Сгиб в локте, градусы (0 — прямая рука): предплечье поворачивается к голове. */
   elbow?: number;
+  /**
+   * Подъём колена одной ноги (высокие колени, локоть к колену): угол бедра от вертикали вперёд, градусы.
+   * Голень висит вертикально, опорная нога прямая.
+   */
+  liftL?: number;
+  liftR?: number;
+  /** Руки за головой, локти в стороны (вместо arms/elbow). */
+  handsBehindHead?: boolean;
+  /** Скручивание: локоть crunchElbow тянется к противоположному колену; 0 — нет, 1 — касание. */
+  crunch?: number;
+  crunchElbow?: 'left' | 'right';
   visibility: number;
 }
 
@@ -84,6 +95,8 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
 
   let hipY = 0;
   let hipZ = 0;
+  /** Колени в плоскости кадра — к ним тянется локоть при скручивании. */
+  const knees = { left: { x: cx, y: p.footY }, right: { x: cx, y: p.footY } };
   for (const side of [1, -1] as const) {
     // side = +1 — левая сторона человека (справа на картинке).
     const thigh = p.thigh + (side > 0 ? p.tilt / 2 : -p.tilt / 2);
@@ -100,11 +113,26 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
       side > 0
         ? { ankle: 27, knee: 25, hip: 23, heel: 29, foot: 31 }
         : { ankle: 28, knee: 26, hip: 24, heel: 30, foot: 32 };
-    put(s.ankle, ankleX, ankleY);
-    put(s.heel, ankleX, ankleY + 0.015 * H, 0.04 * H);
-    put(s.foot, ankleX + side * 0.01 * H, ankleY + 0.02 * H, -0.12 * H);
-    put(s.knee, kneeX, kneeY, kneeZ);
-    put(s.hip, cx + p.shift * hipW + (side * hipW) / 2, hY, hZ);
+    const hipX = cx + p.shift * hipW + (side * hipW) / 2;
+    const lift = side > 0 ? p.liftL : p.liftR;
+    // Порядок точек (стопа → колено → таз) не меняем: от него зависит шум, на котором построены тесты.
+    if (lift) {
+      // Колено вперёд-вверх (на камеру), голень висит вертикально под коленом.
+      const kY = hY + thighL * Math.cos(rad(lift));
+      const kZ = hZ - thighL * Math.sin(rad(lift));
+      put(s.ankle, hipX, kY + shinL, kZ);
+      put(s.heel, hipX, kY + shinL + 0.015 * H, kZ + 0.04 * H);
+      put(s.foot, hipX + side * 0.01 * H, kY + shinL + 0.02 * H, kZ - 0.12 * H);
+      put(s.knee, hipX, kY, kZ);
+      knees[side > 0 ? 'left' : 'right'] = { x: hipX, y: kY };
+    } else {
+      put(s.ankle, ankleX, ankleY);
+      put(s.heel, ankleX, ankleY + 0.015 * H, 0.04 * H);
+      put(s.foot, ankleX + side * 0.01 * H, ankleY + 0.02 * H, -0.12 * H);
+      put(s.knee, kneeX, kneeY, kneeZ);
+      knees[side > 0 ? 'left' : 'right'] = { x: kneeX, y: kneeY };
+    }
+    put(s.hip, hipX, hY, hZ);
   }
 
   const shoulderY = hipY - torsoL * Math.cos(rad(p.lean));
@@ -120,12 +148,41 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
       side > 0
         ? { sh: 11, el: 13, wr: 15, pi: 17, ix: 19, th: 21 }
         : { sh: 12, el: 14, wr: 16, pi: 18, ix: 20, th: 22 };
-    const shX = cx + (side * shoulderW) / 2;
-    put(s.sh, shX, shoulderY, shoulderZ);
+    let shX = cx + (side * shoulderW) / 2;
+    let shY = shoulderY;
+    const me = side > 0 ? 'left' : 'right';
+    const crunch = p.handsBehindHead && p.crunchElbow === me ? (p.crunch ?? 0) : 0;
+    const knee = knees[me === 'left' ? 'right' : 'left'];
+    if (crunch) {
+      // Скручивание: плечо рабочей стороны уходит вниз и к середине, навстречу колену.
+      shX += (knee.x - shX) * 0.25 * crunch;
+      shY += (knee.y - shY) * 0.2 * crunch;
+    }
+    put(s.sh, shX, shY, shoulderZ);
+    if (p.handsBehindHead) {
+      // Локти в стороны на уровне ушей, кисти за затылком.
+      let elX = shX + side * 0.15 * H;
+      let elY = shY - 0.03 * H;
+      let wrX = cx + side * 0.035 * H;
+      let wrY = noseY - 0.02 * H;
+      if (crunch) {
+        // Локоть — к противоположному колену (садится на него сверху), кисть тянется следом.
+        const toX = knee.x;
+        const toY = knee.y - 0.04 * H;
+        wrX += (toX - elX) * crunch * 0.5;
+        wrY += (toY - elY) * crunch * 0.5;
+        elX += (toX - elX) * crunch;
+        elY += (toY - elY) * crunch;
+      }
+      put(s.el, elX, elY, shoulderZ);
+      put(s.wr, wrX, wrY, noseZ + 0.06 * H);
+      for (const i of [s.pi, s.ix, s.th]) put(i, wrX, wrY + 0.02 * H, noseZ + 0.06 * H);
+      continue;
+    }
     const a = rad(side > 0 && p.armsL !== undefined ? p.armsL : p.arms);
     const bend = rad(p.elbow ?? 0);
     const elX = shX + (side * Math.sin(a) * armL) / 2;
-    const elY = shoulderY + (Math.cos(a) * armL) / 2;
+    const elY = shY + (Math.cos(a) * armL) / 2;
     // Предплечье продолжает плечо, повёрнутое на сгиб локтя (к голове).
     const wrX = elX + (side * Math.sin(a + bend) * armL) / 2;
     const wrY = elY + (Math.cos(a + bend) * armL) / 2;
