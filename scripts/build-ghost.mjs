@@ -5,9 +5,9 @@
 //
 //   node scripts/build-ghost.mjs
 //
-// Присед — настоящий повтор человека из записи. «Звёздочка», выпады и подъём рук — идеальная техника,
-// построенная кинематикой на ровном симметричном теле с пропорциями того же человека (длины рук, ног,
-// корпуса, ширина плеч и таза): в записях у людей гиря в руках, наклон и разворот корпуса.
+// Все четыре упражнения — идеальная техника, построенная кинематикой на ровном симметричном теле
+// с пропорциями реального человека из записи (длины рук, ног, корпуса, ширина плеч и таза): в самих
+// записях у людей гиря в руках, наклон и разворот корпуса, эталоном они быть не могут.
 // Корпус записи разворачиваем лицом к зрителю (по линии таза).
 // Выпад и подъём рук строим на настоящем теле из записи приседа (его пропорции и осанка): в записях выпадов у
 // авторов гиря над головой и разворот корпуса, эталон из них не получается. Ноги выпада — двухзвенная
@@ -22,9 +22,9 @@ const FRAMES = 60; // кадров на цикл
 /** Точки, которые рисует фигура (остальные не храним). */
 const KEEP = [0, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
 
+/** Запись, из которой берём пропорции тела (стойка перед первым приседом). */
 const SOURCES = {
-  // В записи присед с гирей у груди; руки делаем как в приседе без веса — вперёд для баланса.
-  squat: { file: 'squat-front-goblet.json', signal: 'hipDrop', durationMs: 2600, armsForward: true },
+  squat: { file: 'squat-front-goblet.json', signal: 'hipDrop' },
 };
 
 const avg = (...v) => v.reduce((a, b) => a + b, 0) / v.length;
@@ -158,30 +158,6 @@ function faceViewer(frames) {
   return frames.map((pts) => pts.map((p) => ({ ...p, x: p.x * c - p.z * s, z: p.x * s + p.z * c })));
 }
 
-/** Руки вперёд для баланса: чем глубже присед, тем выше (от 15° до 85° от вертикали). */
-function armsForward(frames) {
-  const depth = frames.map((pts) => avg(pts[23].y, pts[24].y) - avg(pts[27].y, pts[28].y));
-  const lo = Math.min(...depth);
-  const hi = Math.max(...depth);
-  return frames.map((pts, k) => {
-    const w = hi - lo > 1e-6 ? (depth[k] - lo) / (hi - lo) : 0;
-    const a = ((15 + 70 * w) * Math.PI) / 180;
-    const out = pts.map((p) => ({ ...p }));
-    for (const [sh, el, wr, idx] of [
-      [11, 13, 15, 19],
-      [12, 14, 16, 20],
-    ]) {
-      const s = pts[sh];
-      const dir = { y: Math.cos(a), z: -Math.sin(a) };
-      out[el] = { x: s.x, y: s.y + dir.y * 0.3, z: s.z + dir.z * 0.3 };
-      out[wr] = { x: s.x, y: s.y + dir.y * 0.57, z: s.z + dir.z * 0.57 };
-      out[idx] = { x: s.x, y: s.y + dir.y * 0.65, z: s.z + dir.z * 0.65 };
-      out[idx - 2] = out[idx];
-    }
-    return out;
-  });
-}
-
 const smooth01 = (x) => {
   const c = Math.min(1, Math.max(0, x));
   return c * c * (3 - 2 * c);
@@ -224,64 +200,6 @@ function canonical(real) {
   }
   set(0, 0, shY - 0.19, -0.1);
   return { pts, upperArm, forearm, thigh, shin, shoulderHalf, hipHalf, hipY, shY, side, ankleH };
-}
-
-/** Прямая рука из плеча под углом ang от вертикали вниз, в плоскости тела (через сторону). */
-function straightArm(pts, body, sh, el, wr, extra, ang) {
-  const s = Math.sign(pts[sh].x) || 1;
-  const S = pts[sh];
-  const dir = { x: s * Math.sin(ang), y: Math.cos(ang) };
-  const at = (len) => ({ x: S.x + dir.x * len, y: S.y + dir.y * len, z: S.z });
-  pts[el] = at(body.upperArm);
-  pts[wr] = at(body.upperArm + body.forearm);
-  for (const j of extra) pts[j] = at(body.upperArm + body.forearm + 0.08);
-}
-
-/**
- * «Звёздочка» с идеальной техникой: два прыжка за цикл (наружу и внутрь) с отрывом от пола,
- * ноги шире плеч, прямые руки через стороны почти до хлопка, мягкое приземление на согнутые колени.
- */
-function jumpingJack(body, n) {
-  const OUT = 0.34; // насколько каждая стопа уходит в сторону, м
-  const HOP = 0.09; // высота прыжка, м
-  return Array.from({ length: n }, (_, k) => {
-    const u = k / n;
-    // 0–0.38 прыжок наружу, 0.38–0.5 приземление широко, 0.5–0.88 прыжок внутрь, 0.88–1 приземление узко.
-    const inOut = u < 0.5 ? smooth01(u / 0.38) : 1 - smooth01((u - 0.5) / 0.38);
-    const flight =
-      u < 0.38
-        ? Math.sin((Math.PI * u) / 0.38)
-        : u >= 0.5 && u < 0.88
-          ? Math.sin((Math.PI * (u - 0.5)) / 0.38)
-          : 0;
-    const land =
-      u >= 0.38 && u < 0.5
-        ? Math.sin((Math.PI * (u - 0.38)) / 0.12)
-        : u >= 0.88
-          ? Math.sin((Math.PI * (u - 0.88)) / 0.12)
-          : 0;
-    const up = HOP * flight;
-    const dip = 0.05 * land; // амортизация
-    const pts = body.pts.map((p) => ({ ...p, y: p.y - up + (p.y < body.hipY + 0.01 ? dip : 0) }));
-    // Ноги: стопы в стороны, колени мягко сгибаются на приземлении.
-    for (const [hp, kn, an, he, to] of [
-      [23, 25, 27, 29, 31],
-      [24, 26, 28, 30, 32],
-    ]) {
-      const s = Math.sign(body.pts[hp].x);
-      const ax = body.pts[hp].x + s * OUT * inOut;
-      const H = pts[hp];
-      pts[an] = { x: ax, y: -body.ankleH - up, z: 0 };
-      pts[he] = { x: ax, y: -up, z: 0.05 };
-      pts[to] = { x: ax + s * 0.06, y: -up, z: -0.16 };
-      pts[kn] = { x: (H.x + ax) / 2 + s * 0.015, y: (H.y + pts[an].y) / 2, z: -0.02 - 0.08 * land };
-    }
-    // Руки: прямые, через стороны, наверху почти хлопок (172°).
-    const ang = ((10 + 162 * inOut) * Math.PI) / 180;
-    straightArm(pts, body, 11, 13, 15, [17, 19, 21], ang);
-    straightArm(pts, body, 12, 14, 16, [18, 20, 22], ang);
-    return pts;
-  });
 }
 
 /** Колено двухзвенной ноги от таза H к щиколотке A; колено выводим вперёд (−z), x — по линии ноги. */
@@ -373,12 +291,165 @@ function lunges(body, n) {
   });
 }
 
-/** Подъём прямых рук через стороны на ровном теле: 12° → 172° и обратно. */
+/** Поворот точек вокруг горизонтальной оси x через центр C (наклон корпуса вперёд — к −z). */
+function pitch(pts, ids, C, ang) {
+  const c = Math.cos(ang);
+  const s = Math.sin(ang);
+  for (const i of ids) {
+    const p = pts[i];
+    const dy = p.y - C.y;
+    const dz = p.z - C.z;
+    // y вниз, вперёд — −z: наклон вперёд переводит «вверх» (−y) во «вперёд» (−z).
+    pts[i] = { x: p.x, y: C.y + dy * c + dz * s, z: C.z + dz * c - dy * s };
+  }
+}
+
+const UPPER = [0, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+
+/** Тайминг повтора: вниз, пауза внизу, вверх (быстрее), пауза вверху. */
+function tempo(u, down = 0.42, hold = 0.1, upT = 0.33) {
+  if (u < down) return smooth01(u / down);
+  if (u < down + hold) return 1;
+  if (u < down + hold + upT) return 1 - smooth01((u - down - hold) / upT);
+  return 0;
+}
+
+/**
+ * Присед с идеальной техникой: стопы чуть шире таза, носки врозь; таз назад и вниз до параллели бедра
+ * с полом, колени по линии носков, корпус наклоняется ~35° с прямой спиной, прямые руки вперёд до плеч.
+ */
+function squat(body, n) {
+  const L1 = body.thigh;
+  const L2 = body.shin;
+  const stance = body.hipHalf + 0.07;
+  const hipC0 = { x: 0, y: body.hipY, z: 0 };
+  const at = (depth, drop) => {
+    const pts = body.pts.map((p) => ({ ...p }));
+    // Таз сначала уходит назад (hip hinge), потом вниз: назад — быстрее в начале, вниз — к концу.
+    const back = 0.24 * Math.pow(depth, 0.7);
+    // Стопы: шире таза, носки врозь, пятки на полу.
+    for (const [an, he, to, s] of [
+      [27, 29, 31, Math.sign(body.pts[27].x)],
+      [28, 30, 32, Math.sign(body.pts[28].x)],
+    ]) {
+      pts[an] = { x: s * stance, y: -body.ankleH, z: 0 };
+      pts[he] = { x: s * stance, y: 0, z: 0.05 };
+      pts[to] = { x: s * (stance + 0.07), y: 0, z: -0.16 };
+    }
+    // Таз и всё выше него — вниз и назад.
+    for (const i of [23, 24, ...UPPER]) pts[i] = { ...pts[i], y: pts[i].y + drop, z: pts[i].z + back };
+    // Колени: обратная кинематика, развод по линии носков.
+    for (const [hp, kn, an] of [
+      [23, 25, 27],
+      [24, 26, 28],
+    ]) {
+      const k = kneeIK(pts[hp], pts[an], L1, L2);
+      const s = Math.sign(pts[an].x);
+      pts[kn] = { ...k, x: pts[an].x + s * 0.035 * depth };
+    }
+    // Корпус с прямой спиной наклоняется вперёд вокруг таза.
+    const hipC = { x: 0, y: hipC0.y + drop, z: back };
+    pitch(pts, UPPER, hipC, (35 * Math.PI * depth) / 180);
+    // Руки прямые, вперёд: от 12° у бёдер до уровня плеч внизу (по отношению к вертикали).
+    const armAng = ((12 + 80 * depth) * Math.PI) / 180;
+    for (const [sh, el, wr, fingers] of [
+      [11, 13, 15, [17, 19, 21]],
+      [12, 14, 16, [18, 20, 22]],
+    ]) {
+      const S = pts[sh];
+      const dir = { y: Math.cos(armAng), z: -Math.sin(armAng) };
+      const along = (len) => ({ x: S.x * 0.96, y: S.y + dir.y * len, z: S.z + dir.z * len });
+      pts[el] = along(body.upperArm);
+      pts[wr] = along(body.upperArm + body.forearm);
+      for (const j of fingers) pts[j] = along(body.upperArm + body.forearm + 0.08);
+    }
+    return pts;
+  };
+  // Глубина: бедро параллельно полу — колено на уровне таза.
+  let lo = 0;
+  let hi = 0.8;
+  for (let i = 0; i < 40; i += 1) {
+    const m = (lo + hi) / 2;
+    const p = at(1, m);
+    if (p[25].y - p[23].y > 0.005) lo = m;
+    else hi = m;
+  }
+  const maxDrop = lo;
+  return Array.from({ length: n }, (_, k) => {
+    const d = tempo(k / n);
+    return at(d, Math.pow(d, 1.25) * maxDrop);
+  });
+}
+
+/** Прямая рука из плеча под углом ang от вертикали вниз, в плоскости тела (через сторону). */
+function straightArm(pts, body, sh, el, wr, extra, ang) {
+  const s = Math.sign(pts[sh].x) || 1;
+  const S = pts[sh];
+  const dir = { x: s * Math.sin(ang), y: Math.cos(ang) };
+  const at = (len) => ({ x: S.x + dir.x * len, y: S.y + dir.y * len, z: S.z });
+  pts[el] = at(body.upperArm);
+  pts[wr] = at(body.upperArm + body.forearm);
+  for (const j of extra) pts[j] = at(body.upperArm + body.forearm + 0.08);
+}
+
+/** Плечи чуть поднимаются, когда руки над головой — как у живого человека. */
+function shrug(pts, k) {
+  for (const i of [11, 12]) pts[i] = { ...pts[i], y: pts[i].y - 0.035 * k };
+}
+
+/**
+ * «Звёздочка» с идеальной техникой: два прыжка за цикл (наружу и внутрь) с отрывом от пола,
+ * ноги шире плеч, носки врозь, прямые руки через стороны почти до хлопка, мягкое приземление.
+ */
+function jumpingJack(body, n) {
+  const OUT = 0.34; // насколько каждая стопа уходит в сторону, м
+  const HOP = 0.09; // высота прыжка, м
+  return Array.from({ length: n }, (_, k) => {
+    const u = k / n;
+    // 0–0.38 прыжок наружу, 0.38–0.5 приземление широко, 0.5–0.88 прыжок внутрь, 0.88–1 приземление узко.
+    const inOut = u < 0.5 ? smooth01(u / 0.38) : 1 - smooth01((u - 0.5) / 0.38);
+    const flight =
+      u < 0.38
+        ? Math.sin((Math.PI * u) / 0.38)
+        : u >= 0.5 && u < 0.88
+          ? Math.sin((Math.PI * (u - 0.5)) / 0.38)
+          : 0;
+    const land =
+      u >= 0.38 && u < 0.5
+        ? Math.sin((Math.PI * (u - 0.38)) / 0.12)
+        : u >= 0.88
+          ? Math.sin((Math.PI * (u - 0.88)) / 0.12)
+          : 0;
+    const up = HOP * flight;
+    const dip = 0.05 * land; // амортизация
+    const pts = body.pts.map((p) => ({ ...p, y: p.y - up + (p.y < body.hipY + 0.01 ? dip : 0) }));
+    for (const [hp, kn, an, he, to] of [
+      [23, 25, 27, 29, 31],
+      [24, 26, 28, 30, 32],
+    ]) {
+      const s = Math.sign(body.pts[hp].x);
+      const ax = body.pts[hp].x + s * OUT * inOut;
+      const H = pts[hp];
+      pts[an] = { x: ax, y: -body.ankleH - up, z: 0 };
+      pts[he] = { x: ax, y: -up, z: 0.05 };
+      pts[to] = { x: ax + s * (0.04 + 0.05 * inOut), y: -up, z: -0.16 };
+      pts[kn] = { x: (H.x + ax) / 2 + s * 0.015, y: (H.y + pts[an].y) / 2, z: -0.02 - 0.08 * land };
+    }
+    shrug(pts, inOut);
+    const ang = ((10 + 162 * inOut) * Math.PI) / 180;
+    straightArm(pts, body, 11, 13, 15, [17, 19, 21], ang);
+    straightArm(pts, body, 12, 14, 16, [18, 20, 22], ang);
+    return pts;
+  });
+}
+
+/** Подъём прямых рук через стороны: вверх, пауза наверху, медленно вниз, пауза внизу. */
 function armRaise(body, n) {
   return Array.from({ length: n }, (_, k) => {
-    const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * k) / n);
+    const w = tempo(k / n, 0.38, 0.12, 0.38);
     const ang = ((12 + 160 * w) * Math.PI) / 180;
     const pts = body.pts.map((p) => ({ ...p }));
+    shrug(pts, w * w);
     straightArm(pts, body, 11, 13, 15, [17, 19, 21], ang);
     straightArm(pts, body, 12, 14, 16, [18, 20, 22], ang);
     return pts;
@@ -404,9 +475,7 @@ for (const [exercise, cfg] of Object.entries(SOURCES)) {
   if (!rep) throw new Error(`no rep in ${cfg.file}`);
   const seg = frames.slice(rep.l, rep.r + 1);
   let motion = faceViewer(loop(resample(seg, cfg.signal, FRAMES)));
-  if (cfg.armsForward) motion = armsForward(motion);
   motion = ground(motion);
-  out[exercise] = pack(motion, cfg.durationMs, cfg.file);
   console.log(
     `${exercise}: ${cfg.file} кадры ${rep.l}–${rep.r} (${(seg[0].t / 1000).toFixed(1)}–${(seg.at(-1).t / 1000).toFixed(1)} с), ` +
       `амплитуда ${rep.amp.toFixed(3)}, видимость ${rep.vis.toFixed(2)}`,
@@ -415,6 +484,7 @@ for (const [exercise, cfg] of Object.entries(SOURCES)) {
 }
 
 const body = canonical(stand);
+out.squat = pack(squat(body, FRAMES), 3000, 'кинематика: таз назад, бедро до параллели');
 out.jumping_jack = pack(
   jumpingJack(body, FRAMES),
   1150,

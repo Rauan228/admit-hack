@@ -33,10 +33,10 @@ function framesOf(exercise: ExerciseId): (V3 | null)[][] {
   return frames;
 }
 
-/** Ракурс по умолчанию: выпад лучше читается сбоку-спереди — видно шаг и заднее колено у пола. */
+/** Ракурс по умолчанию: присед и выпад читаются на три четверти (таз назад, шаг, колено у пола), остальное — анфас. */
 export const PREFERRED_YAW: Record<ExerciseId, number> = {
-  squat: 0.35,
-  jumping_jack: 0.15,
+  squat: 0.45,
+  jumping_jack: 0.18,
   lunge: 0.75,
   arm_raise: 0.15,
 };
