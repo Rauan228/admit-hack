@@ -1,5 +1,7 @@
 // U-02: экраны как машина состояний. Движок один на всё приложение (engine/bus.ts),
 // режим движка выставляется по текущему экрану; сцена (видео + скелет) лежит под всеми экранами.
+// Камера — только когда нужна: платформа (меню, выбор, рейтинг, профиль) работает мышью и тачем,
+// камера включается на «Старт» подхода (или «Калибровка», или режим «Жесты») и гаснет при выходе в меню.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createEngine, isMockRequested } from '../engine/createEngine';
@@ -8,7 +10,7 @@ import { stopVoice, unlockVoice } from './audio/voice';
 import { DwellProvider } from './components/dwell';
 import { Stage } from './components/Stage';
 import { TopBar } from './components/TopBar';
-import { attachEngine, getEngine, setEngineMode, useEngineEvents } from './engine/bus';
+import { attachEngine, detachEngine, getEngine, setEngineMode, useEngineEvents } from './engine/bus';
 import { clearFormError, setScene } from './engine/overlay';
 import { DemoGuide } from './components/DemoGuide';
 import type { Board } from '../shared/rating';
@@ -69,13 +71,24 @@ const SCENE: Record<Screen['name'], [dim: number, skeleton: number]> = {
   leaderboard: [0.84, 0.1],
 };
 
+/** Экраны без камеры: пришли сюда — камеру выключаем (если не включены «Жесты»). */
+const NO_CAMERA = new Set<Screen['name']>([
+  'landing',
+  'demo',
+  'menu',
+  'picker',
+  'leaderboard',
+  'profile',
+  'auth',
+]);
+
 /** Экран по адресу при загрузке: обновление страницы оставляет на той же странице платформы. */
 function initialScreen(): Screen {
   switch (currentRoute()) {
     case 'demo':
       return { name: 'demo' };
     case 'app':
-      return { name: 'loading' };
+      return { name: 'menu' };
     case 'rating':
       return { name: 'leaderboard' };
     case 'progress':
@@ -94,6 +107,12 @@ export function App() {
   /** Демо-тур (кнопка «Смотреть демо»): после калибровки сразу идёт короткий план с подсказками. ?mock=1 — просто мок для разработки. */
   const [tour, setTour] = useState(false);
   const starting = useRef(false);
+  /** Камера и движок запущены (живая камера, не мок). */
+  const [camera, setCamera] = useState(false);
+  /** «Жесты»: камера включена и в меню — управление рукой по всей платформе. */
+  const [gestures, setGestures] = useState(false);
+  /** Куда идти после запуска камеры и калибровки (например, в подход). */
+  const afterCamera = useRef<Screen>({ name: 'menu' });
   const { user, known } = useAuth();
 
   // Вошёл ли пользователь раньше (cookie-сессия) — узнаём один раз при старте.
@@ -115,25 +134,37 @@ export function App() {
     if (screen.name !== 'workout') stopVoice();
   }, [screen.name]);
 
+  // Ушли из тренировки в меню, рейтинг или профиль — камеру выключаем (демо-тур и «Жесты» — исключение).
+  useEffect(() => {
+    if (!NO_CAMERA.has(screen.name) || gestures || !getEngine()) return;
+    if (tour && screen.name !== 'landing' && screen.name !== 'demo') return;
+    detachEngine();
+    const off = setTimeout(() => setCamera(false), 0);
+    return () => clearTimeout(off);
+  }, [screen.name, gestures, tour]);
+
   /**
-   * Запуск камеры и движка. background — не трогать текущий экран (после обновления на /app/rating);
-   * skipCalibration — калибровку в этой вкладке уже прошли, сразу в меню.
+   * Запуск камеры и движка, потом — калибровка (если в этой вкладке ещё не было) и экран then.
+   * background — не трогать текущий экран (включили «Жесты» в меню).
    */
   const start = useCallback(
-    async (forceMock?: boolean, opts: { background?: boolean; skipCalibration?: boolean } = {}) => {
+    async (forceMock?: boolean, opts: { background?: boolean; calibrate?: boolean; then?: Screen } = {}) => {
       if (starting.current || !video) return;
       starting.current = true;
       unlockAudio();
       unlockVoice();
       const useMock = forceMock ?? isMockRequested();
       setMock(useMock);
+      afterCamera.current = opts.then ?? { name: 'menu' };
       if (!opts.background) go({ name: 'loading' });
       try {
-        getEngine()?.stop();
+        detachEngine();
         const engine = await createEngine({ mock: useMock });
         attachEngine(engine);
         await engine.start(video);
-        if (!opts.background) go(opts.skipCalibration ? { name: 'menu' } : { name: 'calibration' });
+        setCamera(!useMock);
+        const calibrate = useMock || opts.calibrate || !wasCalibrated();
+        if (!opts.background) go(calibrate ? { name: 'calibration' } : afterCamera.current);
       } catch (err) {
         const e = err as { message?: string; code?: string };
         if (!opts.background)
@@ -149,18 +180,23 @@ export function App() {
     [video, go],
   );
 
-  // Открыли (или обновили) страницу платформы — камера включается сама. Звук и голос браузер разрешит
-  // после первого касания, поэтому разблокируем их по первому нажатию.
+  /** Экран, которому нужна камера: камера уже есть — сразу туда, нет — включаем (и калибруем) и потом туда. */
+  const withCamera = useCallback(
+    (next: Screen) => {
+      if (getEngine()) go(next);
+      else void start(undefined, { then: next });
+    },
+    [go, start],
+  );
+
+  // Звук и голос браузер разрешит после первого касания — разблокируем их по первому нажатию.
+  // ?mock=1 (разработка, сквозные тесты) — мок-движок сразу, как раньше.
   const booted = useRef(false);
   useEffect(() => {
     if (!video || booted.current) return;
     booted.current = true;
-    const route = currentRoute();
-    // Запуск — вне тела эффекта: start сразу меняет экран.
     const boot = setTimeout(() => {
-      if (route === 'app') void start(undefined, { skipCalibration: wasCalibrated() });
-      else if (route === 'rating' || route === 'progress' || route === 'login')
-        void start(undefined, { background: true });
+      if (isMockRequested() && currentRoute() === 'app') void start(true);
     }, 0);
     const unlock = () => {
       unlockAudio();
@@ -186,12 +222,11 @@ export function App() {
       else if (route === 'progress') go({ name: 'profile' });
       else if (route === 'login')
         go({ name: 'auth', reason: 'account', back: { name: 'menu' }, next: { name: 'menu' } });
-      else if (getEngine()) go({ name: 'menu' });
-      else void start(undefined, { skipCalibration: wasCalibrated() });
+      else go({ name: 'menu' });
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [go, start]);
+  }, [go]);
 
   /** Выход из демо: останавливаем мок, убираем ?mock из адреса, возвращаемся на лендинг. */
   const exitDemo = useCallback(() => {
@@ -206,15 +241,32 @@ export function App() {
     go({ name: 'landing' });
   }, [go]);
 
+  /** Из демо — к настоящей платформе: мок выключаем, камера включится на первом подходе. */
   const toCamera = useCallback(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.has('mock')) {
       url.searchParams.delete('mock');
       window.history.replaceState(null, '', url);
     }
+    detachEngine();
+    setMock(false);
     setTour(false);
-    void start(false);
-  }, [start]);
+    go({ name: 'menu' });
+  }, [go]);
+
+  /** «Жесты» в верхней панели: включить камеру и управлять рукой везде / выключить. */
+  const toggleGestures = useCallback(() => {
+    if (gestures) {
+      setGestures(false);
+      if (NO_CAMERA.has(screen.name)) {
+        detachEngine();
+        setCamera(false);
+      }
+      return;
+    }
+    setGestures(true);
+    if (!getEngine()) void start(false, { then: screen });
+  }, [gestures, screen, start]);
 
   const showGuide = mock && tour && !['landing', 'demo', 'error'].includes(screen.name);
   // Под подсказку тура резервируем низ экрана (DemoGuide.css, .is-demo), чтобы она ничего не закрывала.
@@ -250,18 +302,27 @@ export function App() {
   return (
     <DwellProvider hand={!mock}>
       <video ref={setVideo} className="camera-source" playsInline muted aria-hidden="true" />
-      {screen.name !== 'landing' && <Stage video={mock ? null : video} />}
+      {screen.name !== 'landing' && !camera && !mock && <div className="app-grid" aria-hidden="true" />}
+      {screen.name !== 'landing' && (camera || mock) && <Stage video={mock ? null : video} />}
       {!['landing', 'demo', 'loading', 'error'].includes(screen.name) && (
         <TopBar
           mock={mock}
           account={mock ? undefined : account}
           onHome={screen.name === 'menu' ? undefined : () => go({ name: 'menu' })}
+          onExitDemo={mock ? exitDemo : undefined}
+          gestures={
+            mock || ['calibration', 'workout'].includes(screen.name)
+              ? undefined
+              : { on: gestures, onToggle: toggleGestures }
+          }
         />
       )}
 
       {showGuide && <DemoGuide screen={screen.name} onExit={exitDemo} onCamera={toCamera} />}
 
-      {screen.name === 'landing' && <Landing onStart={() => start()} onDemo={() => go({ name: 'demo' })} />}
+      {screen.name === 'landing' && (
+        <Landing onStart={() => go({ name: 'menu' })} onDemo={() => go({ name: 'demo' })} />
+      )}
       {screen.name === 'demo' && (
         <DemoIntro
           onWatch={() => {
@@ -286,7 +347,7 @@ export function App() {
           onDone={() => {
             if (tour) return startPlan(DEMO_PLAN);
             markCalibrated();
-            go({ name: 'menu' });
+            go(afterCamera.current);
           }}
         />
       )}
@@ -296,8 +357,11 @@ export function App() {
           onPick={() => go({ name: 'picker' })}
           onChallenge={() => startPlan(CHALLENGE_PLAN)}
           onRecords={() => go({ name: 'leaderboard' })}
-          onRecalibrate={() => go({ name: 'calibration' })}
+          onRecalibrate={() =>
+            getEngine() ? go({ name: 'calibration' }) : void start(undefined, { calibrate: true })
+          }
           onProgress={openProgress}
+          hands={camera}
         />
       )}
       {screen.name === 'picker' && (
@@ -308,7 +372,9 @@ export function App() {
           key={`${screen.plan.kind}-${screen.index}`}
           plan={screen.plan}
           index={screen.index}
-          onGo={() => go({ ...screen, name: 'workout' })}
+          // Без камеры «Старт» включает её (и калибровку) и возвращает сюда же — отсчёт 3-2-1 уже с камерой.
+          onGo={() => (getEngine() ? go({ ...screen, name: 'workout' }) : withCamera(screen))}
+          camera={camera || mock}
           onBack={() => go({ name: 'menu' })}
         />
       )}
