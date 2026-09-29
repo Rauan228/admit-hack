@@ -1,116 +1,231 @@
-.menu {
-  padding-top: 96px;
-  gap: var(--s-5);
-  max-width: 1280px;
-  margin: 0 auto;
+.menu__head {
+  margin-bottom: var(--s-5);
 }
 
-.menu__head {
+/* Главная карточка: текст слева, атлет справа на тёплом свете. */
+.menu__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+  align-items: stretch;
+  width: 100%;
+  min-height: 300px;
+  padding: 0;
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  text-align: left;
+}
+
+.menu__hero .dwell__label {
+  display: contents;
+}
+
+.menu__hero:hover,
+.menu__hero.is-hover {
+  background: #17171b;
+}
+
+.menu__hero-text {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
   gap: var(--s-3);
+  padding: clamp(24px, 4vw, 48px);
 }
 
-.menu__title {
-  font-size: var(--text-2xl);
+.menu__badge {
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.menu__how {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  font-size: var(--text-md);
+.menu__hero-text b {
+  font-size: clamp(28px, 3.2vw, 44px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.menu__hero-text small {
+  max-width: 38ch;
   color: var(--muted);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
+.menu__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--s-3);
+  min-height: 52px;
+  padding: 0 var(--s-5) 0 var(--s-6);
+  border-radius: var(--r-full);
+  background: var(--primary);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.menu__hero:hover .menu__go,
+.menu__hero.is-hover .menu__go {
+  background: var(--primary-2);
+}
+
+.menu__hero-art {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0 var(--r-xl) var(--r-xl) 0;
+  background: radial-gradient(60% 70% at 55% 60%, rgba(249, 115, 22, 0.22), transparent 70%);
+}
+
+.menu__hero-ghost {
+  position: absolute;
+  left: -20%;
+  top: -32%;
+  width: 140%;
+  height: 150%;
+}
+
+/* Режимы — мягкие плитки без рамок. */
 .menu__grid {
-  flex: 1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: var(--s-5);
-  min-height: 0;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
 }
 
-/* Плитки крупные: рукой попасть сложнее, чем мышью. */
 .menu__tile {
-  height: 100%;
-  min-height: 150px;
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: space-between;
-  text-align: left;
-  padding: var(--s-6);
+  gap: var(--s-6);
+  min-height: 156px;
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  text-decoration: none;
 }
 
 .menu__tile .dwell__label {
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  height: 100%;
-  gap: var(--s-4);
+  display: contents;
 }
 
-.menu__tile--hero {
-  grid-row: span 2;
+.menu__tile:hover,
+.menu__tile.is-hover {
+  background: var(--surface-2);
 }
 
-.menu__tile-text {
+.menu__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--fg);
+}
+
+.menu__text {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: 4px;
 }
 
-.menu__tile-text b {
-  font-size: var(--text-xl);
-  line-height: 1;
-}
-
-.menu__tile-text small {
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
+.menu__text b {
+  font-size: 18px;
   font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0;
-  opacity: 0.8;
+  letter-spacing: -0.01em;
 }
 
-.menu__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.menu__text small {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* Сводка — одна широкая карточка с крупными цифрами. */
+.menu__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--s-4);
-  flex-wrap: wrap;
+  margin-top: var(--s-3);
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface);
 }
 
-@media (max-width: 860px) {
-  .menu {
-    overflow-y: auto;
-  }
+.menu__stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
+.menu__stats b {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.menu__stats small {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media (max-width: 960px) {
   .menu__grid {
-    flex: none;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: none;
-  }
-
-  .menu__tile--hero {
-    grid-row: auto;
-    grid-column: span 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 520px) {
-  .menu__grid {
+@media (max-width: 620px) {
+  .menu__hero {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
 
-  .menu__tile--hero {
-    grid-column: auto;
+  .menu__hero-art {
+    order: -1;
+    height: 200px;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+  }
+
+  .menu__hero-text {
+    padding: var(--s-2) var(--s-5) var(--s-5);
+  }
+
+  .menu__go {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .menu__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-2);
   }
 
   .menu__tile {
-    min-height: 110px;
-    padding: var(--s-5);
+    min-height: 132px;
+    gap: var(--s-4);
+    padding: var(--s-4);
+  }
+
+  .menu__text b {
+    font-size: 16px;
+  }
+
+  .menu__text small {
+    font-size: 13px;
+  }
+
+  .menu__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

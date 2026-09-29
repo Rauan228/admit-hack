@@ -7,7 +7,14 @@ import { useEffect, useRef } from 'react';
 import { isMobileDevice } from '../../engine/perf';
 import { GHOST_DURATION_MS, ghostPoseAt } from '../../engine/ghostPoses';
 import type { ExerciseId, Landmark } from '../../engine/types';
-import { PREFERRED_YAW, athletePose, drawAthlete, hasRecordedMotion, type GhostId } from '../lib/athlete';
+import {
+  PREFERRED_YAW,
+  athletePose,
+  drawAthlete,
+  durationOf,
+  hasRecordedMotion,
+  type GhostId,
+} from '../lib/athlete';
 import { drawTrace } from '../lib/trace';
 
 export interface GhostProps {
@@ -27,6 +34,8 @@ export interface GhostProps {
   anatomyOnly?: boolean;
   /** Первый кадр нарисован (для плавного появления). */
   onReady?: () => void;
+  /** Один кадр — поза из середины движения (превью в карточках): рисуем раз и больше не крутим цикл. */
+  still?: boolean;
 }
 
 const MOBILE = isMobileDevice();
@@ -46,6 +55,7 @@ export function Ghost({
   clock,
   anatomyOnly = false,
   onReady,
+  still = false,
 }: GhostProps) {
   const yaw = yawProp ?? PREFERRED_YAW[exercise];
   const ref = useRef<HTMLCanvasElement>(null);
@@ -63,7 +73,7 @@ export function Ghost({
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     const start = performance.now();
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const reduced = still || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
     let raf = 0;
     let visible = true;
     let last = 0;
@@ -79,14 +89,14 @@ export function Ghost({
     // Упражнения без эталона — стикмен по призраку движка, 3D не грузим.
     const stick = !hasRecordedMotion(exercise);
     // anatomyOnly: ждём анатомию; не пришла — честный 2D, а не пустая карточка.
-    let waitAnatomy = anatomyOnly && !stick;
+    let waitAnatomy = (anatomyOnly || still) && !stick;
     const giveUp = waitAnatomy ? setTimeout(() => (waitAnatomy = false), ANATOMY_TIMEOUT_MS) : 0;
     if (!stick) {
       load3d ??= import('../three');
       load3d
         .then((m) => {
           if (cancelled) return;
-          if (!anatomyOnly) view = new m.AthleteView(exercise);
+          if (!anatomyOnly && !still) view = new m.AthleteView(exercise);
           zview = zviews.get(exercise) ?? new m.ZAthleteView(exercise);
           zviews.set(exercise, zview);
         })
@@ -108,7 +118,7 @@ export function Ghost({
       if (canvas.width !== Math.round(W * dpr)) canvas.width = Math.round(W * dpr);
       if (canvas.height !== Math.round(H * dpr)) canvas.height = Math.round(H * dpr);
       // При reduced motion — статичная середина движения (самая информативная поза).
-      const t = reduced ? 1300 : (clk.current?.() ?? now - start);
+      const t = still ? durationOf(exercise) * 0.3 : reduced ? 1300 : (clk.current?.() ?? now - start);
       const y = sway && !reduced ? yaw + Math.sin(now / 2400) * 0.3 : yaw;
       if (stick) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -165,7 +175,7 @@ export function Ghost({
       io?.disconnect();
       document.removeEventListener('visibilitychange', kick);
     };
-  }, [exercise, yaw, sway, anatomyOnly]);
+  }, [exercise, yaw, sway, anatomyOnly, still]);
 
   return <canvas ref={ref} className={className} aria-hidden="true" />;
 }

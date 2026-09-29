@@ -1,4 +1,4 @@
-// U-07: выбор одного упражнения — 18 штук в четырёх категориях. Сверху вкладки, под ними до 6 крупных плиток,
+// U-07: выбор одного упражнения — 18 штук в четырёх категориях. Сверху вкладки-пилюли, под ними карточки,
 // чтобы рукой попадать с 2–3 метров. 3D-атлета в плитках нет: эталон показывает интро (и телефон не тормозит).
 // «Обе руки вверх» — назад (обрабатывает App).
 
@@ -6,13 +6,14 @@ import { useState } from 'react';
 import type { ExerciseId } from '../../engine/types';
 import { SINGLE_TARGET } from '../../shared/rating';
 import { DwellButton } from '../components/dwell';
+import { Ghost } from '../components/Ghost';
 import { Icon } from '../components/Icon';
-import { MUSCLE_NAMES } from '../lib/athlete';
+import { MUSCLE_NAMES, hasRecordedMotion } from '../lib/athlete';
 import { CATEGORIES, EXERCISE_META } from '../lib/exercises';
 import { order } from '../lib/motion';
-import './Menu.css';
 import './Picker.css';
 
+const EXERCISE_COUNT = CATEGORIES.reduce((n, c) => n + c.items.length, 0);
 const TAB_KEY = 'forma.picker.tab.v1';
 
 function savedTab(): string {
@@ -22,6 +23,9 @@ function savedTab(): string {
     return CATEGORIES[0]!.id;
   }
 }
+
+/** Упор лёжа: фигура вытянута по горизонтали — в превью не увеличиваем, иначе обрежется. */
+const LYING = new Set<string>(['push_up', 'plank']);
 
 export function Picker({ onPick, onBack }: { onPick: (e: ExerciseId) => void; onBack: () => void }) {
   const [tab, setTab] = useState(savedTab);
@@ -36,70 +40,74 @@ export function Picker({ onPick, onBack }: { onPick: (e: ExerciseId) => void; on
   };
 
   return (
-    <main className="screen menu picker">
-      <header className="menu__head">
-        <h1 className="menu__title rise" style={order(0)}>
-          Выбери упражнение
-        </h1>
-        <p className="menu__how">
-          <Icon name="back" size={24} className="primary" /> Обе руки над головой — назад
-        </p>
-      </header>
-
-      <nav className="picker__tabs" aria-label="Категории">
-        {CATEGORIES.map((c) => (
-          <DwellButton
-            key={c.id}
-            size="sm"
-            variant={c.id === cat.id ? 'primary' : 'ghost'}
-            className="picker__tab"
-            onSelect={() => choose(c.id)}
-          >
-            <Icon name={c.icon} size={22} /> {c.title}
-            <small className="picker__count">{c.items.length}</small>
+    <main className="page picker">
+      <div className="page__inner">
+        <header className="page__head picker__head rise" style={order(0)}>
+          <DwellButton className="picker__back" onSelect={onBack}>
+            <Icon name="back" size={16} /> Назад
           </DwellButton>
-        ))}
-      </nav>
+          <h1 className="page__title">Выбери упражнение</h1>
+          <p className="page__sub">
+            {EXERCISE_COUNT} упражнений в четырёх группах. Обе руки над головой — назад.
+          </p>
+        </header>
 
-      <nav className="picker__grid" aria-label={cat.title} key={cat.id}>
-        {cat.items.map((ex, i) => {
-          const meta = EXERCISE_META[ex];
-          const target = SINGLE_TARGET[ex];
-          return (
+        <nav className="pills picker__tabs" aria-label="Категории">
+          {CATEGORIES.map((c) => (
             <DwellButton
-              key={ex}
-              size="lg"
-              className="picker__tile rise"
-              style={order(i + 1)}
-              onSelect={() => onPick(ex)}
+              key={c.id}
+              className={`pill picker__tab ${c.id === cat.id ? 'is-active' : ''}`}
+              onSelect={() => choose(c.id)}
             >
-              <span className="picker__tile-top">
-                <Icon name={meta.icon} size={30} className="primary" />
-                <span className="picker__target">
-                  {ex === 'lunge'
-                    ? `${target} × 2 ноги`
-                    : `${target} ${meta.unit === 'sec' ? 'сек' : 'повт.'}`}
-                </span>
-              </span>
-              <span className="menu__tile-text">
-                <b>{meta.title}</b>
-                <small>{MUSCLE_NAMES[ex].join(' · ')}</small>
-              </span>
-              {meta.setup && (
-                <span className="picker__setup">
-                  <Icon name="camera" size={16} /> камера на полу, лицом к ней
-                </span>
-              )}
+              <Icon name={c.icon} size={16} /> {c.title}
+              <small>{c.items.length}</small>
             </DwellButton>
-          );
-        })}
-      </nav>
+          ))}
+        </nav>
 
-      <footer className="menu__foot">
-        <DwellButton size="sm" variant="ghost" onSelect={onBack}>
-          <Icon name="back" size={22} /> Назад
-        </DwellButton>
-      </footer>
+        <h2 className="picker__cat">{cat.title}</h2>
+
+        <nav className="picker__grid" aria-label={cat.title} key={cat.id}>
+          {cat.items.map((ex, i) => {
+            const meta = EXERCISE_META[ex];
+            const target = SINGLE_TARGET[ex];
+            return (
+              <DwellButton
+                key={ex}
+                className="picker__card rise"
+                style={order(i + 1)}
+                onSelect={() => onPick(ex)}
+              >
+                <span className="picker__frame" aria-hidden="true">
+                  <Ghost
+                    exercise={ex}
+                    still
+                    className={
+                      hasRecordedMotion(ex) && !LYING.has(ex)
+                        ? 'picker__ghost picker__ghost--3d'
+                        : 'picker__ghost'
+                    }
+                  />
+                </span>
+                <span className="picker__text">
+                  <b>{meta.title}</b>
+                  <span className="picker__target">
+                    {ex === 'lunge'
+                      ? `${target} × 2 ноги`
+                      : `${target} ${meta.unit === 'sec' ? 'сек' : 'повт.'}`}
+                  </span>
+                  <small className="picker__muscles">{MUSCLE_NAMES[ex].join(' · ')}</small>
+                  {meta.setup && (
+                    <span className="picker__setup">
+                      <Icon name="camera" size={14} /> камера на полу, лицом к ней
+                    </span>
+                  )}
+                </span>
+              </DwellButton>
+            );
+          })}
+        </nav>
+      </div>
     </main>
   );
 }
