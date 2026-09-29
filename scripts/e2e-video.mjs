@@ -114,19 +114,23 @@ try {
     const detail =
       e.type === 'rep'
         ? `#${e.count} оценка ${e.score}${e.errors.length ? ` [${e.errors.join(', ')}]` : ''}`
-        : e.type === 'form_error'
-          ? `${e.code}: ${e.message}`
-          : e.type === 'calibration'
-            ? `${e.status}: ${e.hint}`
-            : e.type === 'set_complete'
-              ? JSON.stringify(e.stats)
-              : '';
+        : e.type === 'half_rep'
+          ? `${e.side}${e.errors.length ? ` [${e.errors.join(', ')}]` : ''}`
+          : e.type === 'form_error'
+            ? `${e.code}: ${e.message}`
+            : e.type === 'calibration'
+              ? `${e.status}: ${e.hint}`
+              : e.type === 'set_complete'
+                ? JSON.stringify(e.stats)
+                : '';
     console.log(`${e.type.padEnd(12)} ${detail}`);
   }
   const reps = events.filter((e) => e.type === 'rep').length;
   const hints = events.filter((e) => e.type === 'form_error').map((e) => e.code);
+  // Выпады: повтор — пара ног, каждое движение — half_rep со стороной (нога впереди).
+  const halves = events.filter((e) => e.type === 'half_rep').map((e) => (e.side === 'right' ? 'П' : 'Л'));
   console.log(
-    `\nитог: повторов ${reps}; подсказок ${hints.length} [${hints.join(', ')}]; кадров ${frames.total}, с человеком ${frames.withPerson}, FPS ${frames.fps}`,
+    `\nитог: повторов ${reps}${halves.length ? ` (движений ${halves.length}: ${halves.join(' ')})` : ''}; подсказок ${hints.length} [${hints.join(', ')}]; кадров ${frames.total}, с человеком ${frames.withPerson}, FPS ${frames.fps}`,
   );
   if (errors.length) console.log(`ошибки страницы: ${errors.join(' | ')}`);
 } finally {

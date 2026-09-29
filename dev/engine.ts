@@ -72,6 +72,9 @@ const state = {
   score: '—',
   hint: '—',
   gesture: '—',
+  /** Выпады: стороны сделанных движений (П/Л) и какая нога ждёт пару. */
+  halves: [] as string[],
+  pair: '—',
 };
 window.__events = [];
 
@@ -117,6 +120,7 @@ function render(): void {
     `FPS ${state.fps} · ${detector?.delegate ?? '?'} / ${detector?.model ?? '?'} · точек ${state.points}\n` +
     `калибровка: ${state.calibration}\n` +
     `фаза: ${state.phase} · повторов: ${state.reps} · оценка: ${state.score}\n` +
+    (state.halves.length ? `пара: ${state.pair} · стороны: ${state.halves.join(' ')}\n` : '') +
     `подсказка: ${state.hint}\n` +
     `жест: ${state.gesture}`;
 }
@@ -153,8 +157,16 @@ function onEvent(e: EngineEvent): void {
       state.hint = 'Отлично!';
       red = new Set();
       break;
+    case 'half_rep': {
+      // Сторона — нога впереди. П/Л по порядку: при смене ног должно чередоваться.
+      const word = e.side === 'right' ? 'правая' : 'левая';
+      state.halves = [...state.halves, e.side === 'right' ? 'П' : 'Л'].slice(-16);
+      state.pair = `${word} ✓${e.errors.length ? ` (${e.errors.join(', ')})` : ''} — теперь ${e.side === 'right' ? 'левая' : 'правая'}`;
+      break;
+    }
     case 'rep':
       state.reps = e.count;
+      if (state.halves.length) state.pair = 'пара закрыта';
       state.score = `${e.score}${e.errors.length ? ` (${e.errors.join(', ')})` : ''}`;
       break;
     case 'set_complete':
@@ -170,6 +182,10 @@ for (const name of ['calibration', 'menu', ...EXERCISES]) {
   const b = document.createElement('button');
   b.textContent = name;
   b.addEventListener('click', () => {
+    // Новый режим — новый подход: счёт и стороны выпадов с нуля.
+    state.reps = 0;
+    state.halves = [];
+    state.pair = '—';
     current = toMode(name);
     engine?.setMode(current);
   });
