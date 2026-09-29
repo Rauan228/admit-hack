@@ -1,0 +1,79 @@
+/* Заливка кнопки слева направо, пока рука держится над ней: видно, сколько ещё держать. */
+.dwell__fill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, var(--primary-soft), rgba(249, 115, 22, 0.42));
+  transform-origin: left center;
+  transform: scaleX(var(--p, 0));
+  transition: transform 80ms linear;
+}
+
+.btn--primary .dwell__fill {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.4));
+}
+
+.dwell__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Курсор-рука: кольцо заполняется за время удержания. */
+.hand-cursor {
+  --p: 0;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  width: 76px;
+  height: 76px;
+  margin: -38px 0 0 -38px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-med) var(--ease);
+  will-change: transform;
+}
+
+.hand-cursor.is-visible {
+  opacity: 1;
+}
+
+.hand-cursor svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  filter: drop-shadow(0 0 12px rgba(249, 115, 22, 0.6));
+}
+
+.hand-cursor__track {
+  fill: rgba(11, 17, 32, 0.35);
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 4;
+}
+
+.hand-cursor__ring {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: calc(1 - var(--p));
+}
+
+.hand-cursor__dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 0 0 4px var(--primary);
+}
