@@ -1,38 +1,23 @@
 // U-04 + U-18: лендинг. Единственный клик в приложении — «Начать»: браузеру нужен жест,
 // чтобы дать камеру и звук. Дальше всё управляется телом.
-// Первый экран помещается в окно целиком; ниже — как это работает, режим «ошибка», призыв.
+// Первый экран: заголовок, фото атлета и парящий экран с живым HUD; ниже — технологии, упражнения,
+// режим «ошибка», призыв.
 
 import { useRef, type ReactNode } from 'react';
 import { FORM_ERRORS } from '../../engine/hints';
 import { EXERCISES } from '../../engine/types';
-import { Icon, type IconName } from '../components/Icon';
+import { Ghost } from '../components/Ghost';
+import { Icon } from '../components/Icon';
 import { LivePreview } from '../components/LivePreview';
-import { Logo } from '../components/TopBar';
 import { EXERCISE_META } from '../lib/exercises';
 import { order } from '../lib/motion';
 import { useCountUp } from '../lib/useCountUp';
 import { useReveal } from '../lib/useReveal';
+import { generateNames } from '../store/progress';
 import './Landing.css';
 
-const STEPS: { icon: IconName; title: string; text: string }[] = [
-  {
-    icon: 'camera',
-    title: 'Встань перед камерой',
-    text: 'В 2–3 метрах, чтобы в кадр попали голова и стопы. Тренер сам скажет, если что-то не так.',
-  },
-  {
-    icon: 'hand',
-    title: 'Подними руку',
-    text: 'Появится курсор. Задержи его на кнопке 1,2 секунды — это выбор. Обе руки вверх — назад.',
-  },
-  {
-    icon: 'zap',
-    title: 'Тренируйся',
-    text: 'Счёт повторов, оценка каждого, подсказки голосом. В конце — итоги и рекорды.',
-  },
-];
-
 const ERROR_COUNT = Object.values(FORM_ERRORS).reduce((a, list) => a + list.length, 0);
+const HERO_PHOTO = `${import.meta.env.BASE_URL}landing/hero-athlete.jpg`;
 
 /** Витрина ошибок: самые частые на каждое упражнение. */
 const SHOWCASE = [
@@ -44,16 +29,18 @@ const SHOWCASE = [
   { exercise: 'arm_raise', code: 'elbows_bent' },
 ] as const;
 
-const MARQUEE = [
-  'Приседания',
-  'Выпады',
-  '«Звёздочка»',
-  'Подъём рук',
-  `${ERROR_COUNT} ошибок техники`,
-  'Подсказки голосом',
-  'Меню жестами',
-  'Без установки',
-];
+/** Пример таблицы рекордов для карточки «Соревнуйся» (имена — тем же генератором, что в приложении). */
+const SAMPLE_TOP = (() => {
+  const [a, b, c] = generateNames(3, 4242);
+  return [
+    { name: a ?? 'Быстрый Барс', points: 982 },
+    { name: 'Ты', points: 842, me: true },
+    { name: b ?? 'Стальной Сокол', points: 801 },
+    { name: c ?? 'Ловкий Тулпар', points: 760 },
+  ];
+})();
+
+const ERROR_HIGHLIGHT = new Set([23, 25, 27]);
 
 export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () => void }) {
   const root = useRef<HTMLElement>(null);
@@ -63,103 +50,167 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
 
   return (
     <main ref={root} className="landing">
-      <div className="landing__bg" aria-hidden="true">
-        <span className="landing__blob landing__blob--a" />
-        <span className="landing__blob landing__blob--b" />
-        <span className="landing__grid" />
-      </div>
-
       <nav className="lnav">
-        <Logo />
+        <span className="lnav__logo">FORMA</span>
         <div className="lnav__links">
-          <button type="button" onClick={() => scrollTo('how')}>
-            Как работает
+          <button type="button" onClick={() => scrollTo('tech')}>
+            Возможности
+          </button>
+          <button type="button" onClick={() => scrollTo('exercises')}>
+            Упражнения
           </button>
           <button type="button" onClick={() => scrollTo('errors')}>
             Режим ошибки
           </button>
-          <button type="button" className="btn btn--primary btn--sm" onClick={onStart}>
-            Начать
-          </button>
         </div>
+        <button type="button" className="lbtn lbtn--sm" onClick={onStart}>
+          Начать
+        </button>
       </nav>
 
       <section className="hero">
+        <div className="hero__scene" aria-hidden="true">
+          <img className="hero__photo" src={HERO_PHOTO} alt="" />
+          <span className="hero__streak hero__streak--a" />
+          <span className="hero__streak hero__streak--b" />
+          <span className="hero__glow" />
+        </div>
+
         <div className="hero__copy">
           <p className="hero__kicker rise" style={order(0)}>
-            AI-тренер · веб-камера · без установки
+            AI Fitness Coach
           </p>
           <h1 className="hero__title">
             <Line i={0}>Тренер,</Line>
-            <Line i={1}>которому не</Line>
+            <Line i={1}>которому</Line>
             <Line i={2} accent>
-              нужны руки
+              не нужны руки
             </Line>
           </h1>
           <p className="hero__lead rise" style={order(4)}>
-            Встань перед камерой — FORMA считает повторы, видит ошибки техники и говорит голосом, как их
-            исправить. Меню тоже управляется телом.
+            Умный тренер, который видит тебя через камеру: считает повторения, исправляет ошибки техники и
+            подсказывает голосом. Просто встань перед экраном — и начни тренироваться.
           </p>
           <div className="hero__cta rise" style={order(5)}>
-            <button type="button" className="btn btn--primary btn--lg hero__start" onClick={onStart}>
-              <Icon name="play" size={30} /> Начать тренировку
+            <button type="button" className="lbtn hero__start" onClick={onStart}>
+              Начать тренировку <Icon name="back" size={22} className="lbtn__arrow" />
             </button>
-            <button type="button" className="btn btn--ghost" onClick={onDemo}>
+            <button type="button" className="lbtn lbtn--ghost" onClick={onDemo}>
               Демо без камеры
             </button>
           </div>
           <dl className="hero__facts rise" style={order(6)}>
-            <Fact value={EXERCISES.length} label="упражнения" />
-            <Fact value={ERROR_COUNT} label="ошибок техники" />
-            <Fact value={30} label="кадров в секунду" />
+            <Fact
+              value={EXERCISES.length}
+              label="вида упражнений"
+              note="Приседания, выпады, «звёздочка», подъём рук"
+            />
+            <Fact value={ERROR_COUNT} label="ошибок техники" note="Каждая — с конкретной подсказкой" />
+            <Fact value={30} label="кадров в секунду" note="Распознавание прямо в браузере" />
           </dl>
         </div>
 
-        <div className="hero__visual rise" style={order(3)}>
+        <div className="hero__screen rise" style={order(3)}>
           <LivePreview />
         </div>
+
+        <button type="button" className="hero__scroll" onClick={() => scrollTo('tech')}>
+          <span>Scroll</span>
+          <i />
+        </button>
       </section>
 
-      <div className="marquee" aria-hidden="true">
-        {[0, 1].map((row) => (
-          <div key={row} className={`marquee__row ${row ? 'marquee__row--rev' : ''}`}>
-            {[...MARQUEE, ...MARQUEE].map((w, i) => (
-              <span key={i}>
-                {w}
-                <i />
-              </span>
-            ))}
-          </div>
-        ))}
-      </div>
+      <section id="tech" className="lsec">
+        <header className="lsec__head" data-reveal>
+          <span className="lsec__num">01</span>
+          <h2 className="lsec__title">Технологии, которые работают на тебя</h2>
+          <p className="lsec__text">
+            Компьютерное зрение, своя логика распознавания и точная аналитика — чтобы тренироваться правильно,
+            без ошибок и травм.
+          </p>
+        </header>
+        <ul className="tech">
+          <li className="tech__card" data-reveal style={order(0)}>
+            <div className="tech__viz tech__viz--track">
+              <Ghost exercise="squat" className="tech__ghost" yaw={0.2} />
+              <span className="tech__corner tech__corner--tl" />
+              <span className="tech__corner tech__corner--tr" />
+              <span className="tech__corner tech__corner--bl" />
+              <span className="tech__corner tech__corner--br" />
+              <span className="tech__scan" />
+            </div>
+            <h3>Распознаёт движения</h3>
+            <p>33 точки тела, 30 раз в секунду — следит за техникой в реальном времени</p>
+          </li>
+          <li className="tech__card" data-reveal style={order(1)}>
+            <div className="tech__viz tech__viz--error">
+              <Ghost exercise="lunge" className="tech__ghost" highlight={ERROR_HIGHLIGHT} />
+            </div>
+            <h3>Находит ошибки</h3>
+            <p>Показывает, что именно исправить: голосом, подсказкой и красным суставом</p>
+          </li>
+          <li className="tech__card" data-reveal style={order(2)}>
+            <div className="tech__viz tech__viz--score">
+              <div className="tech__score">
+                <ScoreLoop />
+                <span className="tech__check">
+                  <Icon name="check" size={30} />
+                </span>
+              </div>
+            </div>
+            <h3>Считает и оценивает</h3>
+            <p>Оценка каждого повтора, процент чистой техники и прогресс</p>
+          </li>
+          <li className="tech__card" data-reveal style={order(3)}>
+            <div className="tech__viz tech__viz--top">
+              <b className="tech__top-title">Топ 10</b>
+              <ol className="tech__top">
+                {SAMPLE_TOP.map((r, i) => (
+                  <li key={r.name} className={r.me ? 'is-me' : ''}>
+                    <span>{i + 1}</span>
+                    <span>{r.name}</span>
+                    <b>{r.points}</b>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <h3>Соревнуйся</h3>
+            <p>Таблица рекордов, серии чистых повторов и челлендж на 60 секунд</p>
+          </li>
+        </ul>
+      </section>
 
-      <section id="how" className="lsection">
-        <h2 className="lsection__title" data-reveal>
-          Три шага — и ты тренируешься
-        </h2>
-        <ol className="steps">
-          {STEPS.map((s, i) => (
-            <li key={s.title} className="step" data-reveal style={order(i)}>
-              <span className="step__num">0{i + 1}</span>
-              <span className="step__icon">
-                <Icon name={s.icon} size={34} />
-              </span>
-              <h3>{s.title}</h3>
-              <p className="muted">{s.text}</p>
+      <section id="exercises" className="lsec">
+        <header className="lsec__head" data-reveal>
+          <span className="lsec__num">02</span>
+          <h2 className="lsec__title">Четыре упражнения — идеальная техника</h2>
+          <p className="lsec__text">
+            Перед каждым подходом тренер показывает эталон: движение построено на пропорциях реального
+            человека.
+          </p>
+        </header>
+        <ul className="moves">
+          {EXERCISES.map((ex, i) => (
+            <li key={ex} className="move" data-reveal style={order(i)}>
+              <Ghost exercise={ex} className="move__ghost" />
+              <div className="move__text">
+                <h3>{EXERCISE_META[ex].title}</h3>
+                <p>{EXERCISE_META[ex].cues.join(' · ')}</p>
+              </div>
             </li>
           ))}
-        </ol>
+        </ul>
       </section>
 
-      <section id="errors" className="lsection lsection--split">
-        <div data-reveal>
-          <h2 className="lsection__title">Не «движение не распознано», а что именно исправить</h2>
-          <p className="lsection__text muted">
-            {ERROR_COUNT} ошибок техники в четырёх упражнениях. Каждую тренер показывает сразу четырьмя
-            способами: подсказкой на экране, голосом, красными суставами на твоём скелете и стрелкой — куда
-            двигаться.
+      <section id="errors" className="lsec lsec--split">
+        <header className="lsec__head" data-reveal>
+          <span className="lsec__num">03</span>
+          <h2 className="lsec__title">Не «движение не распознано», а что именно исправить</h2>
+          <p className="lsec__text">
+            {ERROR_COUNT} ошибок техники. Каждую тренер показывает сразу четырьмя способами: подсказкой на
+            экране, голосом, красными суставами на твоём скелете и стрелкой — куда двигаться.
           </p>
-        </div>
+        </header>
         <ul className="errs">
           {SHOWCASE.map((s, i) => {
             const def = FORM_ERRORS[s.exercise].find((e) => e.code === s.code);
@@ -180,14 +231,18 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
       </section>
 
       <section className="final" data-reveal>
-        <h2>Готов? Отойди на пару шагов от экрана.</h2>
-        <button type="button" className="btn btn--primary btn--lg hero__start" onClick={onStart}>
-          <Icon name="play" size={30} /> Начать
+        <span className="final__glow" aria-hidden="true" />
+        <h2>Готов? Отойди на пару шагов от экрана</h2>
+        <button type="button" className="lbtn hero__start" onClick={onStart}>
+          Начать тренировку <Icon name="back" size={22} className="lbtn__arrow" />
         </button>
-        <p className="muted">Видео не покидает устройство: распознавание работает прямо в браузере.</p>
+        <p>Видео не покидает устройство: распознавание работает прямо в браузере.</p>
       </section>
 
-      <footer className="lfoot muted">FORMA · ADMIT Hackathon 2026 · Motion: камера вместо джойстика</footer>
+      <footer className="lfoot">
+        <span className="lnav__logo">FORMA</span>
+        <span>ADMIT Hackathon 2026 · Motion: камера вместо джойстика</span>
+      </footer>
     </main>
   );
 }
@@ -202,12 +257,21 @@ function Line({ i, accent, children }: { i: number; accent?: boolean; children: 
   );
 }
 
-function Fact({ value, label }: { value: number; label: string }) {
+function Fact({ value, label, note }: { value: number; label: string; note: string }) {
   const n = useCountUp(value, 1100, 800);
   return (
     <div className="hero__fact">
       <dt>{n}</dt>
-      <dd>{label}</dd>
+      <dd>
+        <b>{label}</b>
+        <span>{note}</span>
+      </dd>
     </div>
   );
+}
+
+/** «+96» в карточке оценки: число набегает и повторяется. */
+function ScoreLoop() {
+  const n = useCountUp(96, 1400, 600);
+  return <span className="tech__score-num">+{n}</span>;
 }

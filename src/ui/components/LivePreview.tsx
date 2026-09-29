@@ -1,24 +1,46 @@
-// «Живое превью» для лендинга: атлет-эталон и HUD приложения поверх — счётчик тикает синхронно
-// с движением, на каждом повторе всплывает оценка, через раз — подсказка об ошибке с подсветкой суставов.
-// Показывает продукт в действии ещё до того, как человек включил камеру.
+// «Живой экран» для лендинга: атлет-эталон и HUD приложения — счётчик тикает синхронно с движением,
+// на каждом повторе всплывает оценка, через раз — подсказка об ошибке с подсветкой суставов,
+// справа — чек-лист техники, где загорается пункт текущей ошибки. Продукт в действии до включения камеры.
 
 import { useCallback, useEffect, useState } from 'react';
 import { FORM_ERRORS } from '../../engine/hints';
 import type { ExerciseId } from '../../engine/types';
 import { durationOf } from '../lib/athlete';
 import { EXERCISE_META } from '../lib/exercises';
-import { scoreColor } from '../theme';
 import { Ghost } from './Ghost';
 import { Icon } from './Icon';
 import './LivePreview.css';
 
 const ORDER: ExerciseId[] = ['squat', 'jumping_jack', 'lunge', 'arm_raise'];
 const REPS_PER_EXERCISE = 3;
+const TARGET = 10;
+
+/** Короткие пункты чек-листа: код ошибки → что держать. */
+const CHECK: Record<ExerciseId, [string, string][]> = {
+  squat: [
+    ['shallow_depth', 'Глубже'],
+    ['torso_lean', 'Спина прямо'],
+    ['knees_in', 'Колени в стороны'],
+  ],
+  jumping_jack: [
+    ['arms_low', 'Руки выше'],
+    ['feet_narrow', 'Ноги шире'],
+    ['not_synced', 'Синхронно'],
+  ],
+  lunge: [
+    ['back_knee_high', 'Колено к полу'],
+    ['knee_past_toe', 'Колено над стопой'],
+    ['torso_lean', 'Корпус ровно'],
+  ],
+  arm_raise: [
+    ['elbows_bent', 'Локти прямые'],
+    ['one_arm_low', 'Обе руки вместе'],
+  ],
+};
 
 interface Tick {
   exercise: ExerciseId;
   rep: number;
-  /** Время внутри текущего упражнения, мс. */
   t: number;
 }
 
@@ -49,72 +71,84 @@ export function LivePreview() {
   // Второй повтор каждого упражнения — с ошибкой, остальные чистые.
   const flawed = rep === 1;
   const err = FORM_ERRORS[exercise][0];
-  const showHint = phase > 0.35 && phase < 0.95;
-  const done = rep; // завершённых повторов
-  // Оценка последнего завершённого повтора: второй (индекс 1) — с ошибкой.
+  const showHint = phase > 0.3 && phase < 0.92;
+  const done = rep;
   const lastScore = done > 0 ? (done - 1 === 1 ? 72 : 96 - done) : null;
   const highlight = flawed && showHint && err ? new Set(err.joints) : undefined;
+  const activeCode = flawed && showHint ? err?.code : null;
 
   return (
-    <div className="preview">
-      <div className="preview__frame">
-        <div className="preview__scan" aria-hidden="true" />
-        <Ghost
-          key={exercise}
-          exercise={exercise}
-          className="preview__athlete"
-          sway
-          clock={clock}
-          highlight={highlight}
-        />
-
-        <header className="preview__top">
-          <div>
-            <span className="preview__label">Сейчас</span>
-            <b key={exercise} className="preview__title">
-              {meta.title}
-            </b>
+    <div className="screenhud">
+      <div className="screenhud__frame">
+        <div className="screenhud__main">
+          <Ghost
+            key={exercise}
+            exercise={exercise}
+            className="screenhud__athlete"
+            sway
+            clock={clock}
+            highlight={highlight}
+          />
+          <span key={`t-${exercise}`} className="screenhud__title">
+            {meta.title}
+          </span>
+          <div className="screenhud__hint-slot" aria-hidden="true">
+            {showHint && err && (
+              <div key={`${exercise}-${rep}`} className={`screenhud__hint ${flawed ? 'is-bad' : 'is-good'}`}>
+                <span className="screenhud__hint-icon">
+                  <Icon name={flawed ? 'alert' : 'check'} size={18} />
+                </span>
+                {flawed ? err.message : 'Отлично! Чистое повторение'}
+              </div>
+            )}
           </div>
-          <div className="preview__count" aria-hidden="true">
+          {highlight && <span className="screenhud__arrow" aria-hidden="true" />}
+        </div>
+
+        <aside className="screenhud__side" aria-hidden="true">
+          <div className="screenhud__count">
             <svg viewBox="0 0 60 60">
-              <circle cx="30" cy="30" r="26" className="preview__ring-track" />
+              <circle cx="30" cy="30" r="26" className="screenhud__ring-track" />
               <circle
                 cx="30"
                 cy="30"
                 r="26"
                 pathLength="1"
-                className="preview__ring"
-                style={{ strokeDashoffset: 1 - done / REPS_PER_EXERCISE }}
+                className="screenhud__ring"
+                style={{ strokeDashoffset: 1 - done / TARGET }}
               />
             </svg>
-            <span key={`${exercise}-${done}`}>{done}</span>
+            <span key={`${exercise}-${done}`} className="screenhud__num">
+              {done}
+            </span>
+            <small>
+              {done}/{TARGET}
+            </small>
           </div>
-        </header>
-
-        {lastScore !== null && (
-          <span
-            key={`f-${exercise}-${done}`}
-            className="preview__float"
-            style={{ color: scoreColor(lastScore) }}
-          >
-            +{lastScore}
-          </span>
-        )}
-
-        <div className="preview__hint-slot" aria-hidden="true">
-          {showHint && err && (
-            <div key={`${exercise}-${rep}`} className={`preview__hint ${flawed ? 'is-bad' : 'is-good'}`}>
-              <Icon name={flawed ? 'alert' : 'check'} size={22} />
-              {flawed ? err.message : 'Отлично! Чистое повторение'}
-            </div>
-          )}
-        </div>
+          <div className="screenhud__score">
+            <b key={`s-${exercise}-${done}`}>{lastScore !== null ? `+${lastScore}` : '—'}</b>
+            <span>баллы</span>
+          </div>
+          <ul className="screenhud__checks">
+            <li className={!activeCode && done > 0 ? 'is-ok' : ''}>
+              <Icon name="check" size={16} /> Правильно
+            </li>
+            {CHECK[exercise].map(([code, label]) => (
+              <li key={code} className={code === activeCode ? 'is-bad' : ''}>
+                <Icon name={code === activeCode ? 'alert' : 'user'} size={16} /> {label}
+              </li>
+            ))}
+          </ul>
+        </aside>
       </div>
-      <ol className="preview__dots" aria-hidden="true">
-        {ORDER.map((e) => (
-          <li key={e} className={e === exercise ? 'is-on' : ''} />
-        ))}
-      </ol>
+      <p className="screenhud__voice">
+        <span className="screenhud__wave" aria-hidden="true">
+          {Array.from({ length: 5 }, (_, i) => (
+            <i key={i} style={{ animationDelay: `${i * 0.12}s` }} />
+          ))}
+        </span>
+        Голосовой тренер подсказывает в реальном времени
+      </p>
     </div>
   );
 }
