@@ -26,7 +26,7 @@
 ## Как записать себя
 
 Стенд движка (`npm run dev` → http://localhost:5173/dev/engine.html или боевой
-https://abdigaliarslan.github.io/admit-hack/dev/engine.html): «Старт» → режим упражнения → «● Запись» →
+https://forma.178.88.115.213.sslip.io/dev/engine.html): «Старт» → режим упражнения → «● Запись» →
 сделать подход → «■ Стоп и скачать». Скачается JSON в этом же формате (сырые точки до сглаживания).
 Положить в `tests/fixtures/`, дописать в `meta.expected` число повторов (и ошибки, если нужны) —
 тест `tests/fixtures.test.ts` подхватит файл сам.

@@ -25,7 +25,7 @@ const flag = (name) => {
 };
 const from = flag('--from');
 const to = flag('--to');
-/** Проверить уже выложенный сайт (например, GitHub Pages) вместо локального сервера. */
+/** Проверить уже выложенный сайт (например, боевой https://forma.178.88.115.213.sslip.io/) вместо локального сервера. */
 const base = flag('--base');
 const [video, mode = 'squat', secondsArg] = args;
 if (!video) {

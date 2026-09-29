@@ -4,11 +4,12 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  // На GitHub Pages сайт живёт в подпапке (/admit-hack/), на Vercel — в корне.
+  // Сайт в корне; если выкладывать в подпапку — BASE_PATH=/подпапка/.
   base: process.env.BASE_PATH ?? '/',
   plugins: [
     react(),
-    // Адреса платформы (/app, /app/rating…) — одна страница: на GitHub Pages обновление /app отдаёт 404.html.
+    // Адреса платформы (/app, /app/rating…) — одна страница: статический хостинг без SPA-правил на обновлении /app
+    // отдаёт 404.html (боевой nginx отдаёт index.html сам).
     {
       name: 'spa-404',
       writeBundle(options) {

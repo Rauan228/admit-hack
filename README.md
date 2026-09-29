@@ -1,14 +1,13 @@
 # FORMA — AI-тренер через веб-камеру
 
-[![CI](https://github.com/Rauan228/admit-hack/actions/workflows/ci.yml/badge.svg)](https://github.com/Rauan228/admit-hack/actions/workflows/ci.yml) [![Pages](https://github.com/abdigaliarslan/admit-hack/actions/workflows/pages.yml/badge.svg)](https://abdigaliarslan.github.io/admit-hack/)
+[![CI](https://github.com/Rauan228/admit-hack/actions/workflows/ci.yml/badge.svg)](https://github.com/Rauan228/admit-hack/actions/workflows/ci.yml)
 
 Кейс ADMIT Hackathon «Motion: камера вместо джойстика».
 FORMA — фитнес-тренер в браузере, которым управляют только телом, включая меню.
 Он считает повторения, замечает ошибки техники и говорит, как их исправить.
 
 - **Приложение:** https://forma.178.88.115.213.sslip.io/ (VPS, обновляется через 2 минуты после пуша в `main`)
-- **Зеркало:** https://abdigaliarslan.github.io/admit-hack/
-- **Стенд движка** (распознавание без UI, открывается и с телефона): https://abdigaliarslan.github.io/admit-hack/dev/engine.html —
+- **Стенд движка** (распознавание без UI, открывается и с телефона): https://forma.178.88.115.213.sslip.io/dev/engine.html —
   режимы calibration / menu и все 18 упражнений, скелет, курсор, счёт, подсказки, журнал событий.
 - **Дуэль на отжиманиях:** https://forma.178.88.115.213.sslip.io/duel.html — минута против соперника
   (Новичок 25 / Атлет 50 / Машина 117 за минуту): табло, перетягивание, «+1» у соперника, подсказки техники,
@@ -303,15 +302,12 @@ CI (GitHub Actions): проверка типов, линтер, тесты, сб
 
 Камера в браузере работает только по HTTPS. Основной адрес — https://forma.178.88.115.213.sslip.io/
 (VPS, nginx + Let's Encrypt): раз в 2 минуты сервер подтягивает `main`, собирает фронтенд и перезапускает API
-(`forma-api`, systemd, `node --experimental-strip-types server/index.ts`, nginx проксирует `/api/`). Зеркала
-без API, где тренировки работают, а рейтинг покажет «сервер недоступен»:
+(`forma-api`, systemd, `node --experimental-strip-types server/index.ts`, nginx проксирует `/api/`). Сайт один —
+этот; стенд движка — там же: https://forma.178.88.115.213.sslip.io/dev/engine.html (можно открыть с телефона).
 
-- **GitHub Pages (работает сейчас):** форк [abdigaliarslan/admit-hack](https://github.com/abdigaliarslan/admit-hack)
-  раз в 15 минут сам подтягивает `main` этого репозитория, прогоняет тесты и выкладывает сборку
-  (`.github/workflows/pages.yml`). Приложение: https://abdigaliarslan.github.io/admit-hack/ ,
-  стенд движка: https://abdigaliarslan.github.io/admit-hack/dev/engine.html (можно открыть с телефона).
-- **Vercel:** импортировать репозиторий на vercel.com — настройки уже в `vercel.json` (сборка, заголовки
-  `Permissions-Policy: camera=(self)`, кэш ассетов). Автодеплой из `main` включается сам.
+Запасной вариант без API (тренировки работают, рейтинг покажет «сервер недоступен») — **Vercel:** импортировать
+репозиторий на vercel.com — настройки уже в `vercel.json` (сборка, заголовки `Permissions-Policy: camera=(self)`,
+кэш ассетов). Автодеплой из `main` включается сам.
 
 **Выпады считаются парой ног.** Правая нога вперёд, затем левая — это 1 повтор. Каждая сторона — событие
 `half_rep` (с ошибками этой половины), `rep` приходит, когда сделаны обе; та же нога дважды подряд — подсказка
