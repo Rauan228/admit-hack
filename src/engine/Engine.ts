@@ -246,7 +246,10 @@ class RealEngine implements Engine {
     const cfg = ENGINE_CONFIG.presence;
     const missing = session.unmeasuredFor(t);
     // Человека нет (или не видно нужных суставов) дольше lostMs — пауза и подсказка вернуться.
-    this.trackPresence(missing >= cfg.lostMs && !session.done ? lost(frame, brightness) : OK, t);
+    this.trackPresence(
+      missing >= cfg.lostMs && !session.done ? lost(frame, brightness, session.def.lostHint) : OK,
+      t,
+    );
     if (missing >= cfg.resetAfterMs) events.push(...session.interrupt());
     this.emitAll(events);
     this.emitAll(
@@ -279,12 +282,12 @@ class RealEngine implements Engine {
 }
 
 /** Вердикт «потеряли человека»: темно, никого в кадре или не видно нужных суставов. */
-function lost(frame: PoseFrame | null, brightness: number | null): CalibrationVerdict {
+function lost(frame: PoseFrame | null, brightness: number | null, jointsHint?: string): CalibrationVerdict {
   if (brightness !== null && brightness < ENGINE_CONFIG.calibration.darkLuma) {
     return { status: 'dark', hint: CALIBRATION_HINTS.dark };
   }
   return frame
-    ? { status: 'partial', hint: CALIBRATION_DETAIL_HINTS.lostJoints }
+    ? { status: 'partial', hint: jointsHint ?? CALIBRATION_DETAIL_HINTS.lostJoints }
     : { status: 'no_person', hint: CALIBRATION_DETAIL_HINTS.lostBody };
 }
 

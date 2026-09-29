@@ -590,6 +590,8 @@ export const CALIBRATION_DETAIL_HINTS = {
   showHead: 'Отойди на шаг назад — голова не помещается в кадр',
   lostBody: 'Вернись в кадр — я тебя не вижу',
   lostJoints: 'Встань так, чтобы тебя было видно целиком',
+  /** Упражнения на полу лицом к камере (отжимания, планка): ноги в кадре не нужны. */
+  lostFloor: 'Держи в кадре голову, плечи и кисти — телефон на полу перед собой',
 } as const;
 
 export function formErrorsFor(exercise: ExerciseId): FormErrorDef[] {

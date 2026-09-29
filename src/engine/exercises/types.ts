@@ -46,4 +46,6 @@ export interface ExerciseDef<M extends BaseMetrics = BaseMetrics> {
    * принимал спуск за «телепорт» и выкидывал весь низ отжимания (E-31).
    */
   ownGate?: boolean;
+  /** Подсказка, когда нужных суставов не видно (по умолчанию — «встань так, чтобы тебя было видно целиком»). */
+  lostHint?: string;
 }

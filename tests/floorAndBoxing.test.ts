@@ -165,14 +165,14 @@ describe('отжимания (лицом к камере, камера на по
     // Техника правильная — ни перекоса, ни локтей в стороны.
     expect(res.shown.map((e) => e.code).filter((c) => c !== 'shallow_pushup')).toEqual([]);
   });
-  it('записи стоя (присед, «звёздочка», выпады) — ни одного отжимания', () => {
+  it('записи стоя (присеты, выпады, присед с жимом) — ни одного отжимания', () => {
     for (const name of [
       'squat-front-goblet.json',
       'squat-rear-barbell.json',
       'squat-side-goblet.json',
       'squat-side-backlit.json',
       'squat-press-kettlebell.json',
-      'jumping-jack-front.json',
+      // jumping-jack-front.json не здесь: в нём бёрпи с настоящим упором лёжа и опусканием к полу.
       'lunge-front-hold.json',
       'lunge-front-backlit.json',
     ])

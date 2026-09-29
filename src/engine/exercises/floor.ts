@@ -11,7 +11,7 @@
 
 import { ENGINE_CONFIG, type Widen } from '../config';
 import { clamp, pt, type PoseFrame } from '../geometry';
-import { LM } from '../hints';
+import { CALIBRATION_DETAIL_HINTS, LM } from '../hints';
 import type { RuleDef } from '../rules';
 import type { Side } from '../types';
 import { SlidingQuantile } from './baseline';
@@ -45,10 +45,8 @@ export interface FrontPose {
   elbow: number | null;
   /** Кисти ниже плеч на столько ширин плеч (минимум по видимым рукам; null — кистей не видно). */
   wristDrop: number | null;
-  /** Таз ниже плеч на столько ширин плеч (null — таза не видно). */
-  torso: number | null;
-  /** Колени или щиколотки видны ниже плеч на столько ширин плеч (null — ног не видно). */
-  legs: number | null;
+  /** Стопы видны ниже самой нижней кисти на столько ширин плеч (null — стоп или кистей не видно). */
+  feet: number | null;
   /** Одно плечо ниже другого, в ширинах плеч. */
   tilt: number;
   /** Локти наружу от плеч, в ширинах плеч (больший из двух; null — локтей не видно). */
@@ -74,32 +72,34 @@ export function frontPose(frame: PoseFrame, minV = 0.5): FrontPose | null {
   const outward = SIDES.filter((s) => vis(ARM[s].elbow) >= 0.3).map(
     (s) => (OUTWARD[s] * (pt(frame, ARM[s].elbow).x - pt(frame, ARM[s].shoulder).x)) / shoulderWidth,
   );
-  const hips = SIDES.map((s) => LEG[s].hip).filter((i) => vis(i) >= minV);
-  const legs = SIDES.flatMap((s) => [LEG[s].knee, LEG[s].ankle]).filter((i) => vis(i) >= minV);
+  const feet = SIDES.flatMap((s) => [LEG[s].ankle, LEG[s].heel, LEG[s].toe]).filter((i) => vis(i) >= minV);
+  const lowestHand = arms.length ? Math.max(...arms.map((s) => pt(frame, ARM[s].wrist).y)) : null;
   return {
     shoulderX: (ls.x + rs.x) / 2,
     shoulderY,
     shoulderWidth,
     elbow: angles.length ? angles.reduce((a, b) => a + b, 0) / angles.length : null,
     wristDrop: arms.length ? Math.min(...arms.map((s) => below(ARM[s].wrist))) : null,
-    torso: hips.length ? Math.max(...hips.map(below)) : null,
-    legs: legs.length ? Math.max(...legs.map(below)) : null,
+    feet:
+      feet.length && lowestHand !== null
+        ? Math.max(...feet.map((i) => (pt(frame, i).y - lowestHand) / shoulderWidth))
+        : null,
     tilt: Math.abs(ls.y - rs.y) / shoulderWidth,
     elbowOut: outward.length ? Math.max(...outward) : null,
   };
 }
 
 /**
- * В упоре лёжа лицом к камере. Стоя кисти висят у таза, но корпус длинный (таз ниже плеч на ~1,4 ширины
- * плеч и больше) и ноги видны далеко внизу; в упоре корпус и ноги уходят от камеры и сжимаются.
+ * В упоре лёжа лицом к камере: кисти ниже плеч, и кисти — самое нижнее в кадре: ладони на полу ближе всего
+ * к камере, стопы на полу дальше — на картинке выше. Стоя (и в приседе) стопы всегда ниже кистей.
+ * Таз спереди закрыт телом, модели угадывают его по-разному — по нему не решаем.
  * scale — устойчивая ширина плеч (медиана за окно): в кадре она «дышит».
  */
 export function inPushUpPosition(pose: FrontPose, scale: number, cfg: FloorConfig): boolean {
   const k = pose.shoulderWidth / scale;
   const wrist = pose.wristDrop === null ? null : pose.wristDrop * k;
   if (wrist === null || wrist < cfg.minWristDrop) return false;
-  if (pose.torso !== null && pose.torso * k > cfg.maxTorso) return false;
-  if (pose.legs !== null && pose.legs * k > cfg.maxLegs) return false;
+  if (pose.feet !== null && pose.feet * k > cfg.maxFeetBelowHands) return false;
   return true;
 }
 
@@ -109,6 +109,9 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
   /** Последнее принятое положение плеч и с какого момента держится «скачок». */
   private last: { x: number; y: number; t: number } | null = null;
   private jumpSince: number | null = null;
+  /** «В упоре» с удержанием: вошёл — признаки держатся enterMs, вышел — пропали на leaveMs. */
+  private inPos = false;
+  private switchSince: number | null = null;
 
   constructor(
     private readonly cfg: FloorConfig,
@@ -136,7 +139,7 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
       tilt: pose.tilt * k,
       elbowOut: pose.elbowOut === null ? null : pose.elbowOut * k,
     };
-    if (!inPushUpPosition(pose, scale, this.cfg)) {
+    if (!this.position(inPushUpPosition(pose, scale, this.cfg), frame.t)) {
       // Не в упоре (встал, сел) — прогресс 0, а не «потерялся»: иначе при подготовке была бы пауза.
       return { progress: 0, inPlank: false, drop: null, ...shape };
     }
@@ -150,8 +153,11 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
         : (this.cfg.straightDeg - pose.elbow) / (this.cfg.straightDeg - this.cfg.bottomDeg);
     // Сигналы сильно расходятся — локоть смазан в движении или спутан с кистью: верим плечам,
     // их путь на записи чище (иначе ложная «середина» наверху склеивает два отжимания в одно).
-    const progress =
+    let progress =
       byElbow === null || Math.abs(byDrop - byElbow) > this.cfg.maxDisagree ? byDrop : (byDrop + byElbow) / 2;
+    // Отжимание без сгибания локтей невозможно: плечи опускаются при прямых руках — это присед или сбой
+    // модели, а не низ отжимания.
+    if (byElbow !== null) progress = Math.min(progress, byElbow + this.cfg.elbowSlack);
     return { progress: clamp(progress, -0.3, 1.5), inPlank: true, drop, ...shape };
   }
 
@@ -175,11 +181,31 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
     return true;
   }
 
+  /**
+   * Удержание «в упоре». Спереди таз, ноги и кисти у края кадра модель угадывает, и разные модели угадывают
+   * по-разному (full на видеокарте видела «ноги далеко внизу» целую секунду посреди подхода) — одиночные
+   * и короткие провалы признаков не выбивают счёт; встал по-настоящему — через leaveMs упражнение не считается.
+   */
+  private position(raw: boolean, t: number): boolean {
+    if (raw === this.inPos) {
+      this.switchSince = null;
+      return this.inPos;
+    }
+    this.switchSince ??= t;
+    if (t - this.switchSince >= (this.inPos ? this.cfg.leaveMs : this.cfg.enterMs)) {
+      this.inPos = raw;
+      this.switchSince = null;
+    }
+    return this.inPos;
+  }
+
   reset(): void {
     this.width.reset();
     this.top.reset();
     this.last = null;
     this.jumpSince = null;
+    this.inPos = false;
+    this.switchSince = null;
   }
 }
 
@@ -238,6 +264,7 @@ export function createPushUp(cfg: FloorConfig = ENGINE_CONFIG.exercises.push_up)
     createMeter: () => new FloorMeter(cfg, false),
     rules: pushUpRules(cfg),
     ownGate: true,
+    lostHint: CALIBRATION_DETAIL_HINTS.lostFloor,
   };
 }
 
@@ -252,5 +279,6 @@ export function createPlank(cfg: FloorConfig = ENGINE_CONFIG.exercises.push_up):
     rules: plankRules(cfg),
     hold: true,
     ownGate: true,
+    lostHint: CALIBRATION_DETAIL_HINTS.lostFloor,
   };
 }
