@@ -25,6 +25,8 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         // Стенд движка — в сборке: по ссылке с телефона можно проверить распознавание без UI.
         engine: resolve(import.meta.dirname, 'dev/engine.html'),
+        // E-24: дуэль на отжиманиях — отдельная страница /duel.html.
+        duel: resolve(import.meta.dirname, 'duel.html'),
       },
     },
   },
