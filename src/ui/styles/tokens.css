@@ -1,0 +1,87 @@
+/* U-01: дизайн-токены FORMA.
+   Стиль Vibrant & Block-based (ui-ux-pro-max, «fitness coach dark energetic»):
+   энергичный оранжевый + зелёный успеха на тёмно-синем; крупная типографика для экрана в 2–3 метрах.
+   Шрифты: Sofia Sans Extra Condensed (заголовки, цифры) + Sofia Sans (текст) — обе с кириллицей. */
+:root {
+  color-scheme: dark;
+
+  /* Поверхности */
+  --bg: #0b1120;
+  --bg-deep: #070b16;
+  --surface: #131b2e;
+  --surface-2: #192134;
+  --surface-3: #24304a;
+  --glass: rgba(11, 17, 32, 0.74);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+
+  /* Текст (контраст ≥ 4.5:1 на --bg) */
+  --fg: #f8fafc;
+  --muted: #a5b1c4;
+  --faint: #64748b;
+
+  /* Бренд и статусы */
+  --primary: #f97316;
+  --primary-2: #fb923c;
+  --on-primary: #0f172a;
+  --primary-soft: rgba(249, 115, 22, 0.16);
+  --good: #22c55e;
+  --on-good: #052e14;
+  --good-soft: rgba(34, 197, 94, 0.16);
+  --warn: #facc15;
+  --on-warn: #1f1a02;
+  --warn-soft: rgba(250, 204, 21, 0.16);
+  --bad: #ef4444;
+  --bad-soft: rgba(239, 68, 68, 0.18);
+  --info: #38bdf8;
+
+  /* Шрифты */
+  --font-display: 'Sofia Sans Extra Condensed', 'Sofia Sans', system-ui, sans-serif;
+  --font-body: 'Sofia Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Шкала текста: крупная, экран смотрят издалека */
+  --text-xs: clamp(13px, 1.1vw, 15px);
+  --text-sm: clamp(15px, 1.35vw, 17px);
+  --text-md: clamp(17px, 1.7vw, 21px);
+  --text-lg: clamp(22px, 2.4vw, 30px);
+  --text-xl: clamp(30px, 3.8vw, 52px);
+  --text-2xl: clamp(44px, 6.5vw, 96px);
+  --text-hero: clamp(72px, 14vw, 220px);
+
+  /* Отступы (spacious) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 72px;
+
+  /* Скругления и тени */
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 22px;
+  --r-xl: 30px;
+  --r-full: 999px;
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --glow: 0 0 0 2px var(--primary), 0 0 44px rgba(249, 115, 22, 0.35);
+
+  /* Движение: 200–300 мс на интерфейс, дольше — только для смысловых анимаций */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 160ms;
+  --t-med: 260ms;
+  --t-slow: 480ms;
+
+  /* Время удержания для выбора рукой — синхронно с DWELL_MS в components/dwell.tsx */
+  --dwell: 1.2s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 1ms;
+    --t-med: 1ms;
+    --t-slow: 1ms;
+  }
+}
