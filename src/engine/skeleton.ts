@@ -462,3 +462,145 @@ export function sideLungeFrame(p: SideLungeParams, t: number, noise: () => numbe
   }
   return { t, aspect, image, world };
 }
+
+export interface FloorParams {
+  /** Угол в локте, градусы: 180 — прямые руки (упор лёжа), ~90 — отжимание внизу. */
+  elbow: number;
+  /** Таз от линии плечи → стопы, в долях длины тела: + провис к полу, − «домик». */
+  sag?: number;
+  /** Упор на предплечья (планка на локтях) вместо прямых рук. */
+  forearms?: boolean;
+  aspect?: number;
+  height?: number;
+  floorY?: number;
+}
+
+/**
+ * Упор лёжа сбоку (отжимания, планка): человек левым боком к камере, голова слева по картинке.
+ * Кисти (или локти) под плечами на полу, носки на полу; ближняя сторона видна, дальняя — слабее.
+ */
+export function floorFrame(p: FloorParams, t: number, noise: () => number = () => 0): PoseFrame {
+  const aspect = p.aspect ?? 4 / 3;
+  const H = p.height ?? 0.75;
+  const floorY = p.floorY ?? 0.9;
+  const cx = 0.5 * aspect;
+  const upper = 0.16 * H;
+  const fore = 0.16 * H;
+  const image: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0, v: 0.9 }));
+  const world: Vec3[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }));
+  const put = (i: number, x: number, y: number, far: boolean) => {
+    // Дальняя сторона чуть сдвинута и видна хуже — как у MediaPipe сбоку.
+    const dx = far ? 0.008 * H : 0;
+    image[i] = { x: (x + dx) / aspect + noise(), y: y + noise(), z: 0, v: far ? 0.6 : 0.95 };
+    world[i] = { x: (x + dx - cx) / H, y: y / H, z: far ? 0.12 : 0 };
+  };
+  // Руки: кисть (или локоть) под плечом на полу; плечо — над опорой.
+  const handX = cx - 0.28 * H;
+  let shoulder: { x: number; y: number };
+  let elbow: { x: number; y: number };
+  let wrist: { x: number; y: number };
+  if (p.forearms) {
+    elbow = { x: handX, y: floorY - 0.02 * H };
+    wrist = { x: handX - fore, y: floorY - 0.02 * H };
+    shoulder = { x: handX, y: elbow.y - upper };
+  } else {
+    wrist = { x: handX, y: floorY - 0.01 * H };
+    const e = (Math.min(180, Math.max(30, p.elbow)) * Math.PI) / 180;
+    const d = Math.sqrt(upper * upper + fore * fore - 2 * upper * fore * Math.cos(e));
+    shoulder = { x: handX, y: wrist.y - d };
+    // Локоть смотрит назад, к ногам (+x).
+    elbow = kneeIK(shoulder, wrist, upper, fore, 1);
+  }
+  const toe = { x: cx + 0.42 * H, y: floorY };
+  const ankle = { x: toe.x - 0.04 * H, y: floorY - 0.05 * H };
+  const lx = ankle.x - shoulder.x;
+  const ly = ankle.y - shoulder.y;
+  const len = Math.hypot(lx, ly);
+  // Нормаль к линии тела, смотрящая к полу (+y).
+  const nx = -ly / len;
+  const ny = lx / len;
+  const sag = (p.sag ?? 0) * len;
+  const hip = { x: shoulder.x + lx * 0.38 + nx * sag, y: shoulder.y + ly * 0.38 + ny * sag };
+  const knee = { x: (hip.x + ankle.x) / 2, y: (hip.y + ankle.y) / 2 };
+  const heel = { x: ankle.x + 0.03 * H, y: ankle.y - 0.01 * H };
+  for (const far of [false, true]) {
+    const s = far
+      ? { sh: 12, el: 14, wr: 16, hip: 24, knee: 26, ankle: 28, heel: 30, toe: 32, hand: [18, 20, 22] }
+      : { sh: 11, el: 13, wr: 15, hip: 23, knee: 25, ankle: 27, heel: 29, toe: 31, hand: [17, 19, 21] };
+    put(s.ankle, ankle.x, ankle.y, far);
+    put(s.heel, heel.x, heel.y, far);
+    put(s.toe, toe.x, toe.y, far);
+    put(s.knee, knee.x, knee.y, far);
+    put(s.hip, hip.x, hip.y, far);
+    put(s.sh, shoulder.x, shoulder.y, far);
+    put(s.el, elbow.x, elbow.y, far);
+    put(s.wr, wrist.x, wrist.y, far);
+    for (const i of s.hand) put(i, wrist.x - 0.02 * H, wrist.y, far);
+  }
+  // Голова продолжает линию тела вперёд от плеч.
+  const hx = shoulder.x - (lx / len) * 0.1 * H;
+  const hy = shoulder.y - (ly / len) * 0.1 * H - 0.02 * H;
+  put(0, hx, hy, false);
+  for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) put(i, hx + 0.01 * H, hy - 0.01 * H, i % 2 === 0);
+  return { t, aspect, image, world };
+}
+
+/**
+ * Упор лёжа лицом к камере (планка в бёрпи): плечи над кистями на высоте руки над полом, таз ниже и дальше,
+ * стопы на полу позади. В кадре человек «сжат» по вертикали — так бёрпи анфас и видит MediaPipe.
+ */
+export function frontPlankFrame(
+  p: { aspect?: number; height?: number; footY?: number },
+  t: number,
+): PoseFrame {
+  const aspect = p.aspect ?? 4 / 3;
+  const H = p.height ?? 0.75;
+  const floorY = p.footY ?? 0.92;
+  const cx = 0.5 * aspect;
+  const image: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0, v: 0.9 }));
+  const world: Vec3[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }));
+  const put = (i: number, x: number, y: number, z: number, v = 0.9) => {
+    image[i] = { x: x / aspect, y, z: 0, v };
+    world[i] = { x: (x - cx) / H, y: y / H, z: z / H };
+  };
+  const shY = floorY - 0.3 * H;
+  for (const side of [1, -1] as const) {
+    const s =
+      side > 0
+        ? { sh: 11, el: 13, wr: 15, hip: 23, knee: 25, ankle: 27, heel: 29, toe: 31, hand: [17, 19, 21] }
+        : { sh: 12, el: 14, wr: 16, hip: 24, knee: 26, ankle: 28, heel: 30, toe: 32, hand: [18, 20, 22] };
+    put(s.sh, cx + side * 0.11 * H, shY, 0);
+    put(s.el, cx + side * 0.12 * H, shY + 0.15 * H, 0);
+    put(s.wr, cx + side * 0.12 * H, floorY - 0.01 * H, 0);
+    for (const i of s.hand) put(i, cx + side * 0.12 * H, floorY, -0.02 * H);
+    put(s.hip, cx + side * 0.05 * H, floorY - 0.19 * H, 0.3 * H, 0.8);
+    put(s.knee, cx + side * 0.05 * H, floorY - 0.1 * H, 0.55 * H, 0.7);
+    put(s.ankle, cx + side * 0.06 * H, floorY - 0.03 * H, 0.8 * H, 0.7);
+    put(s.heel, cx + side * 0.06 * H, floorY - 0.05 * H, 0.83 * H, 0.6);
+    put(s.toe, cx + side * 0.06 * H, floorY, 0.76 * H, 0.6);
+  }
+  put(0, cx, shY - 0.06 * H, -0.08 * H);
+  for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    put(i, cx + (i % 2 ? 1 : -1) * 0.02 * H, shY - 0.07 * H, -0.08 * H);
+  return { t, aspect, image, world };
+}
+
+/** Смесь двух поз (для анимации переходов): k = 0 — a, 1 — b. */
+export function blendFrames(a: PoseFrame, b: PoseFrame, k: number, t: number): PoseFrame {
+  const mix = (u: number, v: number) => u + (v - u) * k;
+  return {
+    t,
+    aspect: a.aspect,
+    image: a.image.map((p, i) => {
+      const q = b.image[i] as Landmark;
+      return { x: mix(p.x, q.x), y: mix(p.y, q.y), z: mix(p.z, q.z), v: mix(p.v, q.v) };
+    }),
+    world:
+      a.world && b.world
+        ? a.world.map((p, i) => {
+            const q = (b.world as Vec3[])[i] as Vec3;
+            return { x: mix(p.x, q.x), y: mix(p.y, q.y), z: mix(p.z, q.z) };
+          })
+        : null,
+  };
+}
