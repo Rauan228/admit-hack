@@ -1,0 +1,17 @@
+// Запуск API: node --experimental-strip-types server/index.ts
+// Переменные: PORT (8787), DB_PATH (./data/forma.db), SECURE_COOKIES=1 на проде за https.
+
+import { mkdirSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { dirname, resolve } from 'node:path';
+import { createApp } from './app.ts';
+import { openDb } from './db.ts';
+
+const port = Number(process.env.PORT ?? 8787);
+const dbPath = resolve(process.env.DB_PATH ?? 'data/forma.db');
+mkdirSync(dirname(dbPath), { recursive: true });
+
+const handle = createApp(openDb(dbPath), { secureCookies: process.env.SECURE_COOKIES === '1' });
+createServer((req, res) => void handle(req, res)).listen(port, '127.0.0.1', () => {
+  console.log(`FORMA API: http://127.0.0.1:${port}/api/health (db: ${dbPath})`);
+});

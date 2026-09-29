@@ -229,3 +229,77 @@
     animation: none;
   }
 }
+
+/* ——— Сохранение в рейтинг ——— */
+.save {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  flex-wrap: wrap;
+  border-color: rgba(249, 115, 22, 0.4);
+}
+
+.save__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-md);
+  max-width: 60ch;
+}
+
+.save__text b {
+  font-size: var(--text-lg);
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.save--done {
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.save__rank {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.save__place {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: var(--text-2xl);
+  line-height: 1;
+  color: var(--primary);
+}
+
+.save__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-md);
+}
+
+.save__pb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--good);
+}
+
+.save__up {
+  color: var(--good);
+  font-weight: 800;
+}
+
+.save__down {
+  color: var(--warn);
+  font-weight: 800;
+}
+
+.save__actions {
+  display: flex;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}

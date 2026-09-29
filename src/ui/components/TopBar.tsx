@@ -22,7 +22,16 @@ export function Logo() {
   );
 }
 
-export function TopBar({ mock, onHome }: { mock: boolean; onHome?: () => void }) {
+export function TopBar({
+  mock,
+  onHome,
+  account,
+}: {
+  mock: boolean;
+  onHome?: () => void;
+  /** Кнопка аккаунта: ник (→ прогресс) или «Войти». */
+  account?: { label: string; signedIn: boolean; onSelect: () => void };
+}) {
   return (
     <header className="topbar">
       <div className="row">
@@ -34,6 +43,17 @@ export function TopBar({ mock, onHome }: { mock: boolean; onHome?: () => void })
         )}
       </div>
       <div className="row">
+        {account && (
+          <DwellButton
+            size="sm"
+            variant="ghost"
+            onSelect={account.onSelect}
+            ariaLabel={account.signedIn ? `Профиль: ${account.label}` : 'Войти'}
+          >
+            <Icon name="user" size={22} />
+            <span className={account.signedIn ? 'topbar__nick' : 'hide-sm'}>{account.label}</span>
+          </DwellButton>
+        )}
         {onHome && (
           <DwellButton size="sm" variant="ghost" onSelect={onHome} ariaLabel="В меню">
             <Icon name="home" size={24} />

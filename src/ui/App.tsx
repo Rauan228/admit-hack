@@ -11,8 +11,11 @@ import { TopBar } from './components/TopBar';
 import { attachEngine, getEngine, setEngineMode, useEngineEvents } from './engine/bus';
 import { clearFormError, setScene } from './engine/overlay';
 import { DemoGuide } from './components/DemoGuide';
+import type { Board } from '../shared/rating';
 import { CHALLENGE_PLAN, DEMO_PLAN, QUICK_PLAN, singlePlan, type Plan } from './lib/exercises';
+import { refreshMe, useAuth } from './store/api';
 import type { SetResult } from './lib/results';
+import { Auth } from './screens/Auth';
 import { Calibration } from './screens/Calibration';
 import { DemoIntro } from './screens/DemoIntro';
 import { ErrorScreen } from './screens/ErrorScreen';
@@ -21,9 +24,9 @@ import { Landing } from './screens/Landing';
 import { Leaderboard } from './screens/Leaderboard';
 import { Loading } from './screens/Loading';
 import { Menu } from './screens/Menu';
-import { NamePicker } from './screens/NamePicker';
 import { Picker } from './screens/Picker';
-import { Summary, type PendingRecord } from './screens/Summary';
+import { Profile } from './screens/Profile';
+import { Summary } from './screens/Summary';
 import { Workout } from './screens/Workout';
 
 export type Screen =
@@ -36,9 +39,17 @@ export type Screen =
   | { name: 'picker' }
   | { name: 'intro'; plan: Plan; index: number; results: SetResult[] }
   | { name: 'workout'; plan: Plan; index: number; results: SetResult[] }
-  | { name: 'summary'; plan: Plan; results: SetResult[] }
-  | { name: 'name'; record: PendingRecord }
-  | { name: 'leaderboard'; highlight?: string };
+  | { name: 'summary'; plan: Plan; results: SetResult[]; autoSave?: boolean }
+  | { name: 'auth'; reason: 'save' | 'progress' | 'account'; pending?: string; back: Screen; next: Screen }
+  | { name: 'profile' }
+  | { name: 'leaderboard'; board?: Board };
+
+/** План тренировки для доски рейтинга («Побить рекорд» из профиля). */
+function planFor(board: Board): Plan {
+  if (board === 'quick') return QUICK_PLAN;
+  if (board === 'challenge') return CHALLENGE_PLAN;
+  return singlePlan(board.slice(7) as Parameters<typeof singlePlan>[0]);
+}
 
 /** Затемнение видео и яркость скелета на каждом экране. */
 const SCENE: Record<Screen['name'], [dim: number, skeleton: number]> = {
@@ -52,8 +63,9 @@ const SCENE: Record<Screen['name'], [dim: number, skeleton: number]> = {
   intro: [0.7, 0.2],
   workout: [0.12, 1],
   summary: [0.8, 0.12],
-  name: [0.8, 0.12],
-  leaderboard: [0.8, 0.12],
+  auth: [0.88, 0.08],
+  profile: [0.84, 0.1],
+  leaderboard: [0.84, 0.1],
 };
 
 export function App() {
@@ -63,6 +75,12 @@ export function App() {
   /** Демо-тур (кнопка «Смотреть демо»): после калибровки сразу идёт короткий план с подсказками. ?mock=1 — просто мок для разработки. */
   const [tour, setTour] = useState(false);
   const starting = useRef(false);
+  const { user } = useAuth();
+
+  // Вошёл ли пользователь раньше (cookie-сессия) — узнаём один раз при старте.
+  useEffect(() => {
+    void refreshMe();
+  }, []);
 
   const go = useCallback((next: Screen) => {
     clearFormError();
@@ -130,7 +148,7 @@ export function App() {
     void start(false);
   }, [start]);
 
-  const showGuide = mock && !['landing', 'demo', 'error'].includes(screen.name);
+  const showGuide = mock && tour && !['landing', 'demo', 'error'].includes(screen.name);
   // Под подсказку тура резервируем низ экрана (DemoGuide.css, .is-demo), чтобы она ничего не закрывала.
   useEffect(() => {
     document.documentElement.classList.toggle('is-demo', showGuide);
@@ -140,10 +158,18 @@ export function App() {
   // В демо жесты мока ничего не нажимают: там управляют мышью.
   useEngineEvents((e) => {
     if (mock || e.type !== 'gesture' || e.name !== 'both_hands_up') return;
-    if (['picker', 'leaderboard', 'summary', 'name'].includes(screen.name)) go({ name: 'menu' });
+    if (screen.name === 'auth') go(screen.back);
+    else if (['picker', 'leaderboard', 'summary', 'profile'].includes(screen.name)) go({ name: 'menu' });
   });
 
   const startPlan = (plan: Plan) => go({ name: 'intro', plan, index: 0, results: [] });
+  const openProgress = () =>
+    user
+      ? go({ name: 'profile' })
+      : go({ name: 'auth', reason: 'progress', back: screen, next: { name: 'profile' } });
+  const account = ['calibration', 'intro', 'workout', 'auth'].includes(screen.name)
+    ? undefined
+    : { label: user ? user.nick : 'Войти', signedIn: !!user, onSelect: openProgress };
 
   const onSetDone = (s: Extract<Screen, { name: 'workout' }>, result: SetResult) => {
     const results = [...s.results, result];
@@ -158,7 +184,11 @@ export function App() {
       <video ref={setVideo} className="camera-source" playsInline muted aria-hidden="true" />
       {screen.name !== 'landing' && <Stage video={mock ? null : video} />}
       {!['landing', 'demo', 'loading', 'error'].includes(screen.name) && (
-        <TopBar mock={mock} onHome={screen.name === 'menu' ? undefined : () => go({ name: 'menu' })} />
+        <TopBar
+          mock={mock}
+          account={mock ? undefined : account}
+          onHome={screen.name === 'menu' ? undefined : () => go({ name: 'menu' })}
+        />
       )}
 
       {showGuide && <DemoGuide screen={screen.name} onExit={exitDemo} onCamera={toCamera} />}
@@ -193,6 +223,7 @@ export function App() {
           onChallenge={() => startPlan(CHALLENGE_PLAN)}
           onRecords={() => go({ name: 'leaderboard' })}
           onRecalibrate={() => go({ name: 'calibration' })}
+          onProgress={openProgress}
         />
       )}
       {screen.name === 'picker' && (
@@ -221,16 +252,46 @@ export function App() {
           results={screen.results}
           onAgain={() => startPlan(screen.plan)}
           onMenu={() => go({ name: 'menu' })}
-          demo={mock}
+          // Мок не сохраняется в рейтинг; исключение — ?mock=1 в dev-сборке (сквозные тесты сохранения).
+          demo={mock && (tour || !import.meta.env.DEV)}
           onCamera={toCamera}
-          onSave={(record) => go({ name: 'name', record })}
+          autoSave={screen.autoSave}
+          onNeedAuth={(pending) =>
+            go({
+              name: 'auth',
+              reason: 'save',
+              pending,
+              back: { ...screen, autoSave: false },
+              next: { ...screen, autoSave: true },
+            })
+          }
+          onBoard={(board) => go({ name: 'leaderboard', board })}
+          onProgress={openProgress}
         />
       )}
-      {screen.name === 'name' && (
-        <NamePicker record={screen.record} onSaved={(id) => go({ name: 'leaderboard', highlight: id })} />
+      {screen.name === 'auth' && (
+        <Auth
+          reason={screen.reason}
+          pending={screen.pending}
+          onDone={() => go(screen.next)}
+          onBack={() => go(screen.back)}
+        />
+      )}
+      {screen.name === 'profile' && (
+        <Profile
+          onBack={() => go({ name: 'menu' })}
+          onPlay={(board) => startPlan(planFor(board))}
+          onBoard={(board) => go({ name: 'leaderboard', board })}
+          onSignedOut={() => go({ name: 'menu' })}
+        />
       )}
       {screen.name === 'leaderboard' && (
-        <Leaderboard highlight={screen.highlight} onBack={() => go({ name: 'menu' })} />
+        <Leaderboard
+          key={screen.board ?? 'quick'}
+          initialBoard={screen.board}
+          onBack={() => go({ name: 'menu' })}
+          onSignIn={() => go({ name: 'auth', reason: 'account', back: screen, next: screen })}
+        />
       )}
     </DwellProvider>
   );

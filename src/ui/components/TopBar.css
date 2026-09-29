@@ -47,3 +47,17 @@
   text-transform: uppercase;
   color: var(--muted);
 }
+
+.topbar__nick {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: none;
+}
+
+@media (max-width: 640px) {
+  .topbar__nick {
+    display: none;
+  }
+}

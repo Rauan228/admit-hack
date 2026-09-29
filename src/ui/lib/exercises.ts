@@ -3,6 +3,7 @@
 
 import { findFormError } from '../../engine/hints';
 import type { ExerciseId } from '../../engine/types';
+import { SINGLE_TARGET } from '../../shared/rating';
 import type { PlanKind } from '../store/progress';
 import type { IconName } from '../components/Icon';
 
@@ -94,7 +95,7 @@ export const CHALLENGE_PLAN: Plan = {
 };
 
 /** Выпады — в парах ног: 6 = шесть раз правой и шесть раз левой. */
-const SINGLE_TARGET: Record<ExerciseId, number> = { squat: 10, jumping_jack: 15, lunge: 6, arm_raise: 10 };
+// Цели — в общем модуле рейтинга: сервер проверяет по ним «Одно упражнение».
 
 export function singlePlan(exercise: ExerciseId): Plan {
   return {

@@ -9,3 +9,6 @@ coverage/
 .vscode/*
 !.vscode/extensions.json
 .idea/
+# База API (server/) при локальном запуске
+data/
+*.tmp.mjs

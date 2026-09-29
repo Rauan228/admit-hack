@@ -15,9 +15,10 @@ interface Props {
   onChallenge: () => void;
   onRecords: () => void;
   onRecalibrate: () => void;
+  onProgress: () => void;
 }
 
-export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate }: Props) {
+export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate, onProgress }: Props) {
   const totals = loadTotals();
 
   useEffect(() => {
@@ -67,8 +68,8 @@ export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate }:
         <DwellButton size="lg" style={order(4)} className="rise menu__tile" onSelect={onRecords}>
           <Icon name="trophy" size={36} />
           <span className="menu__tile-text">
-            <b>Рекорды</b>
-            <small>Топ-10 и прогресс</small>
+            <b>Рейтинг</b>
+            <small>Сегодня · неделя · всё время</small>
           </span>
         </DwellButton>
         <DwellButton
@@ -95,6 +96,9 @@ export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate }:
         ) : (
           <p className="muted">Первая тренировка? Начни с быстрой — тренер всё подскажет.</p>
         )}
+        <DwellButton size="sm" variant="ghost" onSelect={onProgress}>
+          <Icon name="zap" size={22} /> Мой прогресс
+        </DwellButton>
       </footer>
     </main>
   );

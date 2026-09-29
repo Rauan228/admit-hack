@@ -7,6 +7,10 @@
   overflow-y: auto;
 }
 
+.board > * {
+  flex-shrink: 0;
+}
+
 .board__head {
   display: flex;
   flex-direction: column;
@@ -130,5 +134,115 @@
 
   .names {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ——— Режимы, упражнения, периоды ——— */
+.board__rule {
+  max-width: 70ch;
+  font-size: var(--text-sm);
+}
+
+.board__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.board__tab {
+  flex: 1 1 180px;
+}
+
+.board__filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.board__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.board__chip {
+  min-height: 44px;
+  font-size: var(--text-xs);
+}
+
+.board__periods {
+  margin-left: auto;
+}
+
+.board__row--skeleton {
+  height: 72px;
+  background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: board-shimmer 1.2s linear infinite;
+}
+
+@keyframes board-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.board__gap {
+  text-align: center;
+  color: var(--faint);
+  letter-spacing: 0.3em;
+}
+
+.board__you {
+  margin-left: var(--s-2);
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.board__row.is-top2 .board__place {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+
+.board__row.is-top3 .board__place {
+  background: #d97706;
+  color: #1c1003;
+}
+
+.board__points small {
+  display: block;
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.board__players {
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.board__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+@media (max-width: 720px) {
+  .board__periods {
+    margin-left: 0;
+  }
+  .board__tab {
+    flex: 1 1 100%;
   }
 }
