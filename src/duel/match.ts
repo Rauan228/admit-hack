@@ -11,6 +11,8 @@ export interface DuelOptions {
   opponentReps: (elapsedMs: number) => number;
   countdownMs: number;
   durationMs: number;
+  /** Минимальный интервал в записи моих повторов (по упражнению, E-29); по умолчанию — отжимания. */
+  minGapMs?: number;
 }
 
 export interface DuelSnapshot {
@@ -52,7 +54,7 @@ export class DuelMatch {
     if (this.phase(now) !== 'battle') return false;
     // Два события движка чаще 0,3 с (дрожание таймера страницы) — сдвигаем, чтобы запись прошла проверку.
     const last = this.mine.at(-1) ?? -Infinity;
-    this.mine.push(Math.max(now - this.battleStart, last + DUEL_MIN_GAP_MS));
+    this.mine.push(Math.max(now - this.battleStart, last + (this.opts.minGapMs ?? DUEL_MIN_GAP_MS)));
     return true;
   }
 

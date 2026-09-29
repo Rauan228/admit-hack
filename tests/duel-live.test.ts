@@ -167,6 +167,27 @@ describe('онлайн-дуэль по WebSocket', () => {
     expect(await b.none('invited')).toBe(true);
   });
 
+  it('упражнение (E-29): комната на «звёздочку», приглашение говорит, на что зовут', async () => {
+    const a = await player(await cookieOf('Arslan'));
+    const b = await player(await cookieOf('Rauan'));
+    const offCookie = await cookieOf('Offline');
+    a.send({ t: 'create', exercise: 'jumping_jack' });
+    const { room } = await a.next('room');
+    expect(room.exercise).toBe('jumping_jack');
+    a.send({ t: 'invite', nick: 'Rauan' });
+    expect(await b.next('invited')).toMatchObject({
+      room: room.id,
+      from: 'Arslan',
+      exercise: 'jumping_jack',
+    });
+    a.send({ t: 'invite', nick: 'Offline' });
+    await a.next('invite_sent', (m) => m.nick === 'Offline');
+    const late = await player(offCookie);
+    expect(await late.next('invited')).toMatchObject({ exercise: 'jumping_jack' });
+    a.send({ t: 'create', exercise: 'moonwalk' });
+    expect((await a.next('error')).message).toMatch(/упражнение/);
+  });
+
   it('проверки: создать — только после входа; неизвестная комната; мусор', async () => {
     const guest = await player();
     guest.send({ t: 'create' });

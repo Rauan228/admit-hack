@@ -1,7 +1,10 @@
 // Онлайн-дуэль (E-26): комната на двоих — лобби → общий отсчёт → минута боя → итог → реванш.
 // Судья — сервер: время старта/финиша, приём повторов, итог. Чистая логика со временем снаружи;
 // сеть и таймеры — в server/duelLive.ts. Сообщения клиент ↔ сервер — здесь же (их видит и страница).
-// Только чистый TS без импортов: на VPS копируются лишь server/ и src/shared/.
+// Импорты — только из src/shared/ и с расширением .ts: на VPS копируются лишь server/ и src/shared/,
+// а Node там только стирает типы.
+
+import { minGapMs, type DuelExercise } from './duel.ts';
 
 export type RoomPhase = 'lobby' | 'countdown' | 'battle' | 'over';
 
@@ -25,6 +28,8 @@ export interface RoomResult {
 /** Что видит игрок: без ключей и id аккаунтов, время — по часам сервера. */
 export interface RoomView {
   id: string;
+  /** E-29: во что соревнуемся. */
+  exercise: DuelExercise;
   phase: RoomPhase;
   round: number;
   durationMs: number;
@@ -39,7 +44,7 @@ export interface RoomView {
 
 /** Клиент → сервер. */
 export type ClientMsg =
-  | { t: 'create' }
+  | { t: 'create'; exercise?: string }
   | { t: 'join'; room: string; name?: string; key?: string }
   | { t: 'ready'; ready: boolean }
   | { t: 'rep' }
@@ -54,13 +59,12 @@ export type ServerMsg =
   | { t: 'presence'; online: string[] }
   | { t: 'room'; room: RoomView; key: string }
   | { t: 'left' }
-  | { t: 'invited'; room: string; from: string }
+  | { t: 'invited'; room: string; from: string; exercise: DuelExercise }
   /** Приглашение ушло: online — сразу, иначе дождётся, когда игрок откроет дуэль. */
   | { t: 'invite_sent'; nick: string; online: boolean }
   | { t: 'declined'; by: string }
   | { t: 'error'; message: string };
 
-export const ROOM_MIN_GAP_MS = 300;
 /** Повтор, досчитанный движком чуть позже финиша (задержка сети и распознавания), ещё засчитываем. */
 const LATE_MS = 500;
 
@@ -74,12 +78,14 @@ export class DuelRoom {
   touched = 0;
   private endedBy: 'time' | 'giveup' | null = null;
   readonly id: string;
+  readonly exercise: DuelExercise;
   readonly durationMs: number;
   readonly countdownMs: number;
 
   // Без параметров-свойств: на VPS Node только стирает типы (см. tests/server-strip.test.ts).
-  constructor(id: string, opts: { durationMs?: number; countdownMs?: number } = {}) {
+  constructor(id: string, opts: { durationMs?: number; countdownMs?: number; exercise?: DuelExercise } = {}) {
     this.id = id;
+    this.exercise = opts.exercise ?? 'push_up';
     this.durationMs = opts.durationMs ?? 60_000;
     this.countdownMs = opts.countdownMs ?? 5000;
   }
@@ -120,7 +126,7 @@ export class DuelRoom {
     return this.phase !== before;
   }
 
-  /** Повтор игрока. Только в бою (и чуть после финиша по времени), не чаще 0,3 с. */
+  /** Повтор игрока. Только в бою (и чуть после финиша по времени), не чаще, чем позволяет упражнение. */
   rep(key: string, now: number): boolean {
     this.tick(now);
     const p = this.find(key);
@@ -129,7 +135,7 @@ export class DuelRoom {
       (this.phase === 'over' && this.endedBy === 'time' && now <= this.endsAt + LATE_MS);
     if (!p || !inTime || p.gaveUp) return false;
     const t = now - this.startsAt;
-    if (t - (p.reps.at(-1) ?? -Infinity) < ROOM_MIN_GAP_MS) return false;
+    if (t - (p.reps.at(-1) ?? -Infinity) < minGapMs(this.exercise)) return false;
     p.reps.push(t);
     this.touched = now;
     return true;
@@ -170,6 +176,7 @@ export class DuelRoom {
     const r = this.result();
     return {
       id: this.id,
+      exercise: this.exercise,
       phase: this.phase,
       round: this.round,
       durationMs: this.durationMs,

@@ -117,4 +117,16 @@ describe('комната онлайн-дуэли', () => {
     });
     expect(JSON.stringify(v)).not.toMatch(/ka|kb|userId/);
   });
+
+  it('упражнение комнаты (E-29): в виде для игроков и в интервале повторов', () => {
+    const r = new DuelRoom('ROOM2', { durationMs: 60_000, countdownMs: 5000, exercise: 'jumping_jack' });
+    r.join(A, 0);
+    r.join(B, 0);
+    expect(r.view('ka', 0).exercise).toBe('jumping_jack');
+    r.setReady('ka', true, 0);
+    r.setReady('kb', true, 0);
+    expect(r.rep('ka', 6000)).toBe(true);
+    expect(r.rep('ka', 6200)).toBe(true); // «звёздочка» — быстрее отжиманий
+    expect(pair().view('ka', 0).exercise).toBe('push_up'); // по умолчанию — отжимания
+  });
 });
