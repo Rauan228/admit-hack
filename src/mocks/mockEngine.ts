@@ -245,6 +245,46 @@ export function exercisePose(
         elbowR: code === 'elbows_bent' ? 60 : 4,
       });
     }
+    case 'boxing': {
+      // Защита: кулаки у подбородка; удар — рука распрямляется (чётные — левой, нечётные — правой).
+      const hit = wave * (code === 'short_punch' ? 0.5 : 1);
+      const left = rep % 2 === 0;
+      const guardDrop = code === 'guard_down' ? wave : 0;
+      return body({
+        armL: left ? 30 + hit * 55 : 30 - guardDrop * 20,
+        armR: left ? 30 - guardDrop * 20 : 30 + hit * 55,
+        elbowL: left ? 150 - hit * 145 : 150 - guardDrop * 120,
+        elbowR: left ? 150 - guardDrop * 120 : 150 - hit * 145,
+      });
+    }
+    case 'push_up':
+      return body({
+        lying: 0.82 + wave * (code === 'shallow_pushup' ? 0.05 : 0.14),
+        armL: 175,
+        armR: 175,
+        squat: code === 'hips_sag' ? 0.2 : 0,
+      });
+    case 'plank':
+      return body({
+        lying: 0.9,
+        armL: 175,
+        armR: 175,
+        elbowL: 90,
+        elbowR: 90,
+        squat: code === 'hips_sag' ? 0.2 : 0,
+      });
+    case 'burpee': {
+      // Вниз → упор лёжа → обратно → прыжок.
+      const down = easeInOut(Math.min(1, Math.max(0, cycle < 0.5 ? cycle * 3 : (0.85 - cycle) * 3)));
+      const air = code === 'no_jump' ? 0 : cycle > 0.85 ? Math.sin((Math.PI * (cycle - 0.85)) / 0.15) : 0;
+      return body({
+        squat: Math.min(1, down * 2),
+        lying: Math.max(0, down * 2 - 1) * (code === 'not_low' ? 0.3 : 0.9),
+        groundY: STANDING_GROUND - 0.05 * air,
+        armL: 12 + air * 160,
+        armR: 12 + air * 160,
+      });
+    }
   }
 }
 

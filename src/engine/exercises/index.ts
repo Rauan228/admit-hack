@@ -3,8 +3,11 @@
 import type { ExerciseId } from '../types';
 import { createArmCircles } from './armCircles';
 import { createArmRaise } from './armRaise';
+import { createBoxing } from './boxing';
+import { createBurpee } from './burpee';
 import { createCalfRaise } from './calfRaise';
 import { createCrossJack } from './crossJack';
+import { createPlank, createPushUp } from './floor';
 import { createHighKnees } from './highKnees';
 import { createJumpingJack } from './jumpingJack';
 import { createJumpSquat } from './jumpSquat';
@@ -32,6 +35,10 @@ const FACTORIES: Partial<Record<ExerciseId, () => ExerciseDef<BaseMetrics>>> = {
   side_bend: createSideBend as () => ExerciseDef<BaseMetrics>,
   side_leg_raise: createSideLegRaise as () => ExerciseDef<BaseMetrics>,
   side_lunge: createSideLunge as () => ExerciseDef<BaseMetrics>,
+  boxing: createBoxing as () => ExerciseDef<BaseMetrics>,
+  push_up: createPushUp as () => ExerciseDef<BaseMetrics>,
+  plank: createPlank as () => ExerciseDef<BaseMetrics>,
+  burpee: createBurpee as () => ExerciseDef<BaseMetrics>,
 };
 
 /** Описание упражнения или null, если движок его пока не умеет. */

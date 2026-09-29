@@ -39,6 +39,8 @@ export interface BodyParams {
   /** отведение прямой ноги в сторону: 0 — стоит, 1 — на 45° */
   legOutL: number;
   legOutR: number;
+  /** лёжа: 0 — стоит, 1 — тело горизонтально (упор лёжа), голова слева по картинке */
+  lying: number;
 }
 
 export const STANDING: BodyParams = {
@@ -61,6 +63,7 @@ export const STANDING: BodyParams = {
   sideTilt: 0,
   legOutL: 0,
   legOutR: 0,
+  lying: 0,
 };
 
 export function body(overrides: Partial<BodyParams> = {}): BodyParams {
@@ -233,7 +236,20 @@ export function buildPose(p: BodyParams): Landmark[] {
     set(s.foot, fx + s.sign * 0.02 * H, fy + 0.035 * H, 0, p.legVisibility);
   }
 
-  return pts.map((pt) => ({ x: pt.x, y: pt.y, z: pt.z ?? 0, v: pt.v ?? p.visibility }));
+  // Лёжа: всё тело поворачивается вокруг стоп так, что голова уходит влево (упор лёжа боком к камере).
+  const turn = rad(-90 * p.lying);
+  const ox = p.centerX;
+  const oy = p.groundY;
+  return pts.map((pt) => {
+    const dx = pt.x - ox;
+    const dy = pt.y - oy;
+    return {
+      x: ox + dx * Math.cos(turn) - dy * Math.sin(turn),
+      y: oy + dx * Math.sin(turn) + dy * Math.cos(turn),
+      z: pt.z ?? 0,
+      v: pt.v ?? p.visibility,
+    };
+  });
 }
 
 /** Рука тянется к точке (x, y) экрана: нужно, чтобы скелет совпадал с курсором в меню. */

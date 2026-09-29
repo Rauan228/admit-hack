@@ -5,15 +5,19 @@
 // В длинах корпуса стоя; эталон «стоя» — нижний квантиль за окно (пятки на полу — минимум).
 
 import { ENGINE_CONFIG, type Widen } from '../config';
-import { pt, type PoseFrame } from '../geometry';
+import { pt, torsoLength, type PoseFrame } from '../geometry';
 import { LM } from '../hints';
 import type { RuleDef } from '../rules';
 import type { Side } from '../types';
 import { SlidingQuantile } from './baseline';
-import { LEG, TorsoRef, seen } from './common';
+import { LEG, TorsoRef, seen, trunk } from './common';
 import type { BaseMetrics, ExerciseDef, ExerciseMeter } from './types';
 
 type CalfRaiseConfig = Widen<typeof ENGINE_CONFIG.exercises.calf_raise>;
+
+/** Плечи выше таза хотя бы на столько длин корпуса, щиколотки ниже таза хотя бы на столько — человек стоит. */
+const UPRIGHT = 0.7;
+const LEGS_BELOW = 1;
 
 export interface CalfRaiseMetrics extends BaseMetrics {
   /** Пятки и щиколотки над носками, в длинах корпуса (без эталона стоя). */
@@ -31,6 +35,13 @@ class CalfRaiseMeter implements ExerciseMeter<CalfRaiseMetrics> {
   }
 
   measure(frame: PoseFrame): CalfRaiseMetrics | null {
+    // Сигнал в миллиметрах — меряем только правдоподобного стоящего человека: плечи над тазом, стопы под ним.
+    const t = trunk(frame);
+    if (!t) return null;
+    const now = torsoLength(frame);
+    if (!(now > 0) || t.hip.y - t.shoulder.y < UPRIGHT * now) return null;
+    const ankles = [LM.leftAnkle, LM.rightAnkle].filter((i) => seen(frame, i));
+    if (ankles.some((i) => pt(frame, i).y - t.hip.y < LEGS_BELOW * now)) return null;
     const torso = this.torso.update(frame);
     if (!torso) return null;
     const over = (side: Side): number | null => {
