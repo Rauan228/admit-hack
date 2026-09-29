@@ -282,3 +282,40 @@ button {
     animation: none !important;
   }
 }
+
+/* Производительность на телефоне: размытие фона поверх живого видео пересчитывается каждый кадр —
+   на сенсорных устройствах заменяем его плотной подложкой. */
+@media (pointer: coarse), (max-width: 980px) {
+  .card,
+  .pause,
+  .topbar .btn--ghost {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .card {
+    background: rgba(11, 17, 32, 0.9);
+  }
+
+  .pause {
+    background: rgba(7, 11, 22, 0.92);
+  }
+}
+
+/* Подпись «какие мышцы работают» — красная точка как у мышц на атлете. */
+.muscles {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: #fda4af;
+  font-weight: 700;
+}
+
+.muscles i {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f43f5e;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.8);
+}

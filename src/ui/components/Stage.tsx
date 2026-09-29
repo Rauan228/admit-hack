@@ -3,6 +3,7 @@
 // На чистом повторе — вспышка фигуры, ударная волна и частицы из центра тела.
 
 import { useEffect, useRef } from 'react';
+import { isMobileDevice } from '../../engine/perf';
 import { live } from '../engine/bus';
 import { ERROR_TTL_MS, overlay } from '../engine/overlay';
 import { bodyCenter, drawBody } from '../lib/body';
@@ -16,6 +17,8 @@ const FLASH_MS = 520;
 const WAVE_MS = 700;
 /** Если кадров нет дольше — фигуру не рисуем (человек ушёл или движок стоит). */
 const STALE_MS = 700;
+/** Телефон: без свечения (shadowBlur) и с меньшей плотностью пикселей — иначе падает FPS. */
+const MOBILE = isMobileDevice();
 
 interface Particle {
   x: number;
@@ -43,7 +46,7 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
     const burst = (x: number, y: number, clean: boolean) => {
       if (reduced) return;
       const palette = clean ? [COLORS.good, COLORS.primary, COLORS.fg] : [COLORS.warn, COLORS.primary];
-      for (let i = 0; i < (clean ? 46 : 16); i += 1) {
+      for (let i = 0; i < (MOBILE ? (clean ? 20 : 8) : clean ? 46 : 16); i += 1) {
         const a = Math.random() * Math.PI * 2;
         const speed = 3 + Math.random() * (clean ? 9 : 5);
         particles.push({
@@ -60,7 +63,7 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
 
     const draw = () => {
       raf = requestAnimationFrame(draw);
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, MOBILE ? 1.25 : 2);
       const W = canvas.clientWidth;
       const H = canvas.clientHeight;
       if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
@@ -123,7 +126,7 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
               : `rgba(250, 204, 21, ${0.25 + 0.25 * k})`
             : 'rgba(249, 115, 22, 0.26)',
           line: flashing ? flashColor : COLORS.primary2,
-          glow: flashing ? flashColor : 'rgba(249, 115, 22, 0.85)',
+          glow: MOBILE ? null : flashing ? flashColor : 'rgba(249, 115, 22, 0.85)',
           alpha: overlay.skeleton,
           dots: true,
           core: true,

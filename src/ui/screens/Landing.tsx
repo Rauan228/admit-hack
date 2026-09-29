@@ -9,6 +9,7 @@ import { EXERCISES } from '../../engine/types';
 import { Ghost } from '../components/Ghost';
 import { Icon } from '../components/Icon';
 import { LivePreview } from '../components/LivePreview';
+import { MUSCLE_NAMES } from '../lib/athlete';
 import { EXERCISE_META } from '../lib/exercises';
 import { order } from '../lib/motion';
 import { useCountUp } from '../lib/useCountUp';
@@ -185,8 +186,7 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
           <span className="lsec__num">02</span>
           <h2 className="lsec__title">Четыре упражнения — идеальная техника</h2>
           <p className="lsec__text">
-            Перед каждым подходом тренер показывает эталон: движение построено на пропорциях реального
-            человека.
+            Перед каждым подходом тренер показывает эталон техники — и красным, какие мышцы сейчас работают.
           </p>
         </header>
         <ul className="moves">
@@ -195,6 +195,9 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
               <Ghost exercise={ex} className="move__ghost" />
               <div className="move__text">
                 <h3>{EXERCISE_META[ex].title}</h3>
+                <p className="muscles">
+                  <i aria-hidden="true" /> {MUSCLE_NAMES[ex].join(' · ')}
+                </p>
                 <p>{EXERCISE_META[ex].cues.join(' · ')}</p>
               </div>
             </li>

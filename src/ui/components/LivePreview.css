@@ -384,14 +384,78 @@
   }
 }
 
-@media (max-width: 560px) {
+/* Телефон: атлет сверху, счётчик и баллы строкой, чек-лист в две колонки; без дорогих анимаций. */
+@media (max-width: 640px) {
   .screenhud__frame {
-    grid-template-columns: minmax(0, 1fr) 112px;
-    aspect-ratio: 4 / 4.2;
+    grid-template-columns: 1fr;
+    aspect-ratio: auto;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
-  .screenhud__checks li:nth-child(n + 4) {
-    display: none;
+  .screenhud__frame::before {
+    animation: none;
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.9), rgba(249, 115, 22, 0.1) 60%);
+  }
+
+  .screenhud__main {
+    height: min(88vw, 360px);
+  }
+
+  .screenhud__main::after {
+    animation: none;
+  }
+
+  .screenhud__hint {
+    font-size: 12px;
+    transform: none;
+    animation-name: none;
+  }
+
+  .screenhud__side {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      'count score'
+      'checks checks';
+    align-items: center;
+    gap: var(--s-3) var(--s-5);
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: var(--s-4);
+  }
+
+  .screenhud__count {
+    grid-area: count;
+    width: 76px;
+  }
+
+  .screenhud__score {
+    grid-area: score;
+    align-items: flex-start;
+  }
+
+  .screenhud__checks {
+    grid-area: checks;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-2) var(--s-4);
+  }
+
+  .screenhud__checks li {
+    font-size: 11px;
+  }
+
+  .screenhud__voice {
+    font-size: 13px;
+  }
+}
+
+@media (pointer: coarse) {
+  .screenhud__frame::before,
+  .screenhud__main::after,
+  .screenhud__frame {
+    animation: none;
   }
 }
 

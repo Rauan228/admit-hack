@@ -586,9 +586,12 @@
 
 .tech__scan {
   position: absolute;
+  top: 12%;
   left: 10%;
   right: 10%;
   height: 2px;
+  --scan-h: 11vw;
+  will-change: transform;
   background: linear-gradient(90deg, transparent, var(--primary), transparent);
   box-shadow: 0 0 16px var(--primary);
   animation: tech-scan 2.6s var(--ease) infinite alternate;
@@ -596,10 +599,10 @@
 
 @keyframes tech-scan {
   from {
-    top: 12%;
+    transform: translateY(0);
   }
   to {
-    top: 88%;
+    transform: translateY(var(--scan-h, 150px));
   }
 }
 
@@ -903,22 +906,144 @@
 }
 
 @media (max-width: 640px) {
-  .hero__facts {
+  .landing {
+    --pad: 20px;
+  }
+
+  .lnav {
+    background: #06080f;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding-block: var(--s-3);
+  }
+
+  .lnav__logo {
+    font-size: 22px;
+  }
+
+  .hero {
+    padding-top: var(--s-5);
+    gap: var(--s-6);
+  }
+
+  .hero__photo {
+    opacity: 0.38;
+    object-position: 60% 30%;
+    height: 70%;
+  }
+
+  .hero__streak--b {
+    display: none;
+  }
+
+  .hero__kicker {
+    letter-spacing: 0.3em;
+  }
+
+  .hero__title {
+    font-size: clamp(30px, 9.6vw, 44px);
+  }
+
+  .hero__lead {
+    font-size: 15px;
+  }
+
+  .hero__cta {
+    width: 100%;
     flex-direction: column;
-    gap: var(--s-4);
+    gap: var(--s-2);
+  }
+
+  .hero__cta .lbtn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hero__cta .lbtn--ghost {
+    min-height: 48px;
+    background: none;
+    box-shadow: none;
+    color: var(--muted);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .hero__facts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    width: 100%;
+    gap: 0;
   }
 
   .hero__fact {
-    border-right: 0;
-    padding-right: 0;
-    margin-right: 0;
+    padding-right: var(--s-3);
+    margin-right: var(--s-3);
     max-width: none;
   }
 
+  .hero__fact dt {
+    font-size: 28px;
+  }
+
+  .hero__fact dd b {
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+
+  .hero__fact dd span {
+    display: none;
+  }
+
+  /* Карточки листаются свайпом, а не тянутся лентой на пять экранов. */
   .tech,
-  .moves,
+  .moves {
+    display: flex;
+    gap: var(--s-4);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--pad);
+    margin: 0 calc(-1 * var(--pad));
+    padding: 0 var(--pad) var(--s-3);
+    scrollbar-width: none;
+  }
+
+  .tech::-webkit-scrollbar,
+  .moves::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tech__card,
+  .move {
+    flex: 0 0 78%;
+    scroll-snap-align: start;
+  }
+
+  .tech__scan {
+    --scan-h: 44vw;
+  }
+
   .errs {
     grid-template-columns: 1fr;
+  }
+
+  .lsec {
+    padding-block: 56px;
+    gap: var(--s-5);
+  }
+}
+
+/* Сенсорные устройства: без постоянных анимаций фона — они съедают кадры при прокрутке. */
+@media (pointer: coarse) {
+  .hero__streak,
+  .hero__start,
+  .tech__check {
+    animation: none;
+  }
+
+  .lnav {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: #06080f;
   }
 }
 
