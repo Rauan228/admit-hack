@@ -43,7 +43,9 @@ GROUPS = {
 # Фасции, апоневрозы, тракты и перегородки лежат ПОВЕРХ мышц и закрывают их — убираем; сухожилия и связки
 # после упрощения превращаются в острые «осколки» — тоже.
 SKIP = ['bursa', 'sheath', 'retinaculum', 'fascia', 'aponeurosis', 'tract', 'septum', 'ligament', 'tendon',
-        'membrane', 'raphe', 'band', 'arch', 'expansion', 'hood', 'capsule', 'fibrous', 'lacertus']
+        'membrane', 'raphe', 'band', 'arch', 'expansion', 'hood', 'capsule', 'fibrous', 'lacertus',
+        # дно рта и подкожная мышца шеи: под гладкой головой торчат «воротником»
+        'hyoid', 'digastric', 'platysma', 'risorius', 'depressor']
 # Кости, которые видны у «экорше» и нужны для чистого силуэта: кисти, стопы, надколенники.
 # Череп и лицо не берём: мелкие лицевые мышцы после упрощения — «каша»; голову рисуем гладкой в браузере.
 BONE_KEEP = ['patella', 'carpal', 'metacarpal', 'phalan', 'tarsal', 'metatarsal', 'calcaneus', 'talus',
@@ -189,7 +191,7 @@ def tris(o):
     return sum(len(p.vertices) - 2 for p in o.data.polygons)
 
 
-RATIO = {'bones': 0.16, 'body': 0.1}
+RATIO = {'bones': 0.16, 'body': 0.15}
 TARGET_RATIO = 0.18  # подсвечиваемые мышцы детальнее: на них смотрят
 groups = {}
 for o in keep:

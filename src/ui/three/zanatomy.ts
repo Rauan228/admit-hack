@@ -131,7 +131,9 @@ function medialPenalty(p: Vector3, b: BoneDef): number {
   // (широчайшие, грудные, косые, зубчатая), иначе они тянутся за рукой «крыльями».
   const joint = jv(arm ? (side > 0 ? 'shoulder.l' : 'shoulder.r') : b.a);
   const inward = (joint.x - p.x) * side;
-  if (thigh) return inward > 0.005 ? inward * 1.5 : 0;
+  // Бедро: к тазу — только то, что медиальнее и ВЫШЕ сустава (живот, паховая связка). Приводящие ниже сустава
+  // — мышцы бедра: иначе при сгибе на 90° (выпад) они растягиваются по паху плоскими лоскутами.
+  if (thigh) return inward > 0.005 && p.y > joint.y - 0.02 ? inward * 1.5 : 0;
   // Лопатка: задние мышцы на уровне плеча (подостная, большая круглая, широчайшая), если они не снаружи
   // сустава, остаются с грудной клеткой — иначе при руке вперёд / локтях назад вылезают лоскуты.
   const behind = joint.z - p.z; // в модели лицом к +Z
@@ -587,11 +589,14 @@ export class ZAthleteView {
           .copy(M)
           .multiply(new Matrix4().makeTranslation(hc.x, hc.y, hc.z))
           .multiply(new Matrix4().makeScale(0.078, 0.104, 0.092));
-        const nc = REST.neck.clone().lerp(REST.head, 0.42);
+        const nc = REST.neck
+          .clone()
+          .lerp(REST.head, 0.48)
+          .add(new Vector3(0, 0, -0.014)); // шея чуть за подбородком — без «воротника»
         this.neckMesh.matrix
           .copy(M)
           .multiply(new Matrix4().makeTranslation(nc.x, nc.y, nc.z))
-          .multiply(new Matrix4().makeScale(0.052, 0.075, 0.056));
+          .multiply(new Matrix4().makeScale(0.048, 0.08, 0.05));
       }
     });
 
