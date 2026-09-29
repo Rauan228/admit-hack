@@ -46,6 +46,22 @@ export interface SynthParams {
   /** Скручивание: локоть crunchElbow тянется к противоположному колену; 0 — нет, 1 — касание. */
   crunch?: number;
   crunchElbow?: 'left' | 'right';
+  /** Наклон корпуса вбок в плоскости кадра, градусы: + к левому боку человека (вправо по картинке). */
+  sideTilt?: number;
+  /** Отведение прямой ноги в сторону, градусы от вертикали. */
+  abductL?: number;
+  abductR?: number;
+  /** Голень отведённой ноги отстаёт к вертикали на столько градусов (колено согнуто). */
+  abductKnee?: number;
+  /** Подъём на носки: всё, кроме носков, выше на такую долю роста. */
+  onToes?: number;
+  /** Руки в стороны на уровне плеч: 0 — широко, 1 — скрещены перед грудью. */
+  armsIn?: number;
+  /** Круги руками: руки в стороны, кисть на круге радиуса radius (доля роста), угол angle от верха. */
+  circle?: { angle: number; radius: number };
+  /** Удар на камеру: 0 — рука в защите у подбородка, 1 — прямая рука вперёд. */
+  punchL?: number;
+  punchR?: number;
   visibility: number;
 }
 
@@ -88,8 +104,20 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
 
   const image: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0, v: p.visibility }));
   const world: Vec3[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }));
-  const put = (i: number, planeX: number, y: number, wz = 0) => {
-    image[i] = { x: toX(planeX) + noise(), y: y + noise(), z: 0, v: p.visibility };
+  /** Центр вращения корпуса при наклоне вбок — середина таза (известна, когда ставим верх тела). */
+  const pivot = { x: cx + p.shift * 0.1 * H, y: 0 };
+  const tilt = rad(p.sideTilt ?? 0);
+  const put = (i: number, planeX: number, y: number, wz = 0, imageZ = 0) => {
+    if (tilt && i <= 22) {
+      // Верх тела поворачивается вокруг середины таза: «вверх» уходит к +x на sideTilt.
+      const dx = planeX - pivot.x;
+      const dy = y - pivot.y;
+      planeX = pivot.x + dx * Math.cos(tilt) - dy * Math.sin(tilt);
+      y = pivot.y + dx * Math.sin(tilt) + dy * Math.cos(tilt);
+    }
+    // Подъём на носки: всё выше, кроме самих носков (31, 32).
+    if (p.onToes && i !== 31 && i !== 32) y -= p.onToes * H;
+    image[i] = { x: toX(planeX) + noise(), y: y + noise(), z: toX(imageZ), v: p.visibility };
     world[i] = { x: (planeX - cx) / H, y: y / H, z: wz / H };
   };
 
@@ -115,8 +143,22 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
         : { ankle: 28, knee: 26, hip: 24, heel: 30, foot: 32 };
     const hipX = cx + p.shift * hipW + (side * hipW) / 2;
     const lift = side > 0 ? p.liftL : p.liftR;
+    const abduct = side > 0 ? p.abductL : p.abductR;
     // Порядок точек (стопа → колено → таз) не меняем: от него зависит шум, на котором построены тесты.
-    if (lift) {
+    if (abduct) {
+      // Прямая нога в сторону от таза; согнутое колено — голень отстаёт к вертикали.
+      const a = rad(abduct);
+      const b = rad(abduct - (p.abductKnee ?? 0));
+      const kX = hipX + side * Math.sin(a) * thighL;
+      const kY = hY + Math.cos(a) * thighL;
+      const aX = kX + side * Math.sin(b) * shinL;
+      const aY = kY + Math.cos(b) * shinL;
+      put(s.ankle, aX, aY);
+      put(s.heel, aX, aY + 0.015 * H, 0.04 * H);
+      put(s.foot, aX + side * 0.01 * H, aY + 0.02 * H, -0.12 * H);
+      put(s.knee, kX, kY);
+      knees[side > 0 ? 'left' : 'right'] = { x: kX, y: kY };
+    } else if (lift) {
       // Колено вперёд-вверх (на камеру), голень висит вертикально под коленом.
       const kY = hY + thighL * Math.cos(rad(lift));
       const kZ = hZ - thighL * Math.sin(rad(lift));
@@ -135,6 +177,7 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
     put(s.hip, hipX, hY, hZ);
   }
 
+  pivot.y = hipY;
   const shoulderY = hipY - torsoL * Math.cos(rad(p.lean));
   // Наклон вперёд — плечи уходят к камере (минус по z).
   const shoulderZ = hipZ - torsoL * Math.sin(rad(p.lean));
@@ -177,6 +220,42 @@ export function synthFrame(p: SynthParams, t: number, noise: () => number = () =
       put(s.el, elX, elY, shoulderZ);
       put(s.wr, wrX, wrY, noseZ + 0.06 * H);
       for (const i of [s.pi, s.ix, s.th]) put(i, wrX, wrY + 0.02 * H, noseZ + 0.06 * H);
+      continue;
+    }
+    const punch = side > 0 ? p.punchL : p.punchR;
+    if (punch !== undefined) {
+      // Бокс: из защиты (кисть у подбородка, локоть внизу) — прямая рука вперёд, на камеру.
+      const k = punch;
+      const elX = shX - side * 0.03 * H + side * 0.01 * H * k;
+      const elY = shY + 0.13 * H - 0.12 * H * k;
+      const elZ = shoulderZ - 0.05 * H - (armL / 2 - 0.05 * H) * k;
+      const wrX = cx + side * 0.05 * H + (shX - side * 0.04 * H - cx - side * 0.05 * H) * k;
+      const wrY = noseY + 0.04 * H + (shY + 0.01 * H - noseY - 0.04 * H) * k;
+      const wrZ = shoulderZ - 0.12 * H - (armL - 0.12 * H) * k;
+      put(s.el, elX, elY, elZ, elZ - shoulderZ);
+      put(s.wr, wrX, wrY, wrZ, wrZ - shoulderZ);
+      for (const i of [s.pi, s.ix, s.th]) put(i, wrX, wrY + 0.02 * H, wrZ, wrZ - shoulderZ);
+      continue;
+    }
+    if (p.armsIn !== undefined || p.circle) {
+      // Руки в стороны на уровне плеч: «звёздочка» с перекрёстом (armsIn) или круги руками (circle).
+      let wrX = shX + side * armL;
+      let wrY = shY + 0.02 * H;
+      let wrZ = shoulderZ;
+      if (p.armsIn !== undefined) {
+        wrX += (cx - side * 0.08 * H - wrX) * p.armsIn;
+        wrZ -= 0.25 * H * Math.sin(Math.PI * Math.min(1, p.armsIn));
+      }
+      if (p.circle) {
+        // Обе руки крутятся зеркально — как у живого человека.
+        wrX += side * p.circle.radius * H * Math.sin(p.circle.angle);
+        wrY -= p.circle.radius * H * Math.cos(p.circle.angle);
+      }
+      const elX = (shX + wrX) / 2;
+      const elY = (shY + wrY) / 2;
+      put(s.el, elX, elY, (shoulderZ + wrZ) / 2);
+      put(s.wr, wrX, wrY, wrZ);
+      for (const i of [s.pi, s.ix, s.th]) put(i, wrX, wrY + 0.02 * H, wrZ);
       continue;
     }
     const a = rad(side > 0 && p.armsL !== undefined ? p.armsL : p.arms);
@@ -277,6 +356,109 @@ export function lungeFrame(p: LungeParams, t: number, noise: () => number = () =
     put(wr, cx + (sign * hipW) / 2 + sign * 0.03 * H, hipY - 0.02 * H, 0);
     for (const i of sign > 0 ? [17, 19, 21] : [18, 20, 22])
       put(i, cx + (sign * hipW) / 2 + sign * 0.03 * H, hipY, 0);
+  }
+  return { t, aspect, image, world };
+}
+
+export interface SideLungeParams {
+  /** 0 — стоя в широкой стойке, 1 — бедро согнутой ноги параллельно полу. */
+  depth: number;
+  /** Какая нога сгибается. */
+  side: 'left' | 'right';
+  /** Полуширина стойки: стопы на столько доль роста от центра (0,3 — широкая, как в «казачьем» выпаде). */
+  stance?: number;
+  /** Колено согнутой ноги заваливается внутрь: 0 — по линии носка, 1 — на 8 % роста. */
+  kneeIn?: number;
+  /** Наклон корпуса вперёд, градусы. */
+  lean?: number;
+  aspect?: number;
+  height?: number;
+  footY?: number;
+}
+
+/** Колено двухзвенной ноги между тазом и щиколоткой в плоскости кадра; bendSign — куда выгнуто колено по x. */
+function kneeIK(
+  hip: { x: number; y: number },
+  ankle: { x: number; y: number },
+  thigh: number,
+  shin: number,
+  bendSign: number,
+): { x: number; y: number } {
+  const dx = ankle.x - hip.x;
+  const dy = ankle.y - hip.y;
+  const d = Math.hypot(dx, dy);
+  // Не дотягивается — нога прямая (колено на отрезке).
+  if (d >= thigh + shin) return { x: hip.x + (dx * thigh) / d, y: hip.y + (dy * thigh) / d };
+  const a = (thigh * thigh - shin * shin + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(0, thigh * thigh - a * a));
+  const mx = hip.x + (dx * a) / d;
+  const my = hip.y + (dy * a) / d;
+  // Два решения — по обе стороны от линии таз → щиколотка; берём то, что выгнуто в сторону bendSign.
+  const k1 = { x: mx + (h * dy) / d, y: my - (h * dx) / d };
+  const k2 = { x: mx - (h * dy) / d, y: my + (h * dx) / d };
+  return Math.sign(k1.x - mx) === Math.sign(bendSign) ? k1 : k2;
+}
+
+/**
+ * Боковой («казачий») выпад анфас: стопы широко, одна нога сгибается, таз уходит к ней и вниз, другая нога прямая.
+ * Колени — обратная кинематика в плоскости кадра (длины бедра и голени сохраняются).
+ */
+export function sideLungeFrame(p: SideLungeParams, t: number, noise: () => number = () => 0): PoseFrame {
+  const aspect = p.aspect ?? 4 / 3;
+  const H = p.height ?? 0.75;
+  const footY = p.footY ?? 0.92;
+  const M = 1.7 / H;
+  const thigh = 0.245 * H;
+  const shin = 0.25 * H;
+  const torso = 0.3 * H;
+  const hipW = 0.1 * H;
+  const shoulderW = 0.22 * H;
+  const cx = 0.5 * aspect;
+  const half = (p.stance ?? 0.3) * H;
+  const d = Math.max(0, Math.min(1, p.depth));
+  // Человек лицом к камере: его левая сторона — справа на картинке (+x).
+  const bent = p.side === 'left' ? 1 : -1;
+  const standY = footY - Math.sqrt(Math.max(0, (thigh + shin) ** 2 - (half - hipW / 2) ** 2));
+  const hipY = standY + (footY - 1.04 * shin - standY) * d;
+  const hipX = cx + bent * 0.18 * H * d;
+  const image: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0, v: 0.95 }));
+  const world: Vec3[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }));
+  const put = (i: number, x: number, y: number, z = 0) => {
+    image[i] = { x: x / aspect + noise(), y: y + noise(), z: 0, v: 0.95 };
+    world[i] = { x: (x - cx) * M, y: (y - hipY) * M, z: z * M };
+  };
+  for (const side of [1, -1] as const) {
+    const s =
+      side > 0
+        ? { ankle: 27, knee: 25, hip: 23, heel: 29, foot: 31 }
+        : { ankle: 28, knee: 26, hip: 24, heel: 30, foot: 32 };
+    const hip = { x: hipX + (side * hipW) / 2, y: hipY };
+    const ankle = { x: cx + side * half, y: footY };
+    let knee = kneeIK(hip, ankle, thigh, shin, side);
+    if (side === bent && p.kneeIn) knee = { x: knee.x - side * p.kneeIn * 0.08 * H, y: knee.y };
+    put(s.ankle, ankle.x, ankle.y);
+    put(s.heel, ankle.x, ankle.y + 0.015 * H, 0.04 * H);
+    put(s.foot, ankle.x + side * 0.01 * H, ankle.y + 0.02 * H, -0.12 * H);
+    put(s.knee, knee.x, knee.y, side === bent ? -0.02 * H : 0);
+    put(s.hip, hip.x, hip.y);
+  }
+  // Корпус над серединой таза, руки сложены перед грудью.
+  const lean = ((p.lean ?? 0) * Math.PI) / 180;
+  const shY = hipY - torso * Math.cos(lean);
+  const shZ = -torso * Math.sin(lean);
+  put(0, hipX, shY - 0.1 * H, shZ - 0.03 * H);
+  for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    put(i, hipX + (i % 2 ? 1 : -1) * 0.02 * H, shY - 0.11 * H, shZ);
+  for (const [sh, el, wr, sign] of [
+    [11, 13, 15, 1],
+    [12, 14, 16, -1],
+  ] as const) {
+    const sx = hipX + (sign * shoulderW) / 2;
+    put(sh, sx, shY, shZ);
+    put(el, sx + sign * 0.02 * H, shY + 0.13 * H, shZ - 0.06 * H);
+    put(wr, hipX + sign * 0.02 * H, shY + 0.08 * H, shZ - 0.12 * H);
+    for (const i of sign > 0 ? [17, 19, 21] : [18, 20, 22])
+      put(i, hipX + sign * 0.02 * H, shY + 0.1 * H, shZ - 0.12 * H);
   }
   return { t, aspect, image, world };
 }
