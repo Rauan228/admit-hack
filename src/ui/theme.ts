@@ -1,15 +1,15 @@
 // Цвета для canvas: те же значения, что в styles/tokens.css (canvas не читает CSS-переменные на каждом кадре).
 export const COLORS = {
-  bg: '#0b1120',
-  bgDeep: '#070b16',
-  fg: '#f8fafc',
-  muted: '#a5b1c4',
+  bg: '#09090b',
+  bgDeep: '#050506',
+  fg: '#f4f4f5',
+  muted: '#a1a1aa',
   primary: '#f97316',
   primary2: '#fb923c',
   good: '#22c55e',
   warn: '#facc15',
   bad: '#ef4444',
-  info: '#38bdf8',
+  info: '#8fb3d9',
 } as const;
 
 /** Цвет оценки повторения 0..100. */

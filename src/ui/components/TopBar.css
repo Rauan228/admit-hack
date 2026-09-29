@@ -8,44 +8,74 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-4);
-  padding: max(var(--s-4), env(safe-area-inset-top)) max(var(--s-5), env(safe-area-inset-right)) var(--s-4)
-    max(var(--s-5), env(safe-area-inset-left));
-  pointer-events: none;
-}
-
-.topbar > * {
-  pointer-events: auto;
-}
-
-.topbar .btn--ghost {
-  background: var(--glass);
+  min-height: 60px;
+  padding: max(10px, env(safe-area-inset-top)) max(var(--pad), env(safe-area-inset-right)) 10px
+    max(var(--pad), env(safe-area-inset-left));
+  background: rgba(9, 9, 11, 0.82);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
-.logo {
-  display: inline-flex;
+.topbar__side {
+  display: flex;
   align-items: center;
-  gap: var(--s-3);
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  gap: var(--s-2);
+  min-width: 0;
 }
 
-@media (max-width: 640px) {
-  .hide-sm {
-    display: none;
-  }
+.topbar__side:first-child {
+  gap: var(--s-4);
+}
+
+.topbar .btn--sm {
+  min-height: 40px;
+  padding: 0 var(--s-4);
+  background: transparent;
+  color: var(--muted);
+}
+
+.topbar .btn--sm:hover,
+.topbar .btn--sm.is-hover {
+  color: var(--fg);
+  background: var(--surface-2);
+}
+
+.topbar__logo {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.logo {
+  font: 800 19px / 1 var(--font-body);
+  letter-spacing: -0.02em;
+  color: var(--fg);
 }
 
 .topbar__demo {
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  background: var(--primary-soft);
   white-space: nowrap;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
+  font: 600 12px / 1 var(--font-body);
+  color: var(--primary);
+}
+
+.topbar__gestures.is-on {
+  color: var(--good) !important;
+  background: var(--good-soft) !important;
+}
+
+.topbar__avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fb923c, #ea580c);
+  color: #fff;
+  font: 700 12px / 1 var(--font-body);
 }
 
 .topbar__nick {
@@ -53,10 +83,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-transform: none;
 }
 
 @media (max-width: 640px) {
+  .hide-sm,
   .topbar__nick {
     display: none;
   }

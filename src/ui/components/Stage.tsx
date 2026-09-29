@@ -94,13 +94,13 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
         ctx.restore();
       } else {
         const g = ctx.createRadialGradient(W / 2, H * 0.35, 0, W / 2, H * 0.4, Math.max(W, H) * 0.8);
-        g.addColorStop(0, '#1b2640');
+        g.addColorStop(0, '#16161a');
         g.addColorStop(1, COLORS.bgDeep);
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, W, H);
       }
       if (overlay.dim > 0) {
-        ctx.fillStyle = `rgba(7, 11, 22, ${overlay.dim})`;
+        ctx.fillStyle = `rgba(9, 9, 11, ${overlay.dim})`;
         ctx.fillRect(0, 0, W, H);
       }
 

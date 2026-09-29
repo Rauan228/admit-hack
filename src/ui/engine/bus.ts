@@ -53,6 +53,18 @@ export function getEngine(): Engine | null {
   return engine;
 }
 
+/** Выключить камеру и движок (меню, рейтинг, профиль — камера им не нужна). */
+export function detachEngine(): void {
+  detach?.();
+  detach = null;
+  engine?.stop();
+  engine = null;
+  currentMode = null;
+  live.landmarks = null;
+  live.image = null;
+  live.pointer = null;
+}
+
 /** Меняет режим, только если он действительно другой: повторный setMode сбросил бы подход. */
 export function setEngineMode(mode: EngineMode): void {
   const key = typeof mode === 'string' ? mode : `${mode.exercise}:${mode.targetReps}`;

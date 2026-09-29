@@ -21,8 +21,7 @@ export function MuteToggle() {
       onSelect={toggle}
       ariaLabel={muted ? 'Включить звук' : 'Выключить звук'}
     >
-      <Icon name={muted ? 'mute' : 'volume'} size={24} />
-      <span className="hide-sm">{muted ? 'Звук выкл' : 'Звук'}</span>
+      <Icon name={muted ? 'mute' : 'volume'} size={18} />
     </DwellButton>
   );
 }
