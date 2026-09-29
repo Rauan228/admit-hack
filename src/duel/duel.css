@@ -22,13 +22,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* На :root, а не на .duel: окно «Вызвать друга» (<dialog>) лежит вне .duel. */
+:root {
+  --me: var(--good);
+  --opp: var(--bad);
+  --num: var(--font-display);
+}
+
 .duel {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  --me: var(--good);
-  --opp: var(--bad);
-  --num: var(--font-display);
 }
 
 /* ——— Камера ——— */
@@ -491,6 +495,289 @@ body {
   justify-content: center;
   gap: var(--s-3);
   margin-top: var(--s-3);
+}
+
+/* ——— Вызовы друзьям (E-25) ——— */
+.btn--small {
+  min-height: 40px;
+  padding: 0 var(--s-4);
+  font-size: var(--text-sm);
+}
+
+.btn--link {
+  min-height: 0;
+  padding: var(--s-1) 0;
+  border: 0;
+  background: none;
+  color: var(--info);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Карточка вызова по ссылке: имя и число — главное, крупно. */
+.challenge {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--primary);
+  border-radius: var(--r-md);
+  background: var(--primary-soft);
+}
+
+.challenge p {
+  margin: 0;
+}
+
+.challenge__from {
+  font-size: var(--text-md);
+}
+
+.challenge__reps {
+  font: 900 var(--text-xl) / 1 var(--num);
+  font-variant-numeric: tabular-nums;
+}
+
+.challenge__reps span {
+  color: var(--muted);
+  font: 600 var(--text-sm) / 1.3 var(--font-body);
+}
+
+.challenge__text {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.challenge .btn {
+  justify-self: start;
+}
+
+.inbox:empty {
+  display: none;
+}
+
+.inbox {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.inbox__title {
+  margin: var(--s-2) 0 0;
+  color: var(--muted);
+  font: 600 var(--text-sm) / 1.3 var(--font-body);
+}
+
+.people {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 52px;
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.person__nick {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person__note {
+  margin-left: auto;
+  color: var(--muted);
+  font: 800 var(--text-md) / 1 var(--num);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.person__nick + .person__star {
+  margin-left: auto;
+}
+
+.person__star {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--warn);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.person__star:focus-visible,
+.tabs__tab:focus-visible,
+.field input:focus-visible,
+.invite__search:focus-visible {
+  outline: 3px solid var(--info);
+  outline-offset: 2px;
+}
+
+.people__empty {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-4);
+}
+
+.account__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.account__note a {
+  color: var(--info);
+}
+
+/* Вход / регистрация */
+.login {
+  display: grid;
+  gap: var(--s-3);
+  width: 100%;
+}
+
+.field {
+  display: grid;
+  gap: var(--s-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.field input,
+.invite__search,
+.invite__link {
+  min-height: 48px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-deep);
+  color: var(--fg);
+  font: 500 var(--text-md) / 1 var(--font-body);
+}
+
+.login .btn--primary {
+  justify-self: start;
+}
+
+.login__error:empty {
+  display: none;
+}
+
+.login__error {
+  margin: 0;
+  color: var(--bad);
+  font-size: var(--text-sm);
+}
+
+/* Окно «Вызвать друга» */
+.invite {
+  width: min(520px, 100% - 2 * var(--s-4));
+  max-height: min(720px, 100% - 2 * var(--s-4));
+  padding: var(--s-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+}
+
+.invite::backdrop {
+  background: rgba(7, 11, 22, 0.72);
+}
+
+.invite__close {
+  float: right;
+}
+
+.invite__title {
+  margin: 0 0 var(--s-2);
+  font: 900 var(--text-xl) / 1 var(--num);
+}
+
+.invite__lead {
+  margin: 0 0 var(--s-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.invite__lead b {
+  color: var(--me);
+}
+
+.invite__body,
+.invite__login {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.invite__body[hidden],
+.invite__login[hidden] {
+  display: none;
+}
+
+.invite__body > .btn--primary {
+  justify-self: start;
+}
+
+.invite__link {
+  width: 100%;
+  font-size: var(--text-sm);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--s-1);
+  margin-top: var(--s-3);
+  padding: var(--s-1);
+  border-radius: var(--r-full);
+  background: var(--bg-deep);
+}
+
+.tabs__tab {
+  flex: 1;
+  min-height: 40px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: none;
+  color: var(--muted);
+  font: 700 var(--text-sm) / 1 var(--font-body);
+  cursor: pointer;
+}
+
+.tabs__tab[aria-selected='true'] {
+  background: var(--surface-3);
+  color: var(--fg);
+}
+
+.invite__status {
+  margin: var(--s-3) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.invite__status:empty {
+  display: none;
 }
 
 /* Ноутбук 1280×720 и телефон горизонтально: вступление целиком, без прокрутки. */
