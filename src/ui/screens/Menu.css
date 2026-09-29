@@ -1,0 +1,116 @@
+.menu {
+  padding-top: 96px;
+  gap: var(--s-5);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.menu__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.menu__title {
+  font-size: var(--text-2xl);
+}
+
+.menu__how {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--text-md);
+  color: var(--muted);
+}
+
+.menu__grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: var(--s-5);
+  min-height: 0;
+}
+
+/* Плитки крупные: рукой попасть сложнее, чем мышью. */
+.menu__tile {
+  height: 100%;
+  min-height: 150px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  text-align: left;
+  padding: var(--s-6);
+}
+
+.menu__tile .dwell__label {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  height: 100%;
+  gap: var(--s-4);
+}
+
+.menu__tile--hero {
+  grid-row: span 2;
+}
+
+.menu__tile-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.menu__tile-text b {
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+
+.menu__tile-text small {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.8;
+}
+
+.menu__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 860px) {
+  .menu {
+    overflow-y: auto;
+  }
+
+  .menu__grid {
+    flex: none;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: none;
+  }
+
+  .menu__tile--hero {
+    grid-row: auto;
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 520px) {
+  .menu__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .menu__tile--hero {
+    grid-column: auto;
+  }
+
+  .menu__tile {
+    min-height: 110px;
+    padding: var(--s-5);
+  }
+}
