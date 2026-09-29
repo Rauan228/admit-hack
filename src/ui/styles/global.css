@@ -125,25 +125,31 @@ button {
   box-shadow: var(--shadow);
 }
 
-.badge {
+.eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-1) var(--s-3);
-  border-radius: var(--r-full);
-  border: 1px solid var(--line-strong);
-  background: var(--surface);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  gap: var(--s-3);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--primary);
 }
 
-.badge--primary {
-  color: var(--primary);
-  border-color: rgba(249, 115, 22, 0.45);
-  background: var(--primary-soft);
+.eyebrow::before {
+  content: '';
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.eyebrow--good {
+  color: var(--good);
+}
+
+.eyebrow--muted {
+  color: var(--muted);
 }
 
 .kbd-hint {
@@ -218,4 +224,61 @@ button {
   height: 2px;
   opacity: 0;
   pointer-events: none;
+}
+
+/* ——— Движение ——— */
+
+/* Каскадное появление: style={{ '--i': n }} задаёт порядок. */
+.rise {
+  animation: rise var(--t-slow) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 60ms);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+}
+
+/* Блик по кнопке при наведении рукой или мышью. */
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.16) 50%, transparent 70%);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+
+.btn:hover::after,
+.btn.is-hover::after {
+  animation: shine 900ms var(--ease) infinite;
+}
+
+@keyframes shine {
+  to {
+    transform: translateX(120%);
+  }
+}
+
+/* Иконка кнопки слегка подпрыгивает под курсором. */
+.btn.is-hover svg,
+.btn:hover svg {
+  animation: nudge 600ms var(--ease-out);
+}
+
+@keyframes nudge {
+  40% {
+    transform: translateY(-4px) scale(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .btn::after,
+  .btn svg {
+    animation: none !important;
+  }
 }

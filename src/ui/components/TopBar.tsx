@@ -28,8 +28,8 @@ export function TopBar({ mock, onHome }: { mock: boolean; onHome?: () => void })
       <div className="row">
         <Logo />
         {mock && (
-          <span className="badge badge--primary topbar__demo">
-            Демо<span className="hide-sm"> без камеры</span>
+          <span className="topbar__demo">
+            демо<span className="hide-sm"> без камеры</span>
           </span>
         )}
       </div>

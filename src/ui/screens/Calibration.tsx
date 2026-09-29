@@ -6,7 +6,6 @@ import type { CalibrationStatus } from '../../engine/types';
 import { isMobileDevice } from '../../engine/perf';
 import { say } from '../audio/voice';
 import { sfx } from '../audio/sfx';
-import { Icon } from '../components/Icon';
 import { useEngineEvents } from '../engine/bus';
 import './Calibration.css';
 
@@ -68,6 +67,7 @@ export function Calibration({ onDone }: { onDone: () => void }) {
           <circle cx="50" cy="22" r="13" />
           <path d="M50 37v62M50 99l-17 80M50 99l17 80M22 52l28 8 28-8M22 52l-6 46M78 52l6 46" />
         </svg>
+        <span className="calib__scan" />
         <span className="calib__corner calib__corner--tl" />
         <span className="calib__corner calib__corner--tr" />
         <span className="calib__corner calib__corner--bl" />
@@ -75,8 +75,7 @@ export function Calibration({ onDone }: { onDone: () => void }) {
       </div>
 
       <section className="calib__panel card" aria-live="polite">
-        <span className={`badge ${ok ? 'badge--good' : 'badge--primary'}`}>
-          {ok ? <Icon name="check" size={16} /> : <Icon name="user" size={16} />}
+        <span className={`eyebrow ${ok ? 'eyebrow--good' : ''}`}>
           {ok ? 'Вижу тебя целиком' : 'Калибровка'}
         </span>
         <h2 className="calib__hint">{hint}</h2>

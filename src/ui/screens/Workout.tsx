@@ -50,6 +50,10 @@ export function Workout({
   const [hint, setHint] = useState<Hint | null>(null);
   const [paused, setPaused] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  /** Серия чистых повторов подряд. */
+  const [streak, setStreak] = useState(0);
+  /** Вспышка краёв экрана: зелёная на чистый повтор, красная на ошибку. */
+  const [edge, setEdge] = useState<{ id: number; tone: 'good' | 'bad' | 'warn' } | null>(null);
 
   const acc = useRef(new SetAccumulator());
   const finished = useRef(false);
@@ -95,6 +99,10 @@ export function Workout({
     hintId.current += 1;
     setHint({ id: hintId.current, text, tone });
   };
+  const flashEdge = (tone: 'good' | 'bad' | 'warn') => {
+    hintId.current += 1;
+    setEdge({ id: hintId.current, tone });
+  };
 
   useEngineEvents((e) => {
     if (finished.current) return;
@@ -105,6 +113,7 @@ export function Workout({
       case 'form_error':
         showFormError(e);
         showHint(e.message, e.severity);
+        flashEdge(e.severity);
         sfx.error();
         say(e.message, 'hint');
         break;
@@ -118,6 +127,8 @@ export function Workout({
         setCount(e.count);
         setLastScore(e.score);
         flashRep(clean);
+        setStreak((s) => (clean ? s + 1 : 0));
+        if (clean) flashEdge('good');
         if (clean) {
           sfx.repClean();
           say(numberWord(e.count), 'count');
@@ -141,6 +152,11 @@ export function Workout({
     }
   });
 
+  const phaseIndex = Math.max(
+    0,
+    PHASES.findIndex((p) => p.id === phase),
+  );
+  const phaseLabel = PHASES[phaseIndex]?.label ?? '';
   const progress = timeLimit ? Math.min(1, elapsed / timeLimit) : Math.min(1, count / item.target);
   const timeText = timeLimit ? formatDuration(timeLimit - elapsed) : formatDuration(elapsed);
 
@@ -148,25 +164,30 @@ export function Workout({
     <main className="screen workout">
       <section className="workout__info card">
         {plan.items.length > 1 && (
-          <span className="badge badge--primary">
-            {index + 1} / {plan.items.length}
+          <span className="eyebrow">
+            Упражнение {index + 1} из {plan.items.length}
           </span>
         )}
         <h2 className="workout__title">{meta.title}</h2>
         <div className={`workout__timer ${timeLimit && timeLimit - elapsed < 10 ? 'is-urgent' : ''}`}>
           <Icon name="timer" size={24} /> {timeText}
         </div>
-        <ol className="workout__phases" aria-label="Фаза движения">
-          {PHASES.map((p) => (
-            <li key={p.id} className={p.id === phase ? 'is-active' : ''}>
-              {p.label}
-            </li>
-          ))}
-        </ol>
+        <div className="phasebar" aria-label={`Фаза движения: ${phaseLabel}`}>
+          <div className="phasebar__track">
+            {PHASES.map((p, i) => (
+              <span key={p.id} className={i <= phaseIndex ? 'is-on' : ''} />
+            ))}
+          </div>
+          <span className="phasebar__label">{phaseLabel}</span>
+        </div>
       </section>
 
       <section className="workout__counter" aria-live="polite">
-        <svg className="workout__ring" viewBox="0 0 120 120" aria-hidden="true">
+        <svg
+          className={`workout__ring ${progress >= 0.8 ? 'is-near' : ''}`}
+          viewBox="0 0 120 120"
+          aria-hidden="true"
+        >
           <circle cx="60" cy="60" r="52" className="workout__ring-track" />
           <circle
             cx="60"
@@ -189,7 +210,29 @@ export function Workout({
             <small>/100</small>
           </span>
         )}
+        {count > 0 && <span key={`w${count}`} className="workout__shock" aria-hidden="true" />}
+        {lastScore !== null && (
+          <span
+            key={`f${count}`}
+            className="workout__float"
+            style={{ color: scoreColor(lastScore) }}
+            aria-hidden="true"
+          >
+            +{lastScore}
+          </span>
+        )}
       </section>
+
+      {streak >= 2 && (
+        <div key={`st${streak}`} className="streak" aria-live="polite">
+          <Icon name="zap" size={34} />
+          <span>
+            Серия <b>×{streak}</b>
+          </span>
+        </div>
+      )}
+
+      {edge && <div key={edge.id} className={`edge edge--${edge.tone}`} aria-hidden="true" />}
 
       {hint && (
         <div key={hint.id} className={`hint hint--${hint.tone}`} role="status">
