@@ -7,15 +7,17 @@ import '../ui/styles/tokens.css';
 import './duel.css';
 import { CameraError } from '../engine/camera';
 import { createEngine } from '../engine/createEngine';
-import type { Engine, EngineEvent, Landmark, Phase } from '../engine/types';
+import type { Engine, EngineEvent, ExerciseId, Landmark, Phase } from '../engine/types';
 import { sfx, unlockAudio } from '../ui/audio/sfx';
 import { numberWord, say, unlockVoice } from '../ui/audio/voice';
 import { coverView, drawSkeleton } from '../ui/lib/skeleton';
+import { EXERCISE_META } from '../ui/lib/exercises';
 import { COLORS } from '../ui/theme';
 import { BOTS, botTimeline, findBot, repsAt, type Bot } from './bot';
 import { DuelMatch, formatClock, type DuelPhase, type DuelSnapshot } from './match';
 import type { RoomView } from '../shared/duelRoom';
-import { initOnline, onlineDuel, reconnectOnline } from './online';
+import { minGapMs } from '../shared/duel';
+import { cameraTip, exerciseTitle, initOnline, onlineDuel, reconnectOnline } from './online';
 import { initSocial, openInvite, sendAnswer, type RecordedOpponent } from './social';
 
 type Screen = 'intro' | 'setup' | DuelPhase | 'result';
@@ -58,6 +60,8 @@ const ui = {
 $<HTMLAnchorElement>('home').href = import.meta.env.BASE_URL;
 
 let bot: Bot = findBot(params.get('bot'));
+/** Во что идёт бой: у бота и вызова — отжимания, онлайн — упражнение комнаты (E-29). */
+let currentExercise: ExerciseId = 'push_up';
 /** E-25: соперник — запись друга из вызова; null — бот. */
 let opponent: RecordedOpponent | null = null;
 let engine: Engine | null = null;
@@ -188,6 +192,9 @@ function toSetup(): void {
   engine?.setMode('menu');
   ui.start.disabled = !engineReady;
   ui.start.textContent = onlineDuel.active() ? 'Готов' : 'Старт';
+  const ex = onlineDuel.active() ? onlineDuel.exercise() : 'push_up';
+  $<HTMLParagraphElement>('setup-how').textContent =
+    `${exerciseTitle(ex)}. ${cameraTip(ex)} Когда будешь готов — подними обе руки или нажми кнопку ниже.`;
 }
 
 function onEvent(e: EngineEvent): void {
@@ -235,6 +242,8 @@ function onEvent(e: EngineEvent): void {
 
 // ——— Бой ———
 function startMatch(): void {
+  currentExercise = 'push_up';
+  setCountdownText();
   // Вызов друга — бой против его записи и той же длины, что была у него.
   const dur = opponent?.durationMs ?? durationMs;
   const timeline =
@@ -280,10 +289,17 @@ function again(): void {
 function startOnlineMatch(startLocal: number, dur: number, cd: number): void {
   opponent = null;
   announced = false;
+  currentExercise = onlineDuel.exercise();
   match = new DuelMatch(
-    { opponentReps: () => onlineDuel.oppReps(), countdownMs: cd, durationMs: dur },
+    {
+      opponentReps: () => onlineDuel.oppReps(),
+      countdownMs: cd,
+      durationMs: dur,
+      minGapMs: minGapMs(currentExercise),
+    },
     startLocal,
   );
+  setCountdownText();
   shown = { me: -1, opp: -1, second: -1, lastTen: false };
   const name = onlineDuel.oppName();
   ui.oppAvatar.textContent = name.slice(0, 1).toUpperCase();
@@ -291,6 +307,13 @@ function startOnlineMatch(startLocal: number, dur: number, cd: number): void {
   ui.hint.textContent = '';
   errorJoints = new Set();
   show('countdown');
+}
+
+/** Текст на отсчёте: упражнение и что делать — лечь в упор или встать в кадр. */
+function setCountdownText(): void {
+  const floor = !!EXERCISE_META[currentExercise]?.setup;
+  $<HTMLParagraphElement>('countdown-text').textContent =
+    `${exerciseTitle(currentExercise)} — ${floor ? 'ложись в упор' : 'встань в кадр'}`;
 }
 
 /** Итог онлайн-боя от сервера (может прийти и раньше своего финиша — соперник сдался). */
@@ -341,7 +364,7 @@ $<HTMLButtonElement>('change').addEventListener('click', () => {
 /** Переход фазы боя: движок включаем ровно на старте и выключаем на финише. */
 function onPhase(next: DuelPhase, s: DuelSnapshot): void {
   if (next === 'battle') {
-    engine?.setMode({ exercise: 'push_up', targetReps: ENGINE_TARGET });
+    engine?.setMode({ exercise: currentExercise, targetReps: ENGINE_TARGET });
     skeletonPhase = 'start';
     sfx.go();
     say('Старт!');
