@@ -1,6 +1,7 @@
-// Атлет-эталон: настоящее движение реальных людей (athleteMotion.json, собран scripts/build-ghost.mjs
-// из 3D-точек MediaPipe в метрах) и 3D-рендер: поворот вокруг вертикали, части тела рисуются по глубине
-// (дальние — первыми и темнее), конечности — сужающиеся капсулы, под ногами — тень.
+// Атлет-эталон (athleteMotion.json, собран scripts/build-ghost.mjs) в стиле анатомического атласа:
+// серое тело с рельефом и красные работающие мышцы, яркость — по нагрузке из самой позы.
+// 3D-рендер: поворот вокруг вертикали, части тела по глубине (дальние — первыми и темнее),
+// конечности — сужающиеся капсулы, под ногами — тень.
 
 import type { ExerciseId } from '../../engine/types';
 import motionData from './athleteMotion.json';
@@ -35,7 +36,7 @@ function framesOf(exercise: ExerciseId): (V3 | null)[][] {
 
 /** Ракурс по умолчанию: присед и выпад читаются на три четверти (таз назад, шаг, колено у пола), остальное — анфас. */
 export const PREFERRED_YAW: Record<ExerciseId, number> = {
-  squat: 0.45,
+  squat: 0.35,
   jumping_jack: 0.18,
   lunge: 0.75,
   arm_raise: 0.15,
@@ -87,46 +88,76 @@ function boundsOf(): { w: number; h: number } {
 export interface AthleteStyle {
   /** Поворот вокруг вертикали, рад: 0 — анфас, ~0.5 — три четверти. */
   yaw?: number;
-  near?: string;
-  far?: string;
-  rim?: string;
-  glow?: string | null;
-  /** Суставы, которые подсветить (демо ошибки). */
+  /** Суставы, которые подсветить как ошибку (демо режима «ошибка»). */
   highlight?: ReadonlySet<number>;
-  highlightColor?: string;
+  /** Свечение мышц и контура: красиво, но дорого — на телефоне выключаем. */
+  glow?: boolean;
+  /** Рисовать работающие мышцы (по умолчанию да). */
+  muscles?: boolean;
   shadow?: boolean;
 }
 
+/**
+ * Какие мышцы работают (ЭМГ-исследования и разборы техники):
+ * присед — квадрицепсы и ягодичные (+ приводящие); выпад — квадрицепсы и ягодичные передней ноги (+ икры);
+ * «звёздочка» — дельты, отводящие мышцы бедра, икры; подъём рук — средние и передние дельты, трапеции.
+ */
+type Muscle = 'quads' | 'adductors' | 'glutes' | 'calves' | 'delts' | 'traps' | 'abductors';
+export const MUSCLES: Record<ExerciseId, Muscle[]> = {
+  squat: ['quads', 'glutes', 'adductors'],
+  lunge: ['quads', 'glutes', 'calves'],
+  jumping_jack: ['delts', 'abductors', 'calves'],
+  arm_raise: ['delts', 'traps'],
+};
+
+/** Названия для подписей в интерфейсе. */
+export const MUSCLE_NAMES: Record<ExerciseId, string[]> = {
+  squat: ['квадрицепсы', 'ягодичные', 'приводящие'],
+  lunge: ['квадрицепсы', 'ягодичные', 'икры'],
+  jumping_jack: ['дельты', 'отводящие бедра', 'икры'],
+  arm_raise: ['дельты', 'трапеции'],
+};
+
 /** Радиусы частей тела в метрах: [сустав A, сустав B, r у A, r у B]. */
 const PARTS: [number, number, number, number][] = [
-  [11, 13, 0.05, 0.04],
+  [11, 13, 0.052, 0.04],
   [13, 15, 0.04, 0.03],
   [15, 19, 0.03, 0.024],
-  [12, 14, 0.05, 0.04],
+  [12, 14, 0.052, 0.04],
   [14, 16, 0.04, 0.03],
   [16, 20, 0.03, 0.024],
-  [23, 25, 0.085, 0.058],
-  [25, 27, 0.058, 0.04],
+  [23, 25, 0.088, 0.058],
+  [25, 27, 0.06, 0.04],
   [27, 29, 0.04, 0.034],
   [29, 31, 0.034, 0.028],
-  [24, 26, 0.085, 0.058],
-  [26, 28, 0.058, 0.04],
+  [24, 26, 0.088, 0.058],
+  [26, 28, 0.06, 0.04],
   [28, 30, 0.04, 0.034],
   [30, 32, 0.034, 0.028],
 ];
+
+// Палитра «анатомического атласа»: серое тело, красные работающие мышцы.
+const SKIN_NEAR = '#cfd5dd';
+const SKIN_FAR = '#4b5563';
+const RIM = 'rgba(255, 255, 255, 0.55)';
+const LINE = 'rgba(15, 23, 42, 0.32)';
+const MUSCLE_DARK = '#be123c';
+const MUSCLE_LIGHT = '#fb7185';
+const ERROR = '#ef4444';
+
+type SPt = Pt & { z: number };
 
 export function drawAthlete(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
-  _exercise: ExerciseId,
+  exercise: ExerciseId,
   pose: (V3 | null)[],
   s: AthleteStyle = {},
 ): void {
   const yaw = s.yaw ?? 0.35;
-  const near = s.near ?? '#fdba74';
-  const far = s.far ?? '#9a3412';
-  const rim = s.rim ?? 'rgba(255, 237, 213, 0.9)';
+  const glow = s.glow !== false;
+  const muscles = s.muscles !== false ? new Set(MUSCLES[exercise]) : new Set<Muscle>();
   const b = boundsOf();
   const scale = Math.min((W * 0.86) / b.w, (H * 0.9) / b.h);
   const floorY = H * 0.95;
@@ -135,12 +166,13 @@ export function drawAthlete(
   const sin = Math.sin(yaw);
 
   // Проекция: поворот вокруг вертикали; z после поворота — глубина (больше — дальше от зрителя).
-  const P = pose.map((p) =>
+  const P: (SPt | null)[] = pose.map((p) =>
     p ? { x: cx + (p.x * cos - p.z * sin) * scale, y: floorY + p.y * scale, z: p.x * sin + p.z * cos } : null,
   );
   const get = (i: number) => P[i] ?? null;
+  const act = activation(exercise, pose);
 
-  type Item = { z: number; draw: (color: string) => void; hl: boolean };
+  type Item = { z: number; draw: (skin: string) => void };
   const items: Item[] = [];
   const zs: number[] = [];
 
@@ -150,15 +182,23 @@ export function drawAthlete(
     if (!A || !B) continue;
     const z = (A.z + B.z) / 2;
     zs.push(z);
+    const hl = !!s.highlight && s.highlight.has(a) && s.highlight.has(c);
+    const R1 = r1 * scale;
+    const R2 = r2 * scale;
     items.push({
       z,
-      // Подсвечиваем сегмент, только если отмечены оба его сустава: при «сядь глубже» (таз + колени) — бёдра.
-      hl: !!s.highlight && s.highlight.has(a) && s.highlight.has(c),
-      draw: (color) => limb(ctx, A, B, r1 * scale, r2 * scale, color, rim),
+      draw: (skin) => {
+        limb(ctx, A, B, R1, R2, hl ? ERROR : skin, glow && hl);
+        if (hl) return;
+        // Работающая мышца поверх сегмента — или тонкий рельеф, если она сейчас не при чём.
+        const m = muscleOn(a, c, muscles);
+        if (m) belly(ctx, A, B, R1, R2, m.from, m.to, m.width, act[m.key], glow);
+        else relief(ctx, A, B, R1, R2, a);
+      },
     });
   }
 
-  // Торс: плечи, талия, таз — одним контуром со скруглением.
+  // Торс, шея, голова.
   const ls = get(11);
   const rs = get(12);
   const lh = get(23);
@@ -166,40 +206,54 @@ export function drawAthlete(
   if (ls && rs && lh && rh) {
     const z = (ls.z + rs.z + lh.z + rh.z) / 4;
     zs.push(z);
+    const hl =
+      !!s.highlight &&
+      (s.highlight.has(11) || s.highlight.has(12)) &&
+      (s.highlight.has(23) || s.highlight.has(24));
     items.push({
       z,
-      // Торс — только если ошибка про корпус: отмечены и плечи, и таз.
-      hl:
-        !!s.highlight &&
-        (s.highlight.has(11) || s.highlight.has(12)) &&
-        (s.highlight.has(23) || s.highlight.has(24)),
-      draw: (color) => torso(ctx, ls, rs, lh, rh, scale, color, rim),
+      draw: (skin) => {
+        torso(ctx, ls, rs, lh, rh, scale, hl ? ERROR : skin);
+        if (hl) return;
+        torsoRelief(ctx, ls, rs, lh, rh, scale);
+        if (muscles.has('glutes') || muscles.has('abductors')) {
+          const k = muscles.has('glutes') ? act.glutes : act.abductors;
+          for (const [h, sh] of [
+            [lh, ls],
+            [rh, rs],
+          ] as const) {
+            hipCap(ctx, h, sh, lh, rh, scale, k, glow);
+          }
+        }
+        if (muscles.has('traps')) traps(ctx, ls, rs, scale, act.traps, glow);
+        if (muscles.has('delts')) {
+          const L = get(13);
+          const R = get(14);
+          if (L) deltCap(ctx, ls, L, scale, act.deltsL, glow);
+          if (R) deltCap(ctx, rs, R, scale, act.deltsR, glow);
+        }
+      },
     });
-    // Голова и шея.
     const le = get(7);
     const re = get(8);
     const nose = get(0);
-    const neck = { x: (ls.x + rs.x) / 2, y: (ls.y + rs.y) / 2, z: (ls.z + rs.z) / 2 };
-    const head =
-      le && re ? { x: (le.x + re.x) / 2, y: (le.y + re.y) / 2 - 0.02 * scale, z: (le.z + re.z) / 2 } : nose;
+    const neck = { x: (ls.x + rs.x) / 2, y: (ls.y + rs.y) / 2 };
+    const head = le && re ? { x: (le.x + re.x) / 2, y: (le.y + re.y) / 2 - 0.02 * scale } : nose;
     if (head) {
-      // Голова и шея всегда поверх торса (иначе при наклоне торс «съедает» голову).
       items.push({
-        z: Math.min(neck.z, z) - 0.01,
-        hl: false,
-        draw: (color) =>
-          limb(ctx, neck, { x: head.x, y: head.y + 0.06 * scale }, 0.05 * scale, 0.045 * scale, color, rim),
+        z: z - 0.01,
+        draw: (skin) =>
+          limb(ctx, neck, { x: head.x, y: head.y + 0.06 * scale }, 0.05 * scale, 0.045 * scale, skin, false),
       });
       items.push({
-        z: Math.min(head.z, z) - 0.02,
-        hl: false,
-        draw: (color) => {
+        z: z - 0.02,
+        draw: (skin) => {
           ctx.beginPath();
-          ctx.ellipse(head.x, head.y, 0.095 * scale, 0.115 * scale, 0, 0, Math.PI * 2);
-          ctx.fillStyle = color;
+          ctx.ellipse(head.x, head.y, 0.092 * scale, 0.112 * scale, 0, 0, Math.PI * 2);
+          ctx.fillStyle = skin;
           ctx.fill();
-          ctx.strokeStyle = rim;
-          ctx.lineWidth = Math.max(1, scale * 0.006);
+          ctx.strokeStyle = RIM;
+          ctx.lineWidth = Math.max(1, scale * 0.005);
           ctx.stroke();
         },
       });
@@ -220,17 +274,70 @@ export function drawAthlete(
   const zmin = Math.min(...zs);
   const zmax = Math.max(...zs);
   items.sort((p, q) => q.z - p.z); // дальние первыми
-  ctx.save();
-  if (s.glow) {
-    ctx.shadowColor = s.glow;
-    ctx.shadowBlur = scale * 0.05;
-  }
   for (const it of items) {
     const depth = zmax - zmin > 1e-6 ? (it.z - zmin) / (zmax - zmin) : 0;
-    const color = it.hl ? (s.highlightColor ?? '#ef4444') : mixHex(near, far, depth * 0.85);
-    it.draw(color);
+    it.draw(mixHex(SKIN_NEAR, SKIN_FAR, depth * 0.8));
   }
-  ctx.restore();
+}
+
+/** Нагрузка мышц 0..1 из самой позы: сгиб колена, подъём рук, ширина стойки. */
+function activation(exercise: ExerciseId, pose: (V3 | null)[]) {
+  const bend = (h: number, k: number, a: number) => {
+    const H = pose[h];
+    const K = pose[k];
+    const A = pose[a];
+    if (!H || !K || !A) return 0;
+    const u = { x: H.x - K.x, y: H.y - K.y, z: H.z - K.z };
+    const v = { x: A.x - K.x, y: A.y - K.y, z: A.z - K.z };
+    const cosA =
+      (u.x * v.x + u.y * v.y + u.z * v.z) / (Math.hypot(u.x, u.y, u.z) * Math.hypot(v.x, v.y, v.z) || 1);
+    const deg = (Math.acos(Math.max(-1, Math.min(1, cosA))) * 180) / Math.PI;
+    return Math.max(0, Math.min(1, (175 - deg) / 85));
+  };
+  const lift = (sh: number, el: number) => {
+    const S = pose[sh];
+    const E = pose[el];
+    if (!S || !E) return 0;
+    const d = { x: E.x - S.x, y: E.y - S.y, z: E.z - S.z };
+    const deg =
+      (Math.acos(Math.max(-1, Math.min(1, d.y / (Math.hypot(d.x, d.y, d.z) || 1)))) * 180) / Math.PI;
+    return Math.max(0, Math.min(1, deg / 165));
+  };
+  const kneeL = bend(23, 25, 27);
+  const kneeR = bend(24, 26, 28);
+  const la = pose[27];
+  const ra = pose[28];
+  const spread = la && ra ? Math.max(0, Math.min(1, (Math.abs(la.x - ra.x) - 0.25) / 0.55)) : 0;
+  const deltsL = lift(11, 13);
+  const deltsR = lift(12, 14);
+  const knees = Math.max(kneeL, kneeR);
+  return {
+    quadsL: kneeL,
+    quadsR: kneeR,
+    adductors: knees,
+    glutes: knees,
+    calves: exercise === 'jumping_jack' ? 0.5 + 0.5 * spread : knees,
+    deltsL,
+    deltsR,
+    traps: Math.max(deltsL, deltsR),
+    abductors: spread,
+  };
+}
+
+type ActKey = keyof ReturnType<typeof activation>;
+
+/** Какая мышца лежит на сегменте [a, c] и какую часть его занимает. */
+function muscleOn(a: number, _c: number, on: Set<Muscle>) {
+  const side = a % 2 === 1 ? 'L' : 'R';
+  if ((a === 23 || a === 24) && on.has('quads'))
+    return { key: `quads${side}` as ActKey, from: 0.14, to: 0.9, width: 0.86 };
+  if ((a === 23 || a === 24) && on.has('adductors'))
+    return { key: 'adductors' as ActKey, from: 0.08, to: 0.6, width: 0.5 };
+  if ((a === 25 || a === 26) && on.has('calves'))
+    return { key: 'calves' as ActKey, from: 0.08, to: 0.62, width: 0.8 };
+  if ((a === 11 || a === 12) && on.has('delts'))
+    return { key: `delts${side}` as ActKey, from: 0, to: 0.46, width: 1 };
+  return null;
 }
 
 function limb(
@@ -240,30 +347,108 @@ function limb(
   r1: number,
   r2: number,
   color: string,
-  rim: string,
+  glow: boolean,
 ): void {
   capsulePath(ctx, A, B, r1, r2);
+  if (glow) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur = r1 * 1.2;
+  }
   ctx.fillStyle = color;
   ctx.fill();
-  ctx.strokeStyle = rim;
-  ctx.lineWidth = Math.max(1, r1 * 0.12);
-  ctx.globalAlpha *= 0.55;
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = RIM;
+  ctx.lineWidth = Math.max(1, r1 * 0.09);
+  ctx.globalAlpha *= 0.5;
   ctx.stroke();
-  ctx.globalAlpha /= 0.55;
-  // Блик вдоль конечности — ощущение объёма (свет сверху-слева).
-  const dx = B.x - A.x;
-  const dy = B.y - A.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const nx = -dy / len;
-  const ny = dx / len;
-  const side = nx + ny < 0 ? 1 : -1;
+  ctx.globalAlpha /= 0.5;
+  // Блик вдоль конечности — объём (свет сверху-слева).
+  const n = normal(A, B);
+  const side = n.x + n.y < 0 ? 1 : -1;
   ctx.beginPath();
-  ctx.moveTo(A.x + nx * r1 * 0.45 * side, A.y + ny * r1 * 0.45 * side);
-  ctx.lineTo(B.x + nx * r2 * 0.45 * side, B.y + ny * r2 * 0.45 * side);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
-  ctx.lineWidth = Math.max(1, r2 * 0.35);
+  ctx.moveTo(A.x + n.x * r1 * 0.45 * side, A.y + n.y * r1 * 0.45 * side);
+  ctx.lineTo(B.x + n.x * r2 * 0.45 * side, B.y + n.y * r2 * 0.45 * side);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.lineWidth = Math.max(1, r2 * 0.3);
   ctx.lineCap = 'round';
   ctx.stroke();
+}
+
+/** Брюшко работающей мышцы: сужающаяся капсула внутри сегмента, красный градиент и волокна. */
+function belly(
+  ctx: CanvasRenderingContext2D,
+  A: Pt,
+  B: Pt,
+  r1: number,
+  r2: number,
+  from: number,
+  to: number,
+  width: number,
+  load: number,
+  glow: boolean,
+): void {
+  const at = (t: number) => ({ x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t });
+  const rAt = (t: number) => r1 + (r2 - r1) * t;
+  const M1 = at(from);
+  const M2 = at(to);
+  const mid = (from + to) / 2;
+  const R1 = rAt(from) * width * 0.9;
+  const R2 = rAt(to) * width * 0.55;
+  const k = 0.45 + 0.55 * load; // мышца видна всегда, ярче — под нагрузкой
+  const g = ctx.createLinearGradient(M1.x, M1.y, M2.x, M2.y);
+  g.addColorStop(0, MUSCLE_DARK);
+  g.addColorStop(0.45, MUSCLE_LIGHT);
+  g.addColorStop(1, MUSCLE_DARK);
+  ctx.save();
+  ctx.globalAlpha *= k;
+  if (glow) {
+    ctx.shadowColor = 'rgba(244, 63, 94, 0.9)';
+    ctx.shadowBlur = rAt(mid) * (0.6 + 1.4 * load);
+  }
+  capsulePath(ctx, M1, M2, R1, R2);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Волокна вдоль мышцы.
+  const n = normal(A, B);
+  ctx.strokeStyle = 'rgba(255, 228, 230, 0.45)';
+  ctx.lineWidth = Math.max(0.8, rAt(mid) * 0.06);
+  for (const o of [-0.5, -0.15, 0.2, 0.52]) {
+    ctx.beginPath();
+    ctx.moveTo(M1.x + n.x * R1 * o, M1.y + n.y * R1 * o);
+    const c = at(mid);
+    ctx.quadraticCurveTo(
+      c.x + n.x * rAt(mid) * width * o * 1.05,
+      c.y + n.y * rAt(mid) * width * o * 1.05,
+      M2.x + n.x * R2 * o * 0.6,
+      M2.y + n.y * R2 * o * 0.6,
+    );
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Тонкий рельеф неработающего сегмента: разделение мышц бедра, коленная чашечка. */
+function relief(ctx: CanvasRenderingContext2D, A: Pt, B: Pt, r1: number, r2: number, a: number): void {
+  const n = normal(A, B);
+  ctx.strokeStyle = LINE;
+  ctx.lineWidth = Math.max(0.8, r1 * 0.06);
+  if (a === 23 || a === 24) {
+    const at = (t: number) => ({ x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t });
+    const p1 = at(0.2);
+    const p2 = at(0.85);
+    const c = at(0.55);
+    ctx.beginPath();
+    ctx.moveTo(p1.x + n.x * r1 * 0.3, p1.y + n.y * r1 * 0.3);
+    ctx.quadraticCurveTo(c.x - n.x * r1 * 0.25, c.y - n.y * r1 * 0.25, p2.x, p2.y);
+    ctx.stroke();
+  }
+  if (a === 25 || a === 26) {
+    ctx.beginPath();
+    ctx.arc(A.x, A.y, r1 * 0.55, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  void r2;
 }
 
 function torso(
@@ -274,7 +459,6 @@ function torso(
   rh: Pt,
   scale: number,
   color: string,
-  rim: string,
 ): void {
   // Талия чуть уже таза и плеч: точка на 60% пути от плеча к бедру, сдвинутая к центру.
   const waist = (s: Pt, h: Pt, c: Pt) => {
@@ -299,9 +483,146 @@ function torso(
   ctx.stroke();
   ctx.fillStyle = color;
   ctx.fill();
-  ctx.strokeStyle = rim;
+  ctx.strokeStyle = RIM;
   ctx.globalAlpha *= 0.35;
   ctx.lineWidth = Math.max(1, scale * 0.005);
   ctx.stroke();
   ctx.globalAlpha /= 0.35;
+}
+
+/** Рельеф торса: грудные, белая линия и кубики пресса — «анатомический атлас». */
+function torsoRelief(ctx: CanvasRenderingContext2D, ls: Pt, rs: Pt, lh: Pt, rh: Pt, scale: number): void {
+  const L = (a: Pt, b: Pt, t: number) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  const top = L(ls, rs, 0.5);
+  const bottom = L(lh, rh, 0.5);
+  ctx.save();
+  ctx.strokeStyle = LINE;
+  ctx.lineWidth = Math.max(0.8, scale * 0.005);
+  ctx.lineCap = 'round';
+  // Грудные: две дуги от плеч к середине.
+  for (const [sh, sign] of [
+    [ls, 1],
+    [rs, -1],
+  ] as const) {
+    const start = L(sh, top, 0.15);
+    const lower = L(L(sh, top, 0.55), L(ls === sh ? lh : rh, bottom, 0.5), 0.3);
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y + 0.02 * scale);
+    ctx.quadraticCurveTo(
+      lower.x - sign * 0.01 * scale,
+      lower.y + 0.05 * scale,
+      L(top, bottom, 0.3).x,
+      L(top, bottom, 0.3).y,
+    );
+    ctx.stroke();
+  }
+  // Белая линия и пресс.
+  const a = L(top, bottom, 0.34);
+  const z = L(top, bottom, 0.9);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(z.x, z.y);
+  ctx.stroke();
+  const half = Math.hypot(ls.x - rs.x, ls.y - rs.y) * 0.16;
+  for (const t of [0.46, 0.6, 0.74]) {
+    const p = L(top, bottom, t);
+    ctx.beginPath();
+    ctx.moveTo(p.x - half, p.y);
+    ctx.lineTo(p.x + half, p.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Ягодичные / отводящие бедра: красная «шапка» над тазобедренным суставом снаружи. */
+function hipCap(
+  ctx: CanvasRenderingContext2D,
+  hip: Pt,
+  sh: Pt,
+  lh: Pt,
+  rh: Pt,
+  scale: number,
+  load: number,
+  glow: boolean,
+): void {
+  const cx = (lh.x + rh.x) / 2;
+  const out = Math.sign(hip.x - cx) || 1;
+  const x = hip.x + out * 0.035 * scale;
+  const y = hip.y - 0.035 * scale + (sh.y - hip.y) * 0.02;
+  muscleBlob(ctx, x, y, 0.06 * scale, 0.085 * scale, out * 0.3, load, glow);
+}
+
+/** Дельта: шапка плеча и начало плеча, повёрнутая вдоль руки. */
+function deltCap(
+  ctx: CanvasRenderingContext2D,
+  sh: Pt,
+  el: Pt,
+  scale: number,
+  load: number,
+  glow: boolean,
+): void {
+  const ang = Math.atan2(el.y - sh.y, el.x - sh.x);
+  const x = sh.x + (el.x - sh.x) * 0.18;
+  const y = sh.y + (el.y - sh.y) * 0.18;
+  muscleBlob(ctx, x, y, 0.1 * scale, 0.06 * scale, ang, load, glow);
+}
+
+/** Трапеции: от шеи к плечам. */
+function traps(
+  ctx: CanvasRenderingContext2D,
+  ls: Pt,
+  rs: Pt,
+  scale: number,
+  load: number,
+  glow: boolean,
+): void {
+  for (const sh of [ls, rs]) {
+    const nx = (ls.x + rs.x) / 2;
+    const ny = (ls.y + rs.y) / 2 - 0.05 * scale;
+    const x = (nx + sh.x) / 2;
+    const y = (ny + sh.y) / 2 - 0.01 * scale;
+    muscleBlob(
+      ctx,
+      x,
+      y,
+      Math.hypot(sh.x - nx, sh.y - ny) * 0.55,
+      0.03 * scale,
+      Math.atan2(sh.y - ny, sh.x - nx),
+      load,
+      glow,
+    );
+  }
+}
+
+function muscleBlob(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  rx: number,
+  ry: number,
+  rot: number,
+  load: number,
+  glow: boolean,
+): void {
+  ctx.save();
+  ctx.globalAlpha *= 0.45 + 0.55 * load;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+  g.addColorStop(0, MUSCLE_LIGHT);
+  g.addColorStop(1, MUSCLE_DARK);
+  if (glow) {
+    ctx.shadowColor = 'rgba(244, 63, 94, 0.9)';
+    ctx.shadowBlur = Math.max(rx, ry) * (0.5 + load);
+  }
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.restore();
+}
+
+function normal(A: Pt, B: Pt): Pt {
+  const dx = B.x - A.x;
+  const dy = B.y - A.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: -dy / len, y: dx / len };
 }

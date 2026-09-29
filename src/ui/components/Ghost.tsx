@@ -1,6 +1,9 @@
-// U-12: «призрак» — эталонное движение настоящего человека (lib/athlete.ts), 3D-атлет.
+// U-12: «призрак» — атлет-эталон в стиле анатомического атласа (lib/athlete.ts).
+// Производительность: рисуем только когда холст виден на экране, не чаще 30 кадров в секунду,
+// на телефоне — плотность пикселей 1 и без свечения (shadowBlur на мобильных GPU очень дорогой).
 
 import { useEffect, useRef } from 'react';
+import { isMobileDevice } from '../../engine/perf';
 import type { ExerciseId } from '../../engine/types';
 import { PREFERRED_YAW, athletePose, drawAthlete } from '../lib/athlete';
 
@@ -15,6 +18,9 @@ export interface GhostProps {
   /** Отсчёт времени снаружи (синхронизация с HUD на лендинге), иначе — с момента монтирования. */
   clock?: () => number;
 }
+
+const MOBILE = isMobileDevice();
+const FRAME_MS = 1000 / 30;
 
 export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlight, clock }: GhostProps) {
   const yaw = yawProp ?? PREFERRED_YAW[exercise];
@@ -33,9 +39,16 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
     const start = performance.now();
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     let raf = 0;
-    const draw = () => {
+    let visible = true;
+    let last = 0;
+
+    const draw = (now: number) => {
+      raf = 0;
+      if (!visible || document.hidden) return;
       raf = requestAnimationFrame(draw);
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (now - last < FRAME_MS) return;
+      last = now;
+      const dpr = Math.min(window.devicePixelRatio || 1, MOBILE ? 1 : 1.5);
       const W = canvas.clientWidth;
       const H = canvas.clientHeight;
       if (!W || !H) return;
@@ -43,18 +56,41 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
       if (canvas.height !== Math.round(H * dpr)) canvas.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      const now = performance.now();
       // При reduced motion — статичная середина движения (самая информативная поза).
       const t = reduced ? 1300 : (clk.current?.() ?? now - start);
-      const y = sway && !reduced ? yaw + Math.sin(now / 2400) * 0.35 : yaw;
+      const y = sway && !reduced ? yaw + Math.sin(now / 2400) * 0.3 : yaw;
       drawAthlete(ctx, W, H, exercise, athletePose(exercise, t), {
         yaw: y,
-        glow: 'rgba(249, 115, 22, 0.45)',
+        glow: !MOBILE,
         highlight: hl.current,
       });
+      if (reduced) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
     };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+    const kick = () => {
+      if (!raf && visible && !document.hidden) raf = requestAnimationFrame(draw);
+    };
+
+    const io =
+      'IntersectionObserver' in window
+        ? new IntersectionObserver(
+            ([entry]) => {
+              visible = !!entry?.isIntersecting;
+              kick();
+            },
+            { rootMargin: '120px' },
+          )
+        : null;
+    io?.observe(canvas);
+    document.addEventListener('visibilitychange', kick);
+    kick();
+    return () => {
+      cancelAnimationFrame(raf);
+      io?.disconnect();
+      document.removeEventListener('visibilitychange', kick);
+    };
   }, [exercise, yaw, sway]);
 
   return <canvas ref={ref} className={className} aria-hidden="true" />;

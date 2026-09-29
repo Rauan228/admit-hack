@@ -7,6 +7,7 @@ import { sfx } from '../audio/sfx';
 import { DwellButton } from '../components/dwell';
 import { Ghost } from '../components/Ghost';
 import { Icon } from '../components/Icon';
+import { MUSCLE_NAMES } from '../lib/athlete';
 import { EXERCISE_META, type Plan } from '../lib/exercises';
 import { order } from '../lib/motion';
 import './Intro.css';
@@ -73,6 +74,9 @@ export function Intro({
         </h1>
         <p className="intro__goal rise" style={order(1)}>
           {goal}
+        </p>
+        <p className="muscles rise" style={order(2)}>
+          <i aria-hidden="true" /> Работают: {MUSCLE_NAMES[item.exercise].join(' · ')}
         </p>
         <ul className="intro__cues">
           {meta.cues.map((c, i) => (

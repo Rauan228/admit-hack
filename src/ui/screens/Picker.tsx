@@ -4,6 +4,7 @@ import { EXERCISES, type ExerciseId } from '../../engine/types';
 import { DwellButton } from '../components/dwell';
 import { Ghost } from '../components/Ghost';
 import { Icon } from '../components/Icon';
+import { MUSCLE_NAMES } from '../lib/athlete';
 import { EXERCISE_META } from '../lib/exercises';
 import { order } from '../lib/motion';
 import { bestFor } from '../store/progress';
@@ -37,7 +38,7 @@ export function Picker({ onPick, onBack }: { onPick: (e: ExerciseId) => void; on
               <Ghost exercise={ex} className="picker__ghost" />
               <span className="menu__tile-text">
                 <b>{meta.title}</b>
-                <small>{best ? `Рекорд: ${best.points} очк.` : meta.cues[0]}</small>
+                <small>{best ? `Рекорд: ${best.points} очк.` : MUSCLE_NAMES[ex].join(' · ')}</small>
               </span>
             </DwellButton>
           );
