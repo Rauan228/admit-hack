@@ -23,6 +23,7 @@ declare global {
   interface Window {
     __fixture?: FixtureFile;
     __error?: string;
+    __detectMs?: number[];
   }
 }
 
@@ -51,13 +52,19 @@ async function main(): Promise<void> {
   const detector = await createPoseDetector({ model, delegate, numPoses });
   const to = Math.min(toParam, video.duration);
   const frames: FixtureFile['frames'] = [];
+  /** Время детекции каждого кадра, мс — для сравнения моделей и настроек (window.__detectMs). */
+  const detectMs: number[] = [];
+  window.__detectMs = detectMs;
   const step = 1 / fps;
   // Середина кадра, а не его начало: seek на границу кадра иногда попадает в предыдущий.
   for (let i = 0, t = from + step / 2; t < to; i++, t = from + step / 2 + i * step) {
     video.currentTime = t;
     await once(video, 'seeked');
     const tMs = Math.round(i * step * 1000);
-    frames.push(encodeFrame(tMs, detector.detect(video, tMs)));
+    const t0 = performance.now();
+    const detection = detector.detect(video, tMs);
+    detectMs.push(performance.now() - t0);
+    frames.push(encodeFrame(tMs, detection));
     if (i % 30 === 0) log.textContent = `${t.toFixed(1)} / ${to.toFixed(1)} с`;
   }
   detector.close();
