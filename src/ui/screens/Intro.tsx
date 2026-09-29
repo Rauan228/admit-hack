@@ -51,7 +51,9 @@ export function Intro({
 
   const goal = plan.timeLimitSec
     ? `${plan.timeLimitSec} секунд — максимум чистых повторов`
-    : `Цель: ${item.target} повторений`;
+    : item.exercise === 'lunge'
+      ? `Цель: ${item.target} × обе ноги`
+      : `Цель: ${item.target} повторений`;
 
   return (
     <main className="screen intro">

@@ -4,7 +4,7 @@
 // («обе руки вверх») или по таймеру челленджа — собираем сами из событий rep.
 
 import { useEffect, useRef, useState } from 'react';
-import type { Phase, Severity } from '../../engine/types';
+import type { Phase, Severity, Side } from '../../engine/types';
 import { numberWord, say } from '../audio/voice';
 import { sfx } from '../audio/sfx';
 import { Icon } from '../components/Icon';
@@ -50,6 +50,8 @@ export function Workout({
   const [hint, setHint] = useState<Hint | null>(null);
   const [paused, setPaused] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  /** Выпады: какая нога уже сделана в текущей паре. */
+  const [half, setHalf] = useState<Side | null>(null);
   /** Серия чистых повторов подряд. */
   const [streak, setStreak] = useState(0);
   /** Вспышка краёв экрана: зелёная на чистый повтор, красная на ошибку. */
@@ -126,6 +128,7 @@ export function Workout({
         const clean = e.errors.length === 0;
         setCount(e.count);
         setLastScore(e.score);
+        setHalf(null);
         flashRep(clean);
         setStreak((s) => (clean ? s + 1 : 0));
         if (clean) flashEdge('good');
@@ -133,6 +136,15 @@ export function Workout({
           sfx.repClean();
           say(numberWord(e.count), 'count');
         } else sfx.repFlawed();
+        break;
+      }
+      case 'half_rep': {
+        // Одна нога готова: пара ещё не закрыта. После rep строка сбрасывается.
+        const clean = e.errors.length === 0;
+        setHalf((h) => (h && h !== e.side ? null : e.side));
+        flashRep(clean);
+        sfx.tick();
+        if (clean) say(e.side === 'right' ? 'Теперь левой' : 'Теперь правой', 'count');
         break;
       }
       case 'set_complete':
@@ -203,6 +215,15 @@ export function Workout({
             {count}
           </span>
           <span className="workout__target">{timeLimit ? 'повторов' : `из ${item.target}`}</span>
+          {item.exercise === 'lunge' && (
+            <span key={half ?? 'none'} className="workout__half">
+              {half === 'right'
+                ? 'Правая ✓ — теперь левая'
+                : half === 'left'
+                  ? 'Левая ✓ — теперь правая'
+                  : 'Правая + левая = 1'}
+            </span>
+          )}
         </div>
         {lastScore !== null && (
           <span className="workout__score" style={{ color: scoreColor(lastScore) }} key={`s${count}`}>

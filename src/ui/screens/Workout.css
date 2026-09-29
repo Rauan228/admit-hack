@@ -482,3 +482,17 @@
     display: none;
   }
 }
+
+/* Выпады: какая нога уже сделана в паре. */
+.workout__half {
+  margin-top: var(--s-2);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-md);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--warn);
+  text-align: center;
+  line-height: 1.1;
+  animation: rise var(--t-med) var(--ease-out) both;
+}

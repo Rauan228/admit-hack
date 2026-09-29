@@ -36,7 +36,11 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
     title: 'Выпады',
     short: 'Выпад',
     icon: 'flag',
-    cues: ['Встань лицом к камере', 'Шаг назад, заднее колено к полу', 'Корпус вертикально'],
+    cues: [
+      'Лицом к камере, руки на поясе',
+      'Шаг вперёд, заднее колено к полу',
+      'Правой, затем левой — 1 повтор',
+    ],
     handsUpToFinish: true,
   },
   arm_raise: {
@@ -67,7 +71,7 @@ export const QUICK_PLAN: Plan = {
   items: [
     { exercise: 'squat', target: 8 },
     { exercise: 'jumping_jack', target: 12 },
-    { exercise: 'lunge', target: 6 },
+    { exercise: 'lunge', target: 4 },
   ],
 };
 
@@ -79,7 +83,8 @@ export const CHALLENGE_PLAN: Plan = {
   timeLimitSec: 60,
 };
 
-const SINGLE_TARGET: Record<ExerciseId, number> = { squat: 10, jumping_jack: 15, lunge: 8, arm_raise: 10 };
+/** Выпады — в парах ног: 6 = шесть раз правой и шесть раз левой. */
+const SINGLE_TARGET: Record<ExerciseId, number> = { squat: 10, jumping_jack: 15, lunge: 6, arm_raise: 10 };
 
 export function singlePlan(exercise: ExerciseId): Plan {
   return {
