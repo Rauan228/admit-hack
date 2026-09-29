@@ -112,6 +112,9 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
   /** «В упоре» с удержанием: вошёл — признаки держатся enterMs, вышел — пропали на leaveMs. */
   private inPos = false;
   private switchSince: number | null = null;
+  /** Планка: высота плеч (в ширинах плеч) за последние plankStillMs. */
+  private recent: { t: number; y: number }[] = [];
+  private rawSince: number | null = null;
 
   constructor(
     private readonly cfg: FloorConfig,
@@ -139,11 +142,23 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
       tilt: pose.tilt * k,
       elbowOut: pose.elbowOut === null ? null : pose.elbowOut * k,
     };
-    if (!this.position(inPushUpPosition(pose, scale, this.cfg), frame.t)) {
+    const raw = inPushUpPosition(pose, scale, this.cfg);
+    // С какого момента упор виден непрерывно (для планки; считаем и до того, как сработало удержание).
+    if (!raw) this.rawSince = null;
+    else this.rawSince ??= frame.t;
+    if (!this.position(raw, frame.t)) {
       // Не в упоре (встал, сел) — прогресс 0, а не «потерялся»: иначе при подготовке была бы пауза.
       return { progress: 0, inPlank: false, drop: null, ...shape };
     }
-    if (this.hold) return { progress: 1, inPlank: true, drop: null, ...shape };
+    if (this.hold) {
+      // Планка — неподвижное удержание: секунды идут, только пока упор виден прямо сейчас (без удержания на
+      // выходе — иначе после «встал» натикало бы ещё до 1,5 с) и плечи почти не двигаются. Отжимания, бёрпи,
+      // присед с гирями у голеней в секунды планки не превращаются.
+      const still = this.still(pose.shoulderY / scale, frame.t);
+      // И упор держится непрерывно хотя бы plankStillMs: мимолётная поза, похожая на упор, — не планка.
+      const held = raw && still && frame.t - (this.rawSince ?? frame.t) >= this.cfg.plankStillMs;
+      return { progress: held ? 1 : 0, inPlank: held, drop: null, ...shape };
+    }
     this.top.push(pose.shoulderY, frame.t);
     const drop = (pose.shoulderY - (this.top.value ?? pose.shoulderY)) / scale;
     const byDrop = drop / this.cfg.dropBottom;
@@ -199,6 +214,15 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
     return this.inPos;
   }
 
+  /** Плечи за последние plankStillMs сдвинулись по высоте меньше plankMaxTravel ширин плеч. */
+  private still(y: number, t: number): boolean {
+    this.recent.push({ t, y });
+    while (this.recent.length > 1 && (this.recent[0] as { t: number }).t < t - this.cfg.plankStillMs)
+      this.recent.shift();
+    const ys = this.recent.map((r) => r.y);
+    return Math.max(...ys) - Math.min(...ys) < this.cfg.plankMaxTravel;
+  }
+
   reset(): void {
     this.width.reset();
     this.top.reset();
@@ -206,6 +230,8 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
     this.jumpSince = null;
     this.inPos = false;
     this.switchSince = null;
+    this.recent = [];
+    this.rawSince = null;
   }
 }
 

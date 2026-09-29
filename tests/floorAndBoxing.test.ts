@@ -216,6 +216,25 @@ describe('планка — на время', () => {
     expect(events.filter((e) => e.type === 'set_complete')).toHaveLength(1);
     expect(events.filter((e) => e.type === 'rep')).toHaveLength(5);
   });
+  it('встал из планки — секунды сразу перестают идти (без «доводки» после выхода)', () => {
+    const session = new ExerciseSession(def('plank'), 100, 0);
+    const noise = gaussian(0.003, 9);
+    const events: EngineEvent[] = [];
+    for (let t = 0; t <= 5000; t += 33)
+      events.push(...session.update(floorFrame({ down: 0, forearms: true }, t, noise), t));
+    for (let t = 5033; t <= 8000; t += 33)
+      events.push(...session.update(synthFrame({ ...STAND }, t, noise), t));
+    // 5 с в планке минус 0,8 с на подтверждение — 4 секунды, и ни одной после того, как встал.
+    expect(events.filter((e) => e.type === 'rep')).toHaveLength(4);
+  });
+  it('отжимания в упоре — не планка: секунды идут только за неподвижное удержание', () => {
+    const session = new ExerciseSession(def('plank'), 100, 0);
+    const events = floorSet(8, (k) => ({ down: wave(k) }), 30, { forearms: false }).flatMap((f) =>
+      session.update(f, f.t),
+    );
+    // Неподвижно — 1,5 с до подхода и 1 с после: секунды только за них.
+    expect(events.filter((e) => e.type === 'rep').length).toBeLessThanOrEqual(2);
+  });
   it('стоит — секунды не идут', () => {
     const session = new ExerciseSession(def('plank'), 100, 0);
     const noise = gaussian(0.003, 6);

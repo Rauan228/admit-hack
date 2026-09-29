@@ -740,6 +740,9 @@ export const ENGINE_CONFIG = {
       maxElbowOut: 0.9,
       /** Планка: локти под плечами — наружу не больше этого. */
       plankMaxElbowOut: 0.6,
+      /** Планка — неподвижно: плечи за plankStillMs сдвигаются по высоте меньше plankMaxTravel ширин плеч. */
+      plankStillMs: 800,
+      plankMaxTravel: 0.25,
     },
     burpee: {
       /** Окно эталонов «стоя» и пола, мс (бёрпи длинное — окно больше, чем у других). */
