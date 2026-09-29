@@ -16,6 +16,8 @@ export interface RecordedOpponent {
 interface Hooks {
   /** Принять вызов: бой против записи. */
   accept(opp: RecordedOpponent): void;
+  /** Вошёл или вышел (онлайн-дуэли нужно переподключиться с новой cookie). */
+  accountChanged?(): void;
 }
 
 /** Основной сайт — там, где есть API (зеркала на Pages и Vercel — только статика). */
@@ -94,6 +96,7 @@ function renderAccount(): void {
     out.addEventListener('click', async () => {
       await api.logout().catch(() => undefined);
       me = null;
+      hooks.accountChanged?.();
       renderAccount();
       el.inbox.replaceChildren();
       void showLinkChallenge();
@@ -112,6 +115,7 @@ function renderAccount(): void {
 
 function onSignedIn(user: Me): void {
   me = user;
+  hooks.accountChanged?.();
   renderAccount();
   void refreshInbox();
   void showLinkChallenge();

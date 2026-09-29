@@ -17,9 +17,10 @@ export default defineConfig({
       },
     },
   ],
-  // API аккаунтов и рейтинга (server/) — локально: npm run api; в dev-сервере проксируем /api туда.
-  server: { proxy: { '/api': 'http://127.0.0.1:8787' } },
-  preview: { proxy: { '/api': 'http://127.0.0.1:8787' } },
+  // API аккаунтов и рейтинга (server/) — локально: npm run api; в dev-сервере проксируем /api туда
+  // вместе с WebSocket онлайн-дуэли (/api/duel/ws, E-26).
+  server: { proxy: { '/api': { target: 'http://127.0.0.1:8787', ws: true } } },
+  preview: { proxy: { '/api': { target: 'http://127.0.0.1:8787', ws: true } } },
   build: {
     rollupOptions: {
       input: {

@@ -780,6 +780,101 @@ body {
   display: none;
 }
 
+/* ——— Онлайн-дуэль (E-26) ——— */
+.online {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.online[hidden] {
+  display: none;
+}
+
+.online .btn--link {
+  justify-self: start;
+}
+
+/* Зелёная точка «в сети» — единственный цветной акцент строки. */
+.person__online {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 0 4px var(--good-soft);
+}
+
+.person__nick + .btn {
+  margin-left: auto;
+}
+
+.lobby {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  max-width: 52ch;
+}
+
+.lobby[hidden] {
+  display: none;
+}
+
+.lobby__opp {
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--text-md);
+  line-height: 1.35;
+}
+
+.lobby .invite__link {
+  width: min(420px, 100%);
+}
+
+/* Приглашение поверх любого экрана (кроме боя — там его не показываем). */
+.toast {
+  position: fixed;
+  top: max(var(--s-3), env(safe-area-inset-top));
+  left: 50%;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2) var(--s-3);
+  width: min(560px, 100% - 2 * var(--s-3));
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--primary);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+  animation: toast-in var(--t-med) var(--ease-out);
+}
+
+.toast[hidden] {
+  display: none;
+}
+
+.toast__text {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--text-md);
+  text-align: center;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
 /* Ноутбук 1280×720 и телефон горизонтально: вступление целиком, без прокрутки. */
 @media (max-height: 800px) {
   .intro {

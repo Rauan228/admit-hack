@@ -29,7 +29,16 @@
         <h1 class="intro__title">Дуэль на отжиманиях</h1>
         <p class="intro__lead">Минута на двоих. Считает камера — побеждает тот, кто сделал больше.</p>
         <div class="challenge" id="challenge-card" aria-live="polite" hidden></div>
+        <div class="challenge" id="room-card" aria-live="polite" hidden></div>
         <div class="inbox" id="inbox"></div>
+        <section class="online" id="online" aria-labelledby="online-title" hidden>
+          <h2 class="inbox__title" id="online-title">Онлайн сейчас — дуэль в одно время</h2>
+          <ul class="people" id="online-list"></ul>
+          <p class="account__note" id="online-note" role="status"></p>
+          <button class="btn btn--link" id="online-create" type="button">
+            Создать онлайн-дуэль и отправить ссылку
+          </button>
+        </section>
         <fieldset class="bots" id="bots">
           <legend class="bots__legend">Соперник</legend>
         </fieldset>
@@ -69,8 +78,20 @@
       <div class="setup" data-for="setup">
         <p class="setup__status" id="setup-status" role="status">Загружаю модель…</p>
         <p class="setup__how">
-          Прими упор лёжа боком к камере. Когда будешь готов — подними обе руки или нажми «Старт».
+          Прими упор лёжа боком к камере. Когда будешь готов — подними обе руки или нажми кнопку ниже.
         </p>
+        <div class="lobby" id="lobby" hidden>
+          <p class="lobby__opp" id="lobby-opp" role="status"></p>
+          <button class="btn btn--small" id="lobby-share" type="button">Отправить ссылку на дуэль</button>
+          <input
+            class="invite__link"
+            id="lobby-link"
+            type="text"
+            readonly
+            hidden
+            aria-label="Ссылка на онлайн-дуэль"
+          />
+        </div>
         <button class="btn btn--primary" id="start" type="button" disabled>Старт</button>
       </div>
 
@@ -101,6 +122,12 @@
         <p class="result__gesture">Или подними обе руки — начнём заново.</p>
       </section>
     </main>
+
+    <div class="toast" id="invite-toast" role="alert" hidden>
+      <p class="toast__text"><b id="toast-from"></b> зовёт тебя на дуэль онлайн</p>
+      <button class="btn btn--small btn--primary" id="toast-accept" type="button">Принять</button>
+      <button class="btn btn--small" id="toast-decline" type="button">Не сейчас</button>
+    </div>
 
     <dialog class="invite" id="invite" aria-labelledby="invite-title">
       <form method="dialog" class="invite__close">

@@ -14,6 +14,8 @@ import { coverView, drawSkeleton } from '../ui/lib/skeleton';
 import { COLORS } from '../ui/theme';
 import { BOTS, botTimeline, findBot, repsAt, type Bot } from './bot';
 import { DuelMatch, formatClock, type DuelPhase, type DuelSnapshot } from './match';
+import type { RoomView } from '../shared/duelRoom';
+import { initOnline, onlineDuel, reconnectOnline } from './online';
 import { initSocial, openInvite, sendAnswer, type RecordedOpponent } from './social';
 
 type Screen = 'intro' | 'setup' | DuelPhase | 'result';
@@ -103,7 +105,37 @@ void initSocial({
     if (engine) toSetup();
     else void startEngine();
   },
+  accountChanged: () => reconnectOnline(),
 });
+
+// ——— Онлайн-дуэль (E-26): время боя и итог — от сервера ———
+/** Итог раунда уже объявлен голосом (объявляем по серверу, а не по своему счёту). */
+let announced = false;
+initOnline({
+  enterRoom() {
+    opponent = null;
+    void keepScreenOn();
+    if (engine) toSetup();
+    else void startEngine();
+  },
+  countdown: startOnlineMatch,
+  over: onlineResult,
+  leftRoom() {
+    if (screen === 'intro') return;
+    match = null;
+    engine?.setMode('menu');
+    show('intro');
+  },
+});
+// Голос и звук оживают только от касания (Safari): приглашение приходит по сети — страхуемся первым касанием.
+document.addEventListener(
+  'pointerdown',
+  () => {
+    unlockAudio();
+    unlockVoice();
+  },
+  { once: true },
+);
 
 // ——— Экраны ———
 function show(next: Screen): void {
@@ -153,6 +185,7 @@ function toSetup(): void {
   seen = null;
   engine?.setMode('menu');
   ui.start.disabled = !engineReady;
+  ui.start.textContent = onlineDuel.active() ? 'Готов' : 'Старт';
 }
 
 function onEvent(e: EngineEvent): void {
@@ -175,14 +208,17 @@ function onEvent(e: EngineEvent): void {
       else if (screen === 'battle' && e.status !== 'ok') hint(e.hint);
       break;
     case 'gesture':
-      if (screen === 'setup' && engineReady) startMatch();
-      else if (screen === 'result') startMatch();
+      if (screen === 'setup' && engineReady && !ui.start.disabled) go();
+      else if (screen === 'result') again();
       break;
     case 'phase':
       skeletonPhase = e.phase;
       break;
     case 'rep':
-      if (match?.addRep(performance.now())) sfx.repClean();
+      if (match?.addRep(performance.now())) {
+        sfx.repClean();
+        if (onlineDuel.active()) onlineDuel.rep();
+      }
       break;
     case 'form_error':
       if (screen !== 'battle') break;
@@ -217,14 +253,82 @@ function startMatch(): void {
 ui.start.addEventListener('click', () => {
   unlockAudio();
   unlockVoice();
-  if (engineReady) startMatch();
+  if (engineReady) go();
 });
-ui.giveUp.addEventListener('click', () => match?.giveUp(performance.now()));
-$<HTMLButtonElement>('again').addEventListener('click', startMatch);
+ui.giveUp.addEventListener('click', () => {
+  match?.giveUp(performance.now());
+  if (onlineDuel.active()) onlineDuel.giveUp();
+});
+$<HTMLButtonElement>('again').addEventListener('click', again);
+
+/** «Старт» с ботом или вызовом; онлайн — «Готов», а старт назначит сервер. */
+function go(): void {
+  if (!onlineDuel.active()) return startMatch();
+  onlineDuel.ready();
+  ui.start.disabled = true;
+}
+
+function again(): void {
+  if (!onlineDuel.active()) return startMatch();
+  toSetup();
+  go();
+}
+
+/** Онлайн: общий отсчёт по часам сервера, соперник — его счёт с сервера. */
+function startOnlineMatch(startLocal: number, dur: number, cd: number): void {
+  opponent = null;
+  announced = false;
+  match = new DuelMatch(
+    { opponentReps: () => onlineDuel.oppReps(), countdownMs: cd, durationMs: dur },
+    startLocal,
+  );
+  shown = { me: -1, opp: -1, second: -1, lastTen: false };
+  const name = onlineDuel.oppName();
+  ui.oppAvatar.textContent = name.slice(0, 1).toUpperCase();
+  ui.oppName.textContent = name;
+  ui.hint.textContent = '';
+  errorJoints = new Set();
+  show('countdown');
+}
+
+/** Итог онлайн-боя от сервера (может прийти и раньше своего финиша — соперник сдался). */
+function onlineResult(v: RoomView): void {
+  if (screen === 'countdown' || screen === 'battle') engine?.setMode('menu');
+  match = null;
+  const me = v.players[v.you];
+  const opp = v.players[1 - v.you];
+  const r = v.result;
+  const outcome = !r ? 'draw' : r.winner === null ? 'draw' : r.winner === v.you ? 'win' : 'lose';
+  const title = me?.gaveUp
+    ? 'Ты сдался'
+    : opp?.gaveUp
+      ? 'Соперник сдался'
+      : outcome === 'win'
+        ? 'Победа!'
+        : outcome === 'lose'
+          ? 'Поражение'
+          : 'Ничья';
+  const diff = Math.abs((me?.reps ?? 0) - (opp?.reps ?? 0));
+  ui.resultTitle.textContent = title;
+  ui.resultMe.textContent = String(me?.reps ?? 0);
+  ui.resultOpp.textContent = String(opp?.reps ?? 0);
+  ui.resultOppName.textContent = opp?.name ?? 'соперник';
+  ui.resultNote.textContent =
+    outcome === 'draw' ? 'Одинаково — реванш?' : `Разница — ${diff} ${plural(diff)}.`;
+  app.dataset.outcome = outcome;
+  $<HTMLButtonElement>('invite-open').hidden = true;
+  if (screen !== 'result') show('result');
+  if (!announced) {
+    announced = true;
+    if (outcome === 'win') sfx.fanfare();
+    say(title);
+  }
+}
 $<HTMLButtonElement>('invite-open').addEventListener('click', () => {
   if (match) openInvite(match.myTimeline(), opponent?.durationMs ?? durationMs, opponent?.name);
 });
 $<HTMLButtonElement>('change').addEventListener('click', () => {
+  if (onlineDuel.active()) onlineDuel.leave();
   match = null;
   opponent = null;
   engine?.setMode('menu');
@@ -249,6 +353,18 @@ function onPhase(next: DuelPhase, s: DuelSnapshot): void {
 }
 
 function showResult(s: DuelSnapshot): void {
+  // Онлайн: свой финиш — только «время», итог (с поздними повторами) пришлёт сервер.
+  if (onlineDuel.active()) {
+    ui.resultTitle.textContent = s.gaveUp ? 'Ты сдался' : 'Время!';
+    ui.resultMe.textContent = String(s.me);
+    ui.resultOpp.textContent = String(s.opp);
+    ui.resultOppName.textContent = onlineDuel.oppName();
+    ui.resultNote.textContent = 'Считаем итог на сервере…';
+    app.dataset.outcome = '';
+    $<HTMLButtonElement>('invite-open').hidden = true;
+    show('result');
+    return;
+  }
   const diff = Math.abs(s.me - s.opp);
   ui.resultTitle.textContent = s.gaveUp
     ? 'Ты сдался'
