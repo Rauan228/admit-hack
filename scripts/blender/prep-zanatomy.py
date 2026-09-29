@@ -44,12 +44,13 @@ GROUPS = {
 # после упрощения превращаются в острые «осколки» — тоже.
 SKIP = ['bursa', 'sheath', 'retinaculum', 'fascia', 'aponeurosis', 'tract', 'septum', 'ligament', 'tendon',
         'membrane', 'raphe', 'band', 'arch', 'expansion', 'hood', 'capsule', 'fibrous', 'lacertus']
-# Кости, которые видны у «экорше»: голова, кисти, стопы, коленная чашечка, ключицы, рёбра спереди.
-BONE_KEEP = ['skull', 'cranium', 'frontal bone', 'parietal', 'occipital', 'temporal bone', 'mandible', 'maxilla',
-             'zygomatic', 'nasal bone', 'sphenoid', 'patella', 'clavicle', 'carpal', 'metacarpal', 'phalan',
-             'tarsal', 'metatarsal', 'calcaneus', 'talus', 'navicular', 'cuboid', 'cuneiform', 'rib', 'sternum',
-             'tibia', 'ulna', 'radius', 'scaphoid', 'lunate', 'triquetrum', 'pisiform', 'trapezium', 'trapezoid',
-             'capitate', 'hamate']
+# Кости, которые видны у «экорше» и нужны для чистого силуэта: кисти, стопы, надколенники.
+# Череп и лицо не берём: мелкие лицевые мышцы после упрощения — «каша»; голову рисуем гладкой в браузере.
+BONE_KEEP = ['patella', 'carpal', 'metacarpal', 'phalan', 'tarsal', 'metatarsal', 'calcaneus', 'talus',
+             'navicular', 'cuboid', 'cuneiform', 'scaphoid', 'lunate', 'triquetrum', 'pisiform', 'trapezium',
+             'trapezoid', 'capitate', 'hamate', 'sesamoid']
+# Выше этой высоты (м, Blender Z) — голова: её мышцы и кости не берём.
+HEAD_Z = 1.505
 
 
 def all_objs(col):
@@ -168,6 +169,12 @@ def group_of(o):
     n = o.name.lower()
     if any(k in n for k in SKIP):
         return None
+    c = avg([o.matrix_world @ Vector(b) for b in o.bound_box])
+    if c.z > HEAD_Z:
+        return None
+    # Посторонние объекты рядом с моделью (подписи, образцы): всё, что дальше вытянутой руки от оси тела.
+    if abs(c.x) > 0.36 or abs(c.y) > 0.25:
+        return None
     if o in bones:
         return 'bones'
     side = n[-1] if n[-2:] in ('.l', '.r') else None
@@ -182,8 +189,8 @@ def tris(o):
     return sum(len(p.vertices) - 2 for p in o.data.polygons)
 
 
-RATIO = {'bones': 0.05, 'body': 0.075}
-TARGET_RATIO = 0.14  # подсвечиваемые мышцы детальнее: на них смотрят
+RATIO = {'bones': 0.16, 'body': 0.1}
+TARGET_RATIO = 0.18  # подсвечиваемые мышцы детальнее: на них смотрят
 groups = {}
 for o in keep:
     g = group_of(o)

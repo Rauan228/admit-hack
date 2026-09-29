@@ -25,6 +25,8 @@ import {
   Vector3,
   CircleGeometry,
   CanvasTexture,
+  DoubleSide,
+  SphereGeometry,
   type BufferGeometry,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -99,6 +101,47 @@ function distToSegment(p: Vector3, a: Vector3, b: Vector3): number {
   return p.distanceTo(a.clone().add(ab.multiplyScalar(t)));
 }
 
+/**
+ * Подмышка: вершины внутри туловища (медиальнее плечевого сустава) и ниже него рука не двигает совсем —
+ * иначе широчайшая и грудные натягиваются перепонкой между рукой и боком.
+ */
+function armExcluded(p: Vector3, b: BoneDef): boolean {
+  if (!(b.name.startsWith('arm') || b.name.startsWith('forearm') || b.name.startsWith('hand'))) return false;
+  const s = b.name.endsWith('.l') ? 'l' : 'r';
+  const side = s === 'l' ? 1 : -1;
+  const shoulder = jv(`shoulder.${s}`);
+  const inward = (shoulder.x - p.x) * side;
+  if (inward <= 0) return false;
+  // Рука висит вплотную к телу: её внутреннюю поверхность не трогаем. Исключаем только то, что заметно
+  // дальше от оси плеча, чем толщина самой руки, — это уже бок туловища.
+  return distToSegment(p, shoulder, jv(`elbow.${s}`)) > 0.065 && p.y < shoulder.y - 0.02;
+}
+
+/**
+ * Штраф для верхних сегментов рук и ног: вершина ближе к середине тела, чем сустав (плечо, таз), —
+ * это торс (широчайшие, грудные, косые), а не конечность.
+ */
+function medialPenalty(p: Vector3, b: BoneDef): number {
+  if (b.kind !== 'limb') return 0;
+  const arm = b.name.startsWith('arm') || b.name.startsWith('forearm') || b.name.startsWith('hand');
+  const thigh = b.name.startsWith('thigh');
+  if (!arm && !thigh) return 0;
+  const side = b.name.endsWith('.l') ? 1 : -1;
+  // Для всей руки граница — плечевой сустав: всё, что ближе к середине тела, — торс
+  // (широчайшие, грудные, косые, зубчатая), иначе они тянутся за рукой «крыльями».
+  const joint = jv(arm ? (side > 0 ? 'shoulder.l' : 'shoulder.r') : b.a);
+  const inward = (joint.x - p.x) * side;
+  if (thigh) return inward > 0.005 ? inward * 1.5 : 0;
+  // Лопатка: задние мышцы на уровне плеча (подостная, большая круглая, широчайшая), если они не снаружи
+  // сустава, остаются с грудной клеткой — иначе при руке вперёд / локтях назад вылезают лоскуты.
+  const behind = joint.z - p.z; // в модели лицом к +Z
+  const nearShoulder = Math.abs(p.y - joint.y) < 0.18 && inward > -0.03;
+  const back = nearShoulder && behind > 0.02 ? behind * 3 : 0;
+  if (inward <= 0.005) return back;
+  const below = Math.max(0, joint.y - p.y);
+  return inward * 4 + below * 1.2 + back;
+}
+
 /** Веса вершин: две ближайшие кости (по поверхности капсулы), мягкий переход у суставов. */
 function skinGeometry(geo: BufferGeometry): void {
   const pos = geo.getAttribute('position');
@@ -107,27 +150,26 @@ function skinGeometry(geo: BufferGeometry): void {
   const wts = new Float32Array(n * 4);
   const segs = BONES.map(restSegment);
   const p = new Vector3();
+  const d = new Float32Array(BONES.length);
   for (let v = 0; v < n; v += 1) {
     p.fromBufferAttribute(pos, v);
-    let b1 = 0;
-    let b2 = 0;
-    let d1 = Infinity;
-    let d2 = Infinity;
     for (let i = 0; i < BONES.length; i += 1) {
       const [a, b] = segs[i]!;
-      const d = Math.max(0.004, distToSegment(p, a, b) - BONES[i]!.r * 0.6);
-      if (d < d1) {
-        d2 = d1;
-        b2 = b1;
-        d1 = d;
-        b1 = i;
-      } else if (d < d2) {
-        d2 = d;
-        b2 = i;
-      }
+      d[i] = armExcluded(p, BONES[i]!)
+        ? 1e3
+        : Math.max(0.004, distToSegment(p, a, b) - BONES[i]!.r * 0.6 + medialPenalty(p, BONES[i]!));
     }
-    const w1 = 1 / d1 ** 4;
-    const w2 = 1 / d2 ** 4;
+    // Две ближайшие кости, вес ~ 1/d⁴.
+    let b1 = 0;
+    let b2 = 1;
+    for (let i = 0; i < BONES.length; i += 1) {
+      if (d[i]! < d[b1]!) {
+        b2 = b1;
+        b1 = i;
+      } else if (i !== b1 && (b2 === b1 || d[i]! < d[b2]!)) b2 = i;
+    }
+    const w1 = 1 / d[b1]! ** 4;
+    const w2 = 1 / d[b2]! ** 4;
     idx[v * 4] = b1;
     idx[v * 4 + 1] = b2;
     wts[v * 4] = w1 / (w1 + w2);
@@ -164,8 +206,18 @@ export function loadModel(): Promise<Model> {
 
 // ——— Материалы ———
 
-const SKIN = new MeshStandardMaterial({ color: new Color('#b9bfc8'), roughness: 0.48, metalness: 0.04 });
-const BONE = new MeshStandardMaterial({ color: new Color('#d8d0bf'), roughness: 0.62, metalness: 0 });
+const SKIN = new MeshStandardMaterial({
+  color: new Color('#bcc2cb'),
+  roughness: 0.46,
+  metalness: 0.04,
+  side: DoubleSide,
+});
+const BONE = new MeshStandardMaterial({
+  color: new Color('#d8d0bf'),
+  roughness: 0.62,
+  metalness: 0,
+  side: DoubleSide,
+});
 const ERROR = new MeshStandardMaterial({
   color: new Color('#ef4444'),
   roughness: 0.4,
@@ -180,6 +232,7 @@ function muscleMaterial(): MeshStandardMaterial {
     metalness: 0.02,
     emissive: new Color('#ff2a14'),
     emissiveIntensity: 0.2,
+    side: DoubleSide,
   });
 }
 
@@ -233,6 +286,43 @@ const PART_JOINTS: Record<string, [number, number]> = {
   delts_r: [12, 14],
 };
 
+// ——— Разворот ладоней ———
+
+const DOWN = new Vector3(0, -1, 0);
+/** Какую долю скручивания берёт сегмент: плечо — частично (ротация в плечевом суставе), предплечье и кисть — всё. */
+const TWIST_SHARE: Record<string, number> = { arm: 0.35, forearm: 1, hand: 1 };
+
+/**
+ * Поворот вокруг оси сегмента, после которого ладонь смотрит туда, куда смотрит у человека:
+ * рука горизонтально (вперёд или в сторону) — вниз; рука вертикально (вдоль тела, на поясе, над головой) —
+ * к середине тела.
+ */
+function palmTwist(b: BoneDef, R: Matrix4, dir: Vector3, center: Vector3, i: number): Matrix4 {
+  void i;
+  const share = TWIST_SHARE[b.name.split('.')[0]!] ?? 0;
+  if (!share) return new Matrix4();
+  const side = b.name.endsWith('.l') ? 1 : -1;
+  const palm = new Vector3(0, 0, 1).applyMatrix4(new Matrix4().extractRotation(R)); // в покое — вперёд
+  const horiz = Math.sqrt(Math.max(0, 1 - dir.y * dir.y)); // 1 — рука горизонтально
+  const inward = new Vector3(-side, 0, 0); // к середине тела (модель: левая сторона — +x)
+  void center;
+  const want = DOWN.clone()
+    .multiplyScalar(horiz)
+    .add(inward.multiplyScalar(1 - horiz));
+  const proj = (v: Vector3) =>
+    v
+      .clone()
+      .sub(dir.clone().multiplyScalar(v.dot(dir)))
+      .normalize();
+  const a = proj(palm);
+  const w = proj(want);
+  if (!Number.isFinite(a.x) || !Number.isFinite(w.x) || a.lengthSq() < 0.5 || w.lengthSq() < 0.5)
+    return new Matrix4();
+  let ang = Math.atan2(new Vector3().crossVectors(a, w).dot(dir), a.dot(w));
+  ang *= share;
+  return new Matrix4().makeRotationAxis(dir, ang);
+}
+
 // ——— Вид ———
 
 export class ZAthleteView {
@@ -246,6 +336,8 @@ export class ZAthleteView {
   );
   private readonly meshes: { mesh: SkinnedMesh; part: string; mat: MeshStandardMaterial | null }[] = [];
   private ready = false;
+  private readonly headMesh = new Mesh(new SphereGeometry(1, 28, 20), SKIN);
+  private readonly neckMesh = new Mesh(new SphereGeometry(1, 20, 14), SKIN);
 
   constructor(readonly exercise: ExerciseId) {
     this.scene.add(new HemisphereLight('#ffffff', '#0f172a', 0.7));
@@ -268,6 +360,10 @@ export class ZAthleteView {
     for (const b of this.bones) {
       b.matrixAutoUpdate = false;
       b.matrixWorldAutoUpdate = false;
+    }
+    for (const m of [this.headMesh, this.neckMesh]) {
+      m.matrixAutoUpdate = false;
+      this.group.add(m);
     }
 
     const active = new Set<string>(MUSCLES[exercise]);
@@ -412,6 +508,7 @@ export class ZAthleteView {
           const R = new Matrix4()
             .makeRotationFromQuaternion(new Quaternion().setFromUnitVectors(d0t, d.clone().normalize()))
             .multiply(Rt);
+          if (i >= 9) R.premultiply(palmTwist(b, R, d.clone().normalize(), shMid, i));
           M = new Matrix4()
             .makeTranslation(A.x, A.y, A.z)
             .multiply(R)
@@ -420,6 +517,19 @@ export class ZAthleteView {
         }
       }
       this.bones[i]!.matrixWorld.copy(M);
+      if (b.kind === 'head') {
+        // Голова: эллипсоид на месте черепа, шея — от C7 к основанию черепа.
+        const hc = REST.head.clone().add(new Vector3(0, 0.005, 0.005));
+        this.headMesh.matrix
+          .copy(M)
+          .multiply(new Matrix4().makeTranslation(hc.x, hc.y, hc.z))
+          .multiply(new Matrix4().makeScale(0.078, 0.104, 0.092));
+        const nc = REST.neck.clone().lerp(REST.head, 0.42);
+        this.neckMesh.matrix
+          .copy(M)
+          .multiply(new Matrix4().makeTranslation(nc.x, nc.y, nc.z))
+          .multiply(new Matrix4().makeScale(0.052, 0.075, 0.056));
+      }
     });
 
     const act = activation(this.exercise, pose) as Record<string, number>;

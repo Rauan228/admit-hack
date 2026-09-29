@@ -279,18 +279,19 @@ function lunges(body, n) {
     pts[B.he] = { x: bA.x, y: -0.09 * depth, z: bA.z + 0.05 };
     pts[B.to] = { x: bA.x, y: 0, z: bA.z - 0.15 };
     pts[B.kn] = kneeIK(pts[B.hp], bA, L1, L2);
-    // Руки на поясе: локти в стороны, кисти на гребнях таза, пальцы вперёд.
+    // Руки на поясе: ладони лежат на гребнях таза (чуть выше и снаружи тазобедренного сустава),
+    // пальцы смотрят вперёд-вниз, локти отведены в стороны и немного назад.
     for (const S of [F, B]) {
       const s = Math.sign(pts[S.sh].x);
       const hip = pts[S.hp];
-      pts[S.wr] = { x: hip.x + s * 0.06, y: hip.y - 0.07, z: hip.z };
+      pts[S.wr] = { x: hip.x + s * 0.085, y: hip.y - 0.1, z: hip.z + 0.015 };
       pts[S.el] = {
-        x: pts[S.sh].x + s * 0.2,
-        y: (pts[S.sh].y + pts[S.wr].y) / 2 + 0.02,
-        z: pts[S.sh].z + 0.05,
+        x: pts[S.sh].x + s * 0.17,
+        y: (pts[S.sh].y + pts[S.wr].y) / 2 + 0.01,
+        z: pts[S.sh].z + 0.085,
       };
       for (const j of S.fingers)
-        pts[j] = { x: pts[S.wr].x - s * 0.03, y: pts[S.wr].y + 0.02, z: pts[S.wr].z - 0.08 };
+        pts[j] = { x: pts[S.wr].x - s * 0.025, y: pts[S.wr].y + 0.035, z: pts[S.wr].z - 0.085 };
     }
     return pts;
   };
