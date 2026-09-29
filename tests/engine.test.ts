@@ -101,6 +101,18 @@ describe('реальный движок: камера и цикл (E-04)', () =>
     engine.stop();
   });
 
+  it('frame несёт снимок кадра, на котором посчитаны точки (E-23); без снимка — без поля image', async () => {
+    const w = fakeWorld();
+    const snapshot = { width: 640, height: 480 } as HTMLCanvasElement;
+    const { engine, events } = await started(w);
+    w.flush();
+    expect(ofType(events, 'frame')[0]).not.toHaveProperty('image');
+    Object.assign(w.detector, { frame: snapshot });
+    w.flush();
+    expect(ofType(events, 'frame')[1]?.image).toBe(snapshot);
+    engine.stop();
+  });
+
   it('обрабатывает только новые видеокадры, а не каждый тик rAF', async () => {
     const w = fakeWorld();
     const { engine } = await started(w);

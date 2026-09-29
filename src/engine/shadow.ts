@@ -5,6 +5,7 @@
 // из прошлого кадра на уменьшенной копии (дёшево), сама подсветка — таблица на 256 значений.
 
 import { ENGINE_CONFIG, type Widen } from './config';
+import { sourceSize, type FrameSource } from './snapshot';
 import type { Landmark } from './types';
 
 type ShadowConfig = Widen<typeof ENGINE_CONFIG.pose.shadowLift>;
@@ -72,14 +73,9 @@ export class ShadowLift {
     return this.gamma;
   }
 
-  /** Кадр для модели: сам video, если свет нормальный, или холст с поднятыми тенями. */
-  prepare(
-    video: HTMLVideoElement,
-    last: readonly Landmark[] | null,
-    tMs: number,
-  ): HTMLVideoElement | AnyCanvas {
-    const w = video.videoWidth;
-    const h = video.videoHeight;
+  /** Кадр для модели: сам кадр (видео или снимок), если свет нормальный, или холст с поднятыми тенями. */
+  prepare(video: FrameSource, last: readonly Landmark[] | null, tMs: number): FrameSource {
+    const { w, h } = sourceSize(video);
     if (!(w > 0 && h > 0)) return video;
     // Свет меняется медленно — яркость человека меряем не каждый кадр (чтение пикселей не бесплатно).
     if (tMs - this.lastMeasureMs >= this.cfg.measureEveryMs) {
@@ -115,7 +111,7 @@ export class ShadowLift {
 
   /** Яркость (0..1): медиана в точках тела (плечи, локти, таз, колени, щиколотки) и среднее по кадру, на копии 64×48. */
   private measure(
-    video: HTMLVideoElement,
+    video: FrameSource,
     last: readonly Landmark[] | null,
   ): { body: number | null; frame: number } | null {
     const W = 64;

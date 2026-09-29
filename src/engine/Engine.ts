@@ -177,8 +177,14 @@ class RealEngine implements Engine {
     const aspect =
       video.videoWidth > 0 && video.videoHeight > 0 ? video.videoWidth / video.videoHeight : 4 / 3;
     const frame = detection ? smoothPose(this.smoother, detection.image, detection.world, now, aspect) : null;
-    // Пустой массив = в кадре никого: UI стирает скелет.
-    this.emit({ type: 'frame', landmarks: frame?.image ?? [], fps: this.fps.tick(now) });
+    // Пустой массив = в кадре никого: UI стирает скелет. image — кадр, на котором модель считала точки.
+    const image = detector.frame;
+    this.emit({
+      type: 'frame',
+      landmarks: frame?.image ?? [],
+      fps: this.fps.tick(now),
+      ...(image ? { image } : {}),
+    });
     this.process(frame, video, now);
   };
 

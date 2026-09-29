@@ -36,7 +36,16 @@ export type Severity = 'warn' | 'bad';
 export type Side = 'left' | 'right';
 
 export type EngineEvent =
-  | { type: 'frame'; landmarks: Landmark[]; fps: number }
+  | {
+      type: 'frame';
+      landmarks: Landmark[];
+      fps: number;
+      /**
+       * Кадр камеры, на котором посчитаны эти точки (E-23). Рисуй его вместо живого видео — скелет совпадёт
+       * с телом кадр в кадр. Действителен до следующего frame. Нет в моке и там, где снимок недоступен.
+       */
+      image?: CanvasImageSource;
+    }
   | { type: 'calibration'; status: CalibrationStatus; hint: string }
   | { type: 'pointer'; x: number; y: number; hand: 'left' | 'right' }
   | { type: 'pointer_lost' }
