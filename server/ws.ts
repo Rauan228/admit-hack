@@ -10,12 +10,13 @@ import type { Duplex } from 'node:stream';
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const utf8 = new TextDecoder('utf-8', { fatal: true });
 
+// Без параметров-свойств (constructor(readonly x)): на VPS Node только стирает типы и их не понимает.
 export class WsError extends Error {
-  constructor(
-    readonly code: number,
-    message: string,
-  ) {
+  readonly code: number;
+
+  constructor(code: number, message: string) {
     super(message);
+    this.code = code;
   }
 }
 
@@ -43,8 +44,11 @@ export function encodeFrame(opcode: number, payload: Buffer, mask?: Buffer, fin 
 /** Разбор кадров клиента из потока (куски из сети могут резать кадр где угодно). */
 export class FrameParser {
   private buf: Buffer = Buffer.alloc(0);
+  private readonly maxPayload: number;
 
-  constructor(private readonly maxPayload: number) {}
+  constructor(maxPayload: number) {
+    this.maxPayload = maxPayload;
+  }
 
   push(chunk: Buffer): Frame[] {
     this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
@@ -104,11 +108,10 @@ export class WsConn {
   private done = false;
   private closing = false;
 
-  constructor(
-    private readonly socket: Duplex,
-    maxPayload: number,
-    head: Buffer,
-  ) {
+  private readonly socket: Duplex;
+
+  constructor(socket: Duplex, maxPayload: number, head: Buffer) {
+    this.socket = socket;
     const parser = new FrameParser(maxPayload);
     const onData = (chunk: Buffer) => {
       let frames: Frame[];
