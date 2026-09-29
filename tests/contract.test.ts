@@ -2,7 +2,15 @@ import { EXERCISES, type EngineEvent } from '../src/engine/types';
 
 describe('engine contract', () => {
   it('lists all exercises from PLAN §3', () => {
-    expect(EXERCISES).toEqual(['squat', 'jumping_jack', 'lunge', 'arm_raise']);
+    expect(EXERCISES).toEqual([
+      'squat',
+      'jumping_jack',
+      'lunge',
+      'arm_raise',
+      'high_knees',
+      'knee_to_elbow',
+      'squat_press',
+    ]);
   });
 
   it('form_error carries a concrete hint and joints', () => {

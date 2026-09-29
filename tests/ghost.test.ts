@@ -43,10 +43,15 @@ describe('«призрак»: эталонные позы', () => {
     ['squat', 5],
     ['jumping_jack', 5],
     ['lunge', 4],
+    ['high_knees', 8],
+    ['knee_to_elbow', 4],
+    ['squat_press', 4],
   ] as [ExerciseId, number][])('движок узнаёт в призраке «%s» правильные повторы без ошибок', (ex, reps) => {
     const session = new ExerciseSession(createExercise(ex)!, 100, 0);
     const d = GHOST_DURATION_MS[ex];
-    const cycles = ex === 'lunge' ? reps / 2 : reps;
+    // За цикл призрака: выпады — два выпада (правой и левой), колени и «локоть к колену» — две стороны.
+    const perCycle = ex === 'lunge' || ex === 'high_knees' || ex === 'knee_to_elbow' ? 2 : 1;
+    const cycles = reps / perCycle;
     const events = [];
     for (let t = 0; t < 1500 + cycles * d; t += 33) {
       // Первые 1,5 с стоим — движок запоминает эталон «стоя».
