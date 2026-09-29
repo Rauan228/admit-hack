@@ -2,7 +2,20 @@
 // Меняем только по согласованию обоих разработчиков.
 
 export type ExerciseId =
-  'squat' | 'jumping_jack' | 'lunge' | 'arm_raise' | 'high_knees' | 'knee_to_elbow' | 'squat_press';
+  | 'squat'
+  | 'jumping_jack'
+  | 'lunge'
+  | 'arm_raise'
+  | 'high_knees'
+  | 'knee_to_elbow'
+  | 'squat_press'
+  | 'side_bend'
+  | 'side_leg_raise'
+  | 'side_lunge'
+  | 'jump_squat'
+  | 'calf_raise'
+  | 'cross_jack'
+  | 'arm_circles';
 export type Joint = number; // индекс точки MediaPipe (0..32)
 
 export interface Landmark {
@@ -69,4 +82,11 @@ export const EXERCISES: readonly ExerciseId[] = [
   'high_knees',
   'knee_to_elbow',
   'squat_press',
+  'side_bend',
+  'side_leg_raise',
+  'side_lunge',
+  'jump_squat',
+  'calf_raise',
+  'cross_jack',
+  'arm_circles',
 ];

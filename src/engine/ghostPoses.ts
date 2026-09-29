@@ -6,7 +6,7 @@
 // Точки — в формате события frame (Landmark[33]): UI рисует призрака тем же кодом, что и скелет.
 
 import { clamp } from './geometry';
-import { lungeFrame, squatPose, STAND, synthFrame, type SynthParams } from './skeleton';
+import { lungeFrame, sideLungeFrame, squatPose, STAND, synthFrame, type SynthParams } from './skeleton';
 import type { ExerciseId, Landmark } from './types';
 
 /** Длительность одного цикла анимации, мс. */
@@ -18,6 +18,13 @@ export const GHOST_DURATION_MS: Record<ExerciseId, number> = {
   high_knees: 1000, // два шага: левое колено, правое
   knee_to_elbow: 3000, // два касания: левый локоть к правому колену, правый к левому
   squat_press: 3200,
+  side_bend: 3000, // наклон влево, потом вправо
+  side_leg_raise: 2600, // левая нога в сторону, потом правая
+  side_lunge: 4000, // выпад на левую ногу, потом на правую
+  jump_squat: 2600,
+  calf_raise: 2400,
+  cross_jack: 1200,
+  arm_circles: 1000, // один круг
 };
 
 /** Сколько ключевых кадров на цикл. */
@@ -81,6 +88,45 @@ function poseAt(exercise: ExerciseId, u: number): Landmark[] {
         0,
       ).image;
     }
+    case 'side_bend': {
+      // Руки на поясе; корпус наклоняется влево, потом вправо, таз на месте.
+      const k = wave(u < 0.5 ? u * 2 : (u - 0.5) * 2);
+      return synthFrame({ ...STAND, ...base, arms: 25, elbow: 110, sideTilt: (u < 0.5 ? 1 : -1) * 30 * k }, 0)
+        .image;
+    }
+    case 'side_leg_raise': {
+      const k = wave(u < 0.5 ? u * 2 : (u - 0.5) * 2);
+      return synthFrame(
+        { ...STAND, ...base, arms: 25, elbow: 110, ...(u < 0.5 ? { abductL: 44 * k } : { abductR: 44 * k }) },
+        0,
+      ).image;
+    }
+    case 'side_lunge': {
+      const half = u < 0.5 ? u * 2 : (u - 0.5) * 2;
+      return sideLungeFrame(
+        { depth: wave(half), side: u < 0.5 ? 'left' : 'right', aspect: 1, height: 0.8 },
+        0,
+      ).image;
+    }
+    case 'jump_squat': {
+      // Присед до параллели → выпрыгнул (стопы отрываются) → приземлился.
+      const depth = u < 0.5 ? wave(u / 0.5) : 0;
+      const air = u >= 0.5 && u < 0.8 ? Math.sin((Math.PI * (u - 0.5)) / 0.3) : 0;
+      return synthFrame(
+        { ...squatPose(depth * 100, base), footY: 0.92 - 0.09 * air, arms: 20 + depth * 40 + air * 40 },
+        0,
+      ).image;
+    }
+    case 'calf_raise':
+      return synthFrame({ ...STAND, ...base, onToes: 0.04 * w }, 0).image;
+    case 'cross_jack':
+      // Скрещены (руки перед грудью, ноги накрест) → прыжок: руки в стороны, ноги шире плеч → обратно.
+      return synthFrame(
+        { ...STAND, ...base, armsIn: 1 - w, stance: -0.4 + 4 * w, thigh: w * 8, shin: w * 3 },
+        0,
+      ).image;
+    case 'arm_circles':
+      return synthFrame({ ...STAND, ...base, circle: { angle: 2 * Math.PI * u, radius: 0.06 } }, 0).image;
   }
 }
 
@@ -93,6 +139,13 @@ export const GHOST_KEYFRAMES: Record<ExerciseId, Landmark[][]> = {
   high_knees: frames('high_knees'),
   knee_to_elbow: frames('knee_to_elbow'),
   squat_press: frames('squat_press'),
+  side_bend: frames('side_bend'),
+  side_leg_raise: frames('side_leg_raise'),
+  side_lunge: frames('side_lunge'),
+  jump_squat: frames('jump_squat'),
+  calf_raise: frames('calf_raise'),
+  cross_jack: frames('cross_jack'),
+  arm_circles: frames('arm_circles'),
 };
 
 function frames(exercise: ExerciseId): Landmark[][] {

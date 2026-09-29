@@ -34,6 +34,11 @@ export interface BodyParams {
   /** подъём колена: 0 — нога на полу, 1 — колено на уровне таза (высокие колени, локоть к колену) */
   kneeLiftL: number;
   kneeLiftR: number;
+  /** наклон корпуса вбок, градусы: + к левому боку человека (вправо по картинке) */
+  sideTilt: number;
+  /** отведение прямой ноги в сторону: 0 — стоит, 1 — на 45° */
+  legOutL: number;
+  legOutR: number;
 }
 
 export const STANDING: BodyParams = {
@@ -53,6 +58,9 @@ export const STANDING: BodyParams = {
   legVisibility: 0.95,
   kneeLiftL: 0,
   kneeLiftR: 0,
+  sideTilt: 0,
+  legOutL: 0,
+  legOutR: 0,
 };
 
 export function body(overrides: Partial<BodyParams> = {}): BodyParams {
@@ -103,8 +111,10 @@ export function buildPose(p: BodyParams): Landmark[] {
   // Наклон корпуса: плечи уезжают вперёд (вправо на картинке) и вниз.
   const leanX = Math.sin(rad(p.lean)) * torso;
   const leanY = Math.cos(rad(p.lean)) * torso;
-  const shX = hipX + leanX * 0.6;
-  const shY = hipY - leanY;
+  // Наклон вбок: плечи поворачиваются вокруг таза в плоскости кадра.
+  const tilt = rad(p.sideTilt);
+  const shX = hipX + leanX * 0.6 + Math.sin(tilt) * leanY;
+  const shY = hipY - leanY * Math.cos(tilt);
 
   const pts: Pt[] = new Array<Pt>(33);
   const set = (i: number, x: number, y: number, z = 0, v = p.visibility) => {
@@ -207,10 +217,16 @@ export function buildPose(p: BodyParams): Landmark[] {
     const ky0 = hipY + (ay - hipY) * 0.52 + p.squat * 0.01 * H;
     // Подъём колена: колено идёт к уровню таза, голень висит под ним, стопа отрывается от пола.
     const lift = s.sign > 0 ? p.kneeLiftL : p.kneeLiftR;
-    const kx = kx0 + (hx - kx0) * lift;
-    const ky = ky0 + (hipY + 0.03 * H - ky0) * lift;
-    const fx = ax + (kx - ax) * lift;
-    const fy = ay + (ky + (ay - ky0) - ay) * lift;
+    // Отведение: прямая нога поворачивается вокруг таза наружу (до 45°).
+    const out = rad(45 * (s.sign > 0 ? p.legOutL : p.legOutR));
+    const legX = hx + s.sign * Math.sin(out) * legLen;
+    const legY = hipY + Math.cos(out) * legLen;
+    const ox = out ? (hx + legX) / 2 : kx0;
+    const oy = out ? (hipY + legY) / 2 : ky0;
+    const kx = ox + (hx - ox) * lift;
+    const ky = oy + (hipY + 0.03 * H - oy) * lift;
+    const fx = (out ? legX : ax) + (kx - (out ? legX : ax)) * lift;
+    const fy = out ? legY : ay + (ky + (ay - ky0) - ay) * lift;
     set(s.ankle, fx, fy, 0, p.legVisibility);
     set(s.knee, kx, ky, 0, p.legVisibility);
     set(s.heel, fx - s.sign * 0.01 * H, fy + 0.015 * H, 0, p.legVisibility);
