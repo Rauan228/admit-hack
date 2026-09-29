@@ -162,7 +162,7 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
     icon: 'arms',
     cues: ['Руки чуть шире плеч', 'Тело — прямая линия', 'Грудь к полу, локти назад'],
     handsUpToFinish: true,
-    setup: 'Поставь телефон или ноутбук на пол в 2 метрах и встань к нему боком',
+    setup: 'Положи телефон на пол перед собой, в полуметре от рук, и отжимайся лицом к камере',
   },
   plank: {
     title: 'Планка',
@@ -171,7 +171,7 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
     cues: ['Локти под плечами', 'Тело — прямая линия', 'Таз не проваливается'],
     handsUpToFinish: true,
     unit: 'sec',
-    setup: 'Поставь телефон или ноутбук на пол в 2 метрах и встань к нему боком',
+    setup: 'Положи телефон на пол перед собой и встань в планку лицом к камере',
   },
   burpee: {
     title: 'Бёрпи',

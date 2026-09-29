@@ -57,6 +57,9 @@ export type FsmEvent =
   /** Движение затянулось дольше maxRepMs и сброшено без засчёта. */
   | { kind: 'timeout'; t: number };
 
+/** Провал между измеренными кадрами длиннее этого — кадры терялись (обычный шаг 33–67 мс). */
+const GAP_MS = 150;
+
 export class RepCounter {
   private state: Phase = 'start';
   private startT = 0;
@@ -68,6 +71,8 @@ export class RepCounter {
   private pMinUp = Infinity;
   /** С какого момента p снова ниже startMax на подъёме (ждём подтверждения возврата). */
   private returnSince: number | null = null;
+  /** Время прошлого измеренного кадра. */
+  private lastT = -Infinity;
 
   constructor(private readonly th: FsmThresholds) {}
 
@@ -84,6 +89,8 @@ export class RepCounter {
     const ev: FsmEvent[] = [];
     if (!Number.isFinite(p)) return ev;
     const th = this.th;
+    const prevT = this.lastT;
+    this.lastT = t;
 
     if (this.state !== 'start' && t - this.startT > th.maxRepMs) {
       this.go('start', t, ev);
@@ -100,7 +107,10 @@ export class RepCounter {
     switch (this.state) {
       case 'start':
         if (p >= th.downMin) {
-          this.startT = t;
+          // Перед этим кадром был провал (кадры-сбои, человек пропадал): движение началось где-то в провале.
+          // Начало — последний кадр в исходном положении, иначе повтор кажется короче и режется как «слишком
+          // быстрый» (E-31: низ отжимания пришёлся на сбойные кадры). При обычном потоке кадров — как раньше.
+          this.startT = t - prevT > GAP_MS ? prevT : t;
           this.pMax = p;
           this.pMaxT = t;
           this.localMax = p;
@@ -158,6 +168,7 @@ export class RepCounter {
   }
 
   reset(): void {
+    this.lastT = -Infinity;
     this.state = 'start';
     this.pMax = 0;
     this.localMax = 0;

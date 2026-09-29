@@ -87,7 +87,7 @@ export function Picker({ onPick, onBack }: { onPick: (e: ExerciseId) => void; on
               </span>
               {meta.setup && (
                 <span className="picker__setup">
-                  <Icon name="camera" size={16} /> камера у пола, боком
+                  <Icon name="camera" size={16} /> камера на полу, лицом к ней
                 </span>
               )}
             </DwellButton>

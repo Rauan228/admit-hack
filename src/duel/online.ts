@@ -77,7 +77,7 @@ export function durationLabel(ms: number): string {
   return ms < 60_000 ? `${Math.round(ms / 1000)} с` : `${Math.round(ms / 60_000)} мин`;
 }
 
-/** Как ставить камеру: на полу боком (отжимания, планка) или стоя лицом. */
+/** Как ставить камеру: на полу перед собой (отжимания, планка — лицом к камере) или стоя лицом. */
 export function cameraTip(ex: ExerciseId): string {
   return (
     EXERCISE_META[ex]?.setup ??

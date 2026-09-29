@@ -258,21 +258,10 @@ export function exercisePose(
       });
     }
     case 'push_up':
-      return body({
-        lying: 0.82 + wave * (code === 'shallow_pushup' ? 0.05 : 0.14),
-        armL: 175,
-        armR: 175,
-        squat: code === 'hips_sag' ? 0.2 : 0,
-      });
+      // Лицом к камере, камера на полу (E-31).
+      return body({ front: 1, frontDown: wave * (code === 'shallow_pushup' ? 0.5 : 1) });
     case 'plank':
-      return body({
-        lying: 0.9,
-        armL: 175,
-        armR: 175,
-        elbowL: 90,
-        elbowR: 90,
-        squat: code === 'hips_sag' ? 0.2 : 0,
-      });
+      return body({ front: 1, frontForearms: 1 });
     case 'burpee': {
       // Вниз → упор лёжа → обратно → прыжок.
       const down = easeInOut(Math.min(1, Math.max(0, cycle < 0.5 ? cycle * 3 : (0.85 - cycle) * 3)));

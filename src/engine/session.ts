@@ -93,7 +93,7 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
   update(frame: PoseFrame | null, t: number): EngineEvent[] {
     if (this.finished || !frame) return [];
     // Сбой модели (скелет «телепортировался») не должен складываться в повтор.
-    if (!this.gate.accept(frame.image, t)) return [];
+    if (!this.def.ownGate && !this.gate.accept(frame.image, t)) return [];
     const m = this.meter.measure(frame, this.counter.phase);
     if (!m) return [];
     this.lastMeasuredAt = t;

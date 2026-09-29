@@ -141,7 +141,13 @@ export class RenderSmoother {
    * raw — сырые точки модели (по ним решаем, где тело), base — те же точки после фильтра движка
    * (z и видимость берём оттуда); scale — длина корпуса в координатах с поправкой на аспект.
    */
-  apply(raw: readonly Landmark[], base: readonly Landmark[], tMs: number, aspect: number, scale: number): Landmark[] {
+  apply(
+    raw: readonly Landmark[],
+    base: readonly Landmark[],
+    tMs: number,
+    aspect: number,
+    scale: number,
+  ): Landmark[] {
     const prev = this.shown;
     const dtMs = tMs - this.lastT;
     if (!prev || prev.length !== raw.length || dtMs > this.resetAfterMs || !(scale > 0)) {

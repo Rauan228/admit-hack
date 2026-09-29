@@ -464,84 +464,78 @@ export function sideLungeFrame(p: SideLungeParams, t: number, noise: () => numbe
 }
 
 export interface FloorParams {
-  /** Угол в локте, градусы: 180 — прямые руки (упор лёжа), ~90 — отжимание внизу. */
-  elbow: number;
-  /** Таз от линии плечи → стопы, в долях длины тела: + провис к полу, − «домик». */
-  sag?: number;
-  /** Упор на предплечья (планка на локтях) вместо прямых рук. */
+  /** Глубина отжимания: 0 — руки прямые (упор лёжа), 1 — грудь у пола (плечи на высоте предплечья). */
+  down: number;
+  /** Планка на предплечьях: локти на полу под плечами, кисти ближе к камере. */
   forearms?: boolean;
+  /** Перекос: правое плечо человека ниже левого на столько ширин плеч. */
+  tilt?: number;
+  /** Локти дальше наружу на столько ширин плеч («буквой Т»). */
+  elbowsOut?: number;
   aspect?: number;
   height?: number;
   floorY?: number;
 }
 
 /**
- * Упор лёжа сбоку (отжимания, планка): человек левым боком к камере, голова слева по картинке.
- * Кисти (или локти) под плечами на полу, носки на полу; ближняя сторона видна, дальняя — слабее.
+ * Упор лёжа лицом к камере, камера на полу перед человеком (отжимания, планка; E-31). Так снимают дуэли на
+ * отжиманиях: кисти на полу внизу кадра, плечи над ними, корпус и ноги уходят от камеры и сжаты перспективой
+ * (таз чуть ниже плеч, колени и стопы почти не видны — у MediaPipe видимость 0,1–0,4). Внизу отжимания плечи
+ * опускаются на ~0,8 ширины плеч, угол в локте на картинке — ~110° (локти уходят назад и в стороны):
+ * так на реальной записи RepChamp «Push Up Battle».
  */
 export function floorFrame(p: FloorParams, t: number, noise: () => number = () => 0): PoseFrame {
   const aspect = p.aspect ?? 4 / 3;
   const H = p.height ?? 0.75;
   const floorY = p.floorY ?? 0.9;
   const cx = 0.5 * aspect;
-  const upper = 0.16 * H;
-  const fore = 0.16 * H;
   const image: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0, v: 0.9 }));
   const world: Vec3[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }));
-  const put = (i: number, x: number, y: number, far: boolean) => {
-    // Дальняя сторона чуть сдвинута и видна хуже — как у MediaPipe сбоку.
-    const dx = far ? 0.008 * H : 0;
-    image[i] = { x: (x + dx) / aspect + noise(), y: y + noise(), z: 0, v: far ? 0.6 : 0.95 };
-    world[i] = { x: (x + dx - cx) / H, y: y / H, z: far ? 0.12 : 0 };
+  const put = (i: number, x: number, y: number, z: number, v = 0.9) => {
+    image[i] = { x: x / aspect + noise(), y: y + noise(), z: 0, v };
+    world[i] = { x: (x - cx) / H, y: y / H, z: z / H };
   };
-  // Руки: кисть (или локоть) под плечом на полу; плечо — над опорой.
-  const handX = cx - 0.28 * H;
-  let shoulder: { x: number; y: number };
-  let elbow: { x: number; y: number };
-  let wrist: { x: number; y: number };
-  if (p.forearms) {
-    elbow = { x: handX, y: floorY - 0.02 * H };
-    wrist = { x: handX - fore, y: floorY - 0.02 * H };
-    shoulder = { x: handX, y: elbow.y - upper };
-  } else {
-    wrist = { x: handX, y: floorY - 0.01 * H };
-    const e = (Math.min(180, Math.max(30, p.elbow)) * Math.PI) / 180;
-    const d = Math.sqrt(upper * upper + fore * fore - 2 * upper * fore * Math.cos(e));
-    shoulder = { x: handX, y: wrist.y - d };
-    // Локоть смотрит назад, к ногам (+x).
-    elbow = kneeIK(shoulder, wrist, upper, fore, 1);
+  const down = Math.max(0, p.down);
+  const halfShoulder = 0.11 * H;
+  // Плечи: на прямых руках — на высоте руки, внизу — на высоте предплечья; планка на локтях — плечо над локтем.
+  const shY = p.forearms ? floorY - 0.17 * H : floorY - (0.33 - 0.18 * down) * H;
+  // Угол в локте на картинке: 175° на прямых руках → 110° внизу.
+  const elbowDeg = Math.max(60, 175 - 65 * down);
+  for (const side of [1, -1] as const) {
+    const s =
+      side > 0
+        ? { sh: 11, el: 13, wr: 15, hip: 23, knee: 25, ankle: 27, heel: 29, toe: 31, hand: [17, 19, 21] }
+        : { sh: 12, el: 14, wr: 16, hip: 24, knee: 26, ankle: 28, heel: 30, toe: 32, hand: [18, 20, 22] };
+    const shoulder = {
+      x: cx + side * halfShoulder,
+      y: shY + (side < 0 ? (p.tilt ?? 0) * 2 * halfShoulder : 0),
+    };
+    let elbow: { x: number; y: number };
+    let wrist: { x: number; y: number };
+    if (p.forearms) {
+      elbow = { x: shoulder.x, y: floorY - 0.01 * H };
+      wrist = { x: cx + side * 0.05 * H, y: floorY + 0.04 * H };
+    } else {
+      wrist = { x: cx + side * 0.14 * H, y: floorY - 0.01 * H };
+      // Равные плечо и предплечье на картинке: длина из угла в локте, локоть — наружу.
+      const d = Math.hypot(wrist.x - shoulder.x, wrist.y - shoulder.y);
+      const seg = d / (2 * Math.sin((elbowDeg * Math.PI) / 360));
+      elbow = kneeIK(shoulder, wrist, seg, seg, side);
+    }
+    elbow = { x: elbow.x + side * (p.elbowsOut ?? 0) * 2 * halfShoulder, y: elbow.y };
+    put(s.sh, shoulder.x, shoulder.y, 0);
+    put(s.el, elbow.x, elbow.y, 0.05 * H);
+    put(s.wr, wrist.x, wrist.y, -0.02 * H);
+    for (const i of s.hand) put(i, wrist.x, wrist.y + 0.01 * H, -0.03 * H);
+    put(s.hip, cx + side * 0.06 * H, shY + 0.12 * H, 0.35 * H, 0.9);
+    put(s.knee, cx + side * 0.05 * H, shY + 0.2 * H, 0.6 * H, 0.2);
+    put(s.ankle, cx + side * 0.05 * H, shY + 0.26 * H, 0.85 * H, 0.2);
+    put(s.heel, cx + side * 0.05 * H, shY + 0.25 * H, 0.87 * H, 0.1);
+    put(s.toe, cx + side * 0.05 * H, shY + 0.27 * H, 0.82 * H, 0.1);
   }
-  const toe = { x: cx + 0.42 * H, y: floorY };
-  const ankle = { x: toe.x - 0.04 * H, y: floorY - 0.05 * H };
-  const lx = ankle.x - shoulder.x;
-  const ly = ankle.y - shoulder.y;
-  const len = Math.hypot(lx, ly);
-  // Нормаль к линии тела, смотрящая к полу (+y).
-  const nx = -ly / len;
-  const ny = lx / len;
-  const sag = (p.sag ?? 0) * len;
-  const hip = { x: shoulder.x + lx * 0.38 + nx * sag, y: shoulder.y + ly * 0.38 + ny * sag };
-  const knee = { x: (hip.x + ankle.x) / 2, y: (hip.y + ankle.y) / 2 };
-  const heel = { x: ankle.x + 0.03 * H, y: ankle.y - 0.01 * H };
-  for (const far of [false, true]) {
-    const s = far
-      ? { sh: 12, el: 14, wr: 16, hip: 24, knee: 26, ankle: 28, heel: 30, toe: 32, hand: [18, 20, 22] }
-      : { sh: 11, el: 13, wr: 15, hip: 23, knee: 25, ankle: 27, heel: 29, toe: 31, hand: [17, 19, 21] };
-    put(s.ankle, ankle.x, ankle.y, far);
-    put(s.heel, heel.x, heel.y, far);
-    put(s.toe, toe.x, toe.y, far);
-    put(s.knee, knee.x, knee.y, far);
-    put(s.hip, hip.x, hip.y, far);
-    put(s.sh, shoulder.x, shoulder.y, far);
-    put(s.el, elbow.x, elbow.y, far);
-    put(s.wr, wrist.x, wrist.y, far);
-    for (const i of s.hand) put(i, wrist.x - 0.02 * H, wrist.y, far);
-  }
-  // Голова продолжает линию тела вперёд от плеч.
-  const hx = shoulder.x - (lx / len) * 0.1 * H;
-  const hy = shoulder.y - (ly / len) * 0.1 * H - 0.02 * H;
-  put(0, hx, hy, false);
-  for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) put(i, hx + 0.01 * H, hy - 0.01 * H, i % 2 === 0);
+  put(0, cx, shY - 0.08 * H, -0.08 * H);
+  for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    put(i, cx + (i % 2 ? 1 : -1) * 0.02 * H, shY - 0.09 * H, -0.08 * H);
   return { t, aspect, image, world };
 }
 

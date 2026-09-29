@@ -2,6 +2,7 @@
 // Простая 2D-кинематика: стопы стоят на «полу», таз опускается, руки считаются по углам.
 // Координаты нормализованы (0..1), как у MediaPipe: x — слева направо, y — сверху вниз.
 
+import { floorFrame } from '../engine/skeleton';
 import type { Landmark } from '../engine/types';
 
 export interface BodyParams {
@@ -41,6 +42,15 @@ export interface BodyParams {
   legOutR: number;
   /** лёжа: 0 — стоит, 1 — тело горизонтально (упор лёжа), голова слева по картинке */
   lying: number;
+  /**
+   * Упор лёжа лицом к камере, камера на полу (отжимания, планка; E-31): 0 — обычная поза, 1 — упор лёжа
+   * (поза из движка, skeleton.floorFrame); между — плавный переход.
+   */
+  front: number;
+  /** Глубина отжимания в упоре лицом к камере: 0 — прямые руки, 1 — грудь у пола. */
+  frontDown: number;
+  /** Упор на предплечья (планка на локтях): 0 или 1. */
+  frontForearms: number;
 }
 
 export const STANDING: BodyParams = {
@@ -64,6 +74,9 @@ export const STANDING: BodyParams = {
   legOutL: 0,
   legOutR: 0,
   lying: 0,
+  front: 0,
+  frontDown: 0,
+  frontForearms: 0,
 };
 
 export function body(overrides: Partial<BodyParams> = {}): BodyParams {
@@ -240,7 +253,7 @@ export function buildPose(p: BodyParams): Landmark[] {
   const turn = rad(-90 * p.lying);
   const ox = p.centerX;
   const oy = p.groundY;
-  return pts.map((pt) => {
+  const out = pts.map((pt) => {
     const dx = pt.x - ox;
     const dy = pt.y - oy;
     return {
@@ -248,6 +261,28 @@ export function buildPose(p: BodyParams): Landmark[] {
       y: oy + dx * Math.sin(turn) + dy * Math.cos(turn),
       z: pt.z ?? 0,
       v: pt.v ?? p.visibility,
+    };
+  });
+  if (!(p.front > 0)) return out;
+  // Упор лёжа лицом к камере — та же поза, что у движка в тестах и призраке; кадр мока 4:3.
+  const floor = floorFrame(
+    {
+      down: p.frontDown,
+      forearms: p.frontForearms > 0.5,
+      aspect: 4 / 3,
+      height: p.height,
+      floorY: p.groundY - 0.02,
+    },
+    0,
+  ).image;
+  const k = Math.min(1, p.front);
+  return out.map((a, i) => {
+    const b = floor[i] as Landmark;
+    return {
+      x: a.x + (b.x - a.x) * k,
+      y: a.y + (b.y - a.y) * k,
+      z: a.z + (b.z - a.z) * k,
+      v: a.v + (b.v - a.v) * k,
     };
   });
 }
