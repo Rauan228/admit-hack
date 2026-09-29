@@ -146,7 +146,7 @@ function poseAt(exercise: ExerciseId, u: number): Landmark[] {
       return synthFrame({ ...STAND, ...base, punchL: u < 0.5 ? k : 0, punchR: u < 0.5 ? 0 : k }, 0).image;
     }
     case 'push_up':
-      // Лицом к камере, камера на полу (E-28): плечи опускаются к кистям, локти уходят в стороны.
+      // Лицом к камере, камера на полу (E-31): плечи опускаются к кистям, локти уходят в стороны.
       return floorFrame({ down: w, aspect: 1, height: 0.8 }, 0).image;
     case 'plank':
       // Планка на предплечьях лицом к камере; плечи чуть «дышат», чтобы призрак не выглядел замершим.

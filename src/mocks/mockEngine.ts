@@ -258,7 +258,7 @@ export function exercisePose(
       });
     }
     case 'push_up':
-      // Лицом к камере, камера на полу (E-28).
+      // Лицом к камере, камера на полу (E-31).
       return body({ front: 1, frontDown: wave * (code === 'shallow_pushup' ? 0.5 : 1) });
     case 'plank':
       return body({ front: 1, frontForearms: 1 });
