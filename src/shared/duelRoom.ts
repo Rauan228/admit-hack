@@ -42,9 +42,12 @@ export interface RoomView {
   result: { winner: number | null; reason: RoomResult['reason'] } | null;
 }
 
+/** E-30: время боя на выбор — 15 с, 30 с, 1 мин, 3 мин. */
+export const ROOM_DURATIONS: readonly number[] = [15_000, 30_000, 60_000, 180_000];
+
 /** Клиент → сервер. */
 export type ClientMsg =
-  | { t: 'create'; exercise?: string }
+  | { t: 'create'; exercise?: string; durationMs?: number }
   | { t: 'join'; room: string; name?: string; key?: string }
   | { t: 'ready'; ready: boolean }
   | { t: 'rep' }
@@ -59,7 +62,7 @@ export type ServerMsg =
   | { t: 'presence'; online: string[] }
   | { t: 'room'; room: RoomView; key: string }
   | { t: 'left' }
-  | { t: 'invited'; room: string; from: string; exercise: DuelExercise }
+  | { t: 'invited'; room: string; from: string; exercise: DuelExercise; durationMs: number }
   /** Приглашение ушло: online — сразу, иначе дождётся, когда игрок откроет дуэль. */
   | { t: 'invite_sent'; nick: string; online: boolean }
   | { t: 'declined'; by: string }

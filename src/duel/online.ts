@@ -27,6 +27,7 @@ const el = {
   list: $<HTMLUListElement>('online-list'),
   search: $<HTMLInputElement>('online-search'),
   exercise: $<HTMLSelectElement>('online-exercise'),
+  duration: $<HTMLSelectElement>('online-duration'),
   lobbyExercise: $<HTMLParagraphElement>('lobby-exercise'),
   toastEx: $<HTMLElement>('toast-ex'),
   create: $<HTMLButtonElement>('online-create'),
@@ -71,6 +72,11 @@ export function exerciseTitle(ex: ExerciseId): string {
   return EXERCISE_META[ex]?.title ?? ex;
 }
 
+/** Время боя по-человечески: «30 с», «3 мин». */
+export function durationLabel(ms: number): string {
+  return ms < 60_000 ? `${Math.round(ms / 1000)} с` : `${Math.round(ms / 60_000)} мин`;
+}
+
 /** Как ставить камеру: на полу боком (отжимания, планка) или стоя лицом. */
 export function cameraTip(ex: ExerciseId): string {
   return (
@@ -93,7 +99,7 @@ export function initOnline(h: OnlineHooks): void {
   live.connect();
   el.create.addEventListener('click', () => {
     pendingInvite = null;
-    live.create(el.exercise.value);
+    live.create(el.exercise.value, Number(el.duration.value));
   });
   el.lobbyShare.addEventListener('click', () => void shareRoom());
   el.lobbyLeave.addEventListener('click', () => live.send({ t: 'leave' }));
@@ -160,7 +166,7 @@ function onMessage(m: ServerMsg): void {
       renderLobby();
       return hooks.leftRoom();
     case 'invited':
-      return showToast(m.room, m.from, m.exercise);
+      return showToast(m.room, m.from, m.exercise, m.durationMs);
     case 'declined':
       el.lobbyOpp.textContent = `${m.by} не может сейчас — позови кого-то ещё или отправь ссылку.`;
       return;
@@ -248,7 +254,7 @@ function renderList(): void {
       if (view && view.you === 0 && view.players.length < 2) live.send({ t: 'invite', nick: p.nick });
       else {
         pendingInvite = p.nick;
-        live.create(el.exercise.value);
+        live.create(el.exercise.value, Number(el.duration.value));
       }
     });
     li.append(dot, text('span', 'person__nick', p.nick), call);
@@ -287,7 +293,7 @@ function showRoomCard(): void {
 function renderLobby(): void {
   el.lobby.hidden = !view;
   if (!view) return;
-  el.lobbyExercise.textContent = `${exerciseTitle(view.exercise)}. ${cameraTip(view.exercise)}`;
+  el.lobbyExercise.textContent = `${exerciseTitle(view.exercise)}, ${durationLabel(view.durationMs)}. ${cameraTip(view.exercise)}`;
   const opp = view.players[1 - view.you];
   const host = view.you === 0;
   el.lobbyShare.hidden = !host || !!opp;
@@ -317,12 +323,12 @@ async function shareRoom(): Promise<void> {
 }
 
 // ——— Приглашение поверх экрана ———
-function showToast(room: string, from: string, exercise: ExerciseId): void {
+function showToast(room: string, from: string, exercise: ExerciseId, durationMs: number): void {
   // Уже в бою — не отвлекаем; в лобби своей комнаты — тоже.
   if (el.app.dataset.screen === 'countdown' || el.app.dataset.screen === 'battle') return;
   toastRoom = { room, from };
   el.toastFrom.textContent = from;
-  el.toastEx.textContent = exerciseTitle(exercise);
+  el.toastEx.textContent = `${exerciseTitle(exercise)}, ${durationLabel(durationMs)}`;
   el.toast.hidden = false;
 }
 

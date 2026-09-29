@@ -788,6 +788,12 @@ body {
   box-shadow: none;
 }
 
+.online__options {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--s-3);
+}
+
 .online .invite__search {
   width: 100%;
 }

@@ -7,7 +7,7 @@ import { randomInt } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { isDuelExercise } from '../src/shared/duel.ts';
-import { DuelRoom, type ClientMsg, type ServerMsg } from '../src/shared/duelRoom.ts';
+import { DuelRoom, ROOM_DURATIONS, type ClientMsg, type ServerMsg } from '../src/shared/duelRoom.ts';
 import { RateLimiter, checkNick } from './auth.ts';
 import { acceptWebSocket, reject, type WsConn } from './ws.ts';
 
@@ -107,7 +107,7 @@ export function createDuelLive(
     }
     switch (m.t) {
       case 'create':
-        return create(c, m.exercise);
+        return create(c, m.exercise, m.durationMs);
       case 'join':
         return join(c, m);
       case 'ready':
@@ -129,15 +129,18 @@ export function createDuelLive(
     }
   }
 
-  function create(c: Client, exercise: unknown = 'push_up'): void {
+  function create(c: Client, exercise: unknown = 'push_up', duration?: unknown): void {
     if (!c.user) return fail(c, 'Войди, чтобы создать дуэль');
     if (!isDuelExercise(exercise)) return fail(c, 'Неизвестное упражнение');
+    // Время боя — из списка на выбор (E-30); без него — как задано серверу (в тестах короткий бой) или минута.
+    if (duration !== undefined && !(typeof duration === 'number' && ROOM_DURATIONS.includes(duration)))
+      return fail(c, 'Такого времени боя нет — выбери 15 с, 30 с, 1 или 3 минуты');
     if (!createLimit.allow(String(c.user.id), now())) return fail(c, 'Слишком часто — подожди минуту');
     if (rooms.size >= MAX_ROOMS) return fail(c, 'Сервер занят — попробуй через минуту');
     leaveRoom(c);
     const room = new DuelRoom(newId(8), {
       countdownMs: opts.countdownMs,
-      durationMs: opts.durationMs,
+      durationMs: (duration as number | undefined) ?? opts.durationMs,
       exercise,
     });
     rooms.set(room.id, room);
@@ -177,7 +180,13 @@ export function createDuelLive(
     if (nick.trim().toLowerCase() === c.user.nick.toLowerCase()) return fail(c, 'Нельзя позвать самого себя');
     const targets = byNick(nick);
     for (const x of targets)
-      send(x, { t: 'invited', room: c.room.id, from: c.user.nick, exercise: c.room.exercise });
+      send(x, {
+        t: 'invited',
+        room: c.room.id,
+        from: c.user.nick,
+        exercise: c.room.exercise,
+        durationMs: c.room.durationMs,
+      });
     if (!targets.length) {
       // Не в сети — приглашение дождётся, когда игрок откроет дуэль (deliverWaiting).
       const key = nick.trim().toLowerCase();
@@ -200,7 +209,13 @@ export function createDuelLive(
     const t = now();
     for (const w of list)
       if (rooms.get(w.room.id) === w.room && w.room.players.length < 2 && t - w.at < INVITE_TTL_MS)
-        send(c, { t: 'invited', room: w.room.id, from: w.from, exercise: w.room.exercise });
+        send(c, {
+          t: 'invited',
+          room: w.room.id,
+          from: w.from,
+          exercise: w.room.exercise,
+          durationMs: w.room.durationMs,
+        });
   }
 
   function leaveRoom(c: Client): void {

@@ -82,8 +82,8 @@ export class Live {
     return serverTime - this.offset;
   }
 
-  create(exercise?: string): void {
-    this.send({ t: 'create', exercise });
+  create(exercise?: string, durationMs?: number): void {
+    this.send({ t: 'create', exercise, durationMs });
   }
 
   join(room: string, name?: string): void {

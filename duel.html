@@ -34,10 +34,21 @@
         <div class="inbox" id="inbox"></div>
         <section class="online" id="online" aria-labelledby="online-title" hidden>
           <h2 class="inbox__title" id="online-title">Позвать на дуэль — бой в одно время</h2>
-          <label class="field">
-            Упражнение
-            <select class="exercise-select" id="online-exercise"></select>
-          </label>
+          <div class="online__options">
+            <label class="field">
+              Упражнение
+              <select class="exercise-select" id="online-exercise"></select>
+            </label>
+            <label class="field">
+              Время
+              <select class="exercise-select" id="online-duration">
+                <option value="15000">15 с</option>
+                <option value="30000">30 с</option>
+                <option value="60000" selected>1 мин</option>
+                <option value="180000">3 мин</option>
+              </select>
+            </label>
+          </div>
           <input
             class="invite__search"
             id="online-search"

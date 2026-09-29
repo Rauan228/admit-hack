@@ -62,6 +62,8 @@ $<HTMLAnchorElement>('home').href = import.meta.env.BASE_URL;
 let bot: Bot = findBot(params.get('bot'));
 /** Во что идёт бой: у бота и вызова — отжимания, онлайн — упражнение комнаты (E-29). */
 let currentExercise: ExerciseId = 'push_up';
+/** Потолок подхода для движка: с запасом больше, чем успеть за бой (3 мин бокса — это сотни ударов, E-30). */
+let engineTarget = ENGINE_TARGET;
 /** E-25: соперник — запись друга из вызова; null — бот. */
 let opponent: RecordedOpponent | null = null;
 let engine: Engine | null = null;
@@ -243,6 +245,7 @@ function onEvent(e: EngineEvent): void {
 // ——— Бой ———
 function startMatch(): void {
   currentExercise = 'push_up';
+  engineTarget = ENGINE_TARGET;
   setCountdownText();
   // Вызов друга — бой против его записи и той же длины, что была у него.
   const dur = opponent?.durationMs ?? durationMs;
@@ -290,6 +293,7 @@ function startOnlineMatch(startLocal: number, dur: number, cd: number): void {
   opponent = null;
   announced = false;
   currentExercise = onlineDuel.exercise();
+  engineTarget = Math.max(ENGINE_TARGET, Math.ceil(dur / minGapMs(currentExercise)) + 10);
   match = new DuelMatch(
     {
       opponentReps: () => onlineDuel.oppReps(),
@@ -364,7 +368,7 @@ $<HTMLButtonElement>('change').addEventListener('click', () => {
 /** Переход фазы боя: движок включаем ровно на старте и выключаем на финише. */
 function onPhase(next: DuelPhase, s: DuelSnapshot): void {
   if (next === 'battle') {
-    engine?.setMode({ exercise: currentExercise, targetReps: ENGINE_TARGET });
+    engine?.setMode({ exercise: currentExercise, targetReps: engineTarget });
     skeletonPhase = 'start';
     sfx.go();
     say('Старт!');
