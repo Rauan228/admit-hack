@@ -1,6 +1,8 @@
 // U-03: сцена — зеркальное видео камеры и объёмная фигура поверх, на всех экранах одна и та же.
 // Рисуем сами на canvas (а не <video> + CSS), чтобы видео и скелет прошли одно преобразование cover.
-// Скелет — тонкий трекинг (lib/trace.ts) со сглаживанием One Euro.
+// Скелет — тонкий трекинг (lib/trace.ts). Под скелетом — тот кадр камеры, на котором движок посчитал точки
+// (frame.image, E-23), а не живое видео: иначе видео успевает уйти на кадр вперёд и скелет отстаёт от руки.
+// Сглаживание точек для экрана — в движке (RenderSmoother), второй фильтр здесь добавлял бы задержку.
 // На чистом повторе — вспышка фигуры, ударная волна и частицы из центра тела.
 
 import { useEffect, useRef } from 'react';
@@ -9,7 +11,7 @@ import { live } from '../engine/bus';
 import { ERROR_TTL_MS, overlay } from '../engine/overlay';
 import { bodyCenter } from '../lib/body';
 import { coverView, drawHintArrows } from '../lib/skeleton';
-import { LandmarkSmoother, drawTrace } from '../lib/trace';
+import { drawTrace } from '../lib/trace';
 import { COLORS } from '../theme';
 import './Stage.css';
 
@@ -44,7 +46,6 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
     let lastFlash = 0;
     let wave: { x: number; y: number; at: number; color: string } | null = null;
     const particles: Particle[] = [];
-    const smoother = new LandmarkSmoother();
 
     const burst = (x: number, y: number, clean: boolean) => {
       if (reduced) return;
@@ -75,18 +76,21 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const hasVideo = !!video && video.readyState >= 2 && video.videoWidth > 0;
-      const srcW = hasVideo ? video.videoWidth : DEFAULT_SRC.w;
-      const srcH = hasVideo ? video.videoHeight : DEFAULT_SRC.h;
-      const view = coverView(W, H, srcW, srcH, true);
       const now = performance.now();
+      // Кадр движка, пока он свежий; движок встал — живое видео, чтобы картинка не замерла.
+      const frameImage =
+        live.image && live.image.width > 0 && now - live.lastFrameAt <= STALE_MS ? live.image : null;
+      const hasVideo = !!video && video.readyState >= 2 && video.videoWidth > 0;
+      const srcW = frameImage ? frameImage.width : hasVideo ? video.videoWidth : DEFAULT_SRC.w;
+      const srcH = frameImage ? frameImage.height : hasVideo ? video.videoHeight : DEFAULT_SRC.h;
+      const view = coverView(W, H, srcW, srcH, true);
 
-      // Фон: видео или (в моке) тёмный градиент со «студийным» светом.
-      if (hasVideo) {
+      // Фон: кадр движка (или видео) либо (в моке) тёмный градиент со «студийным» светом.
+      if (frameImage || hasVideo) {
         ctx.save();
         ctx.translate(W, 0);
         ctx.scale(-1, 1);
-        ctx.drawImage(video, view.ox, view.oy, view.dw, view.dh);
+        ctx.drawImage(frameImage ?? video!, view.ox, view.oy, view.dw, view.dh);
         ctx.restore();
       } else {
         const g = ctx.createRadialGradient(W / 2, H * 0.35, 0, W / 2, H * 0.4, Math.max(W, H) * 0.8);
@@ -121,7 +125,7 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
       }
 
       if (fresh && lms) {
-        drawTrace(ctx, view, smoother.smooth(lms, now), {
+        drawTrace(ctx, view, lms, {
           color: flashing ? flashColor : COLORS.primary2,
           glow: MOBILE ? null : flashing ? flashColor : 'rgba(249, 115, 22, 0.7)',
           alpha: overlay.skeleton * (flashing ? 1 : 0.92),
