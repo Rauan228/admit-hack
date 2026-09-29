@@ -6,7 +6,8 @@
 FORMA — фитнес-тренер в браузере, которым управляют только телом, включая меню.
 Он считает повторения, замечает ошибки техники и говорит, как их исправить.
 
-- **Приложение:** https://abdigaliarslan.github.io/admit-hack/
+- **Приложение:** https://forma.178.88.115.213.sslip.io/ (VPS, обновляется через 2 минуты после пуша в `main`)
+- **Зеркало:** https://abdigaliarslan.github.io/admit-hack/
 - **Стенд движка** (распознавание без UI, открывается и с телефона): https://abdigaliarslan.github.io/admit-hack/dev/engine.html —
   режимы calibration / menu / squat / jumping_jack / lunge / arm_raise, скелет, курсор, счёт, подсказки, журнал событий.
 
