@@ -59,7 +59,7 @@ describe('присед + руки вверх', () => {
   });
 
   it('присел → постоял → выжал: пауза не делит повтор на два', () => {
-    const res = runSession(thrusters({ reps: 5, pauseMs: 1200 }), squatPress);
+    const res = runSession(thrusters({ reps: 5, pauseMs: 700 }), squatPress);
     expect(res.reps).toHaveLength(5);
     expect(res.reps.flatMap((r) => r.errors)).toEqual([]);
   });

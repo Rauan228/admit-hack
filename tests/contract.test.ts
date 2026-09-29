@@ -1,3 +1,4 @@
+import { createExercise } from '../src/engine/exercises';
 import { EXERCISES, type EngineEvent } from '../src/engine/types';
 
 describe('engine contract', () => {
@@ -17,7 +18,15 @@ describe('engine contract', () => {
       'calf_raise',
       'cross_jack',
       'arm_circles',
+      'boxing',
+      'push_up',
+      'plank',
+      'burpee',
     ]);
+  });
+
+  it('у каждого упражнения из контракта есть распознавание (реестр не пропустил ни одного)', () => {
+    for (const ex of EXERCISES) expect(createExercise(ex), ex).not.toBeNull();
   });
 
   it('form_error carries a concrete hint and joints', () => {

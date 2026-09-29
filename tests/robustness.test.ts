@@ -2,7 +2,7 @@ import { createExercise } from '../src/engine/exercises';
 import type { PoseFrame } from '../src/engine/geometry';
 import { bodyOf, PersonSelector } from '../src/engine/person';
 import { ExerciseSession } from '../src/engine/session';
-import type { ExerciseId, Landmark } from '../src/engine/types';
+import { EXERCISES, type Landmark } from '../src/engine/types';
 import { body, buildPose } from '../src/mocks/poses';
 
 /** Человек размером height, стоящий в точке centerX. */
@@ -59,33 +59,30 @@ function rng(seed: number): () => number {
 describe('устойчивость: мусор на входе — ни крашей, ни ложных повторов', () => {
   const kinds = ['random', 'nan', 'half', 'frozen', 'none'] as const;
 
-  it.each(['squat', 'jumping_jack', 'lunge', 'high_knees', 'knee_to_elbow', 'squat_press'] as ExerciseId[])(
-    '%s: 30 с случайных кадров',
-    (id) => {
-      const r = rng(42);
-      const session = new ExerciseSession(createExercise(id)!, 10, 0);
-      const frozen = person(0.5, 0.7);
-      let reps = 0;
-      for (let i = 0; i < 900; i++) {
-        const t = i * 33;
-        const kind = kinds[Math.floor(r() * kinds.length)]!;
-        let image: Landmark[] | null;
-        if (kind === 'none') image = null;
-        else if (kind === 'frozen') image = frozen;
-        else if (kind === 'nan') image = frozen.map((p) => ({ ...p, x: NaN, y: NaN }));
-        else if (kind === 'half') image = frozen.map((p, j) => (j > 22 ? { ...p, v: 0 } : p));
-        else
-          image = Array.from({ length: 33 }, () => ({
-            x: r() * 1.4 - 0.2,
-            y: r() * 1.4 - 0.2,
-            z: r() - 0.5,
-            v: r(),
-          }));
-        const frame: PoseFrame | null = image ? { t, aspect: 4 / 3, image, world: null } : null;
-        for (const e of session.update(frame, t)) if (e.type === 'rep') reps += 1;
-      }
-      // Мусор может изредка сложиться в «движение», но уж точно не в подход повторов.
-      expect(reps).toBeLessThanOrEqual(1);
-    },
-  );
+  it.each(EXERCISES.filter((e) => e !== 'plank'))('%s: 30 с случайных кадров', (id) => {
+    const r = rng(42);
+    const session = new ExerciseSession(createExercise(id)!, 10, 0);
+    const frozen = person(0.5, 0.7);
+    let reps = 0;
+    for (let i = 0; i < 900; i++) {
+      const t = i * 33;
+      const kind = kinds[Math.floor(r() * kinds.length)]!;
+      let image: Landmark[] | null;
+      if (kind === 'none') image = null;
+      else if (kind === 'frozen') image = frozen;
+      else if (kind === 'nan') image = frozen.map((p) => ({ ...p, x: NaN, y: NaN }));
+      else if (kind === 'half') image = frozen.map((p, j) => (j > 22 ? { ...p, v: 0 } : p));
+      else
+        image = Array.from({ length: 33 }, () => ({
+          x: r() * 1.4 - 0.2,
+          y: r() * 1.4 - 0.2,
+          z: r() - 0.5,
+          v: r(),
+        }));
+      const frame: PoseFrame | null = image ? { t, aspect: 4 / 3, image, world: null } : null;
+      for (const e of session.update(frame, t)) if (e.type === 'rep') reps += 1;
+    }
+    // Мусор может изредка сложиться в «движение», но уж точно не в подход повторов.
+    expect(reps).toBeLessThanOrEqual(1);
+  });
 });

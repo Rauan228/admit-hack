@@ -1,0 +1,246 @@
+// Бокс, отжимания, планка, бёрпи (E-22). Правильная техника — ровно N повторов без ошибок (и на 15 FPS),
+// каждая ошибка ловится; планка считает секунды; бёрпи — на реальной записи человека.
+
+import { createExercise } from '../src/engine/exercises';
+import type { BaseMetrics, ExerciseDef } from '../src/engine/exercises/types';
+import type { PoseFrame } from '../src/engine/geometry';
+import { ExerciseSession } from '../src/engine/session';
+import { blendFrames, floorFrame, frontPlankFrame, type FloorParams } from '../src/engine/skeleton';
+import type { EngineEvent, ExerciseId } from '../src/engine/types';
+import { loadFixture } from './helpers/replay';
+import { fixtureFrames, runSession } from './helpers/session';
+import { gaussian, squatPose, STAND, synthFrame } from './helpers/synth';
+
+const def = (id: ExerciseId) => createExercise(id) as ExerciseDef<BaseMetrics>;
+const wave = (x: number) => 0.5 - 0.5 * Math.cos(2 * Math.PI * x);
+const shown = (res: ReturnType<typeof runSession>) => res.shown.map((e) => e.code);
+const clean = (frames: PoseFrame[], id: ExerciseId, n: number) => {
+  const res = runSession(frames, def(id));
+  expect(res.reps).toHaveLength(n);
+  expect(res.reps.flatMap((r) => r.errors)).toEqual([]);
+  expect(res.shown).toEqual([]);
+};
+
+describe('бокс: прямые удары', () => {
+  const punches = (o: { reach?: number; guardDrop?: boolean; fps?: number } = {}) => {
+    const noise = gaussian(0.003, 21);
+    const frames: PoseFrame[] = [];
+    const period = 800;
+    for (let t = 0; t <= 1500 + 10 * period + 1000; t += 1000 / (o.fps ?? 30)) {
+      const u = t - 1500;
+      const inSet = u >= 0 && u < 10 * period;
+      const rep = inSet ? Math.floor(u / period) : 0;
+      const k = inSet ? (o.reach ?? 1) * wave((u % period) / period) : 0;
+      const left = rep % 2 === 0;
+      // Вторая рука в защите — или опущена вдоль тела (ошибка).
+      const other = o.guardDrop && inSet ? { [left ? 'armsL' : 'arms']: 10 } : {};
+      frames.push(
+        synthFrame(
+          {
+            ...STAND,
+            ...(left
+              ? { punchL: k, ...(o.guardDrop && inSet ? {} : { punchR: 0 }) }
+              : { punchR: k, ...(o.guardDrop && inSet ? {} : { punchL: 0 }) }),
+            ...other,
+          },
+          t,
+          noise,
+        ),
+      );
+    }
+    return frames;
+  };
+  it('10 ударов по очереди — 10, без ошибок; на 15 FPS тоже', () => {
+    clean(punches(), 'boxing', 10);
+    clean(punches({ fps: 15 }), 'boxing', 10);
+  });
+  it('рука не до конца — «выпрямляй руку до конца»', () => {
+    const res = runSession(punches({ reach: 0.6 }), def('boxing'));
+    expect(res.reps.length + res.attempts.length).toBe(10);
+    expect([...res.reps, ...res.attempts].every((r) => r.errors.includes('short_punch'))).toBe(true);
+  });
+  it('вторая рука опущена — «держи вторую руку у подбородка»', () => {
+    expect(shown(runSession(punches({ guardDrop: true }), def('boxing')))).toContain('guard_down');
+  });
+  it('стоит в защите — ничего', () => {
+    const noise = gaussian(0.003, 2);
+    const frames = Array.from({ length: 200 }, (_, i) =>
+      synthFrame({ ...STAND, punchL: 0, punchR: 0 }, i * 33, noise),
+    );
+    const res = runSession(frames, def('boxing'));
+    expect(res.reps).toHaveLength(0);
+    expect(res.shown).toEqual([]);
+  });
+});
+
+/** Подход в упоре лёжа сбоку: 1,5 с в упоре, reps циклов, 1 с в упоре. */
+function floorSet(reps: number, pose: (k: number) => Partial<FloorParams>, fps = 30): PoseFrame[] {
+  const noise = gaussian(0.003, 31);
+  const frames: PoseFrame[] = [];
+  const period = 2000;
+  for (let t = 0; t <= 1500 + reps * period + 1000; t += 1000 / fps) {
+    const u = t - 1500;
+    const extra = u >= 0 && u < reps * period ? pose((u % period) / period) : {};
+    frames.push(floorFrame({ elbow: 180, ...extra }, t, noise));
+  }
+  return frames;
+}
+
+describe('отжимания (боком к камере)', () => {
+  it('8 отжиманий до 90° — 8, без ошибок; на 15 FPS тоже', () => {
+    clean(
+      floorSet(8, (k) => ({ elbow: 180 - 92 * wave(k) })),
+      'push_up',
+      8,
+    );
+    clean(
+      floorSet(8, (k) => ({ elbow: 180 - 92 * wave(k) }), 15),
+      'push_up',
+      8,
+    );
+  });
+  it('неглубоко (локти до 125°) — «опускайся ниже»', () => {
+    const res = runSession(
+      floorSet(8, (k) => ({ elbow: 180 - 55 * wave(k) })),
+      def('push_up'),
+    );
+    expect(res.reps.length + res.attempts.length).toBe(8);
+    expect([...res.reps, ...res.attempts].every((r) => r.errors.includes('shallow_pushup'))).toBe(true);
+  });
+  it('таз провис — «не проваливай таз»; поднят — «опусти таз»', () => {
+    expect(
+      shown(
+        runSession(
+          floorSet(6, (k) => ({ elbow: 180 - 92 * wave(k), sag: 0.12 })),
+          def('push_up'),
+        ),
+      ),
+    ).toContain('hips_sag');
+    expect(
+      shown(
+        runSession(
+          floorSet(6, (k) => ({ elbow: 180 - 92 * wave(k), sag: -0.15 })),
+          def('push_up'),
+        ),
+      ),
+    ).toContain('hips_high');
+  });
+  it('стоя (не в упоре) сгибает руки — не отжимания', () => {
+    const noise = gaussian(0.003, 4);
+    const frames = Array.from({ length: 300 }, (_, i) =>
+      synthFrame({ ...STAND, arms: 20, elbow: 90 * wave((i * 33) / 2000) }, i * 33, noise),
+    );
+    const res = runSession(frames, def('push_up'));
+    expect(res.reps).toHaveLength(0);
+    expect(res.shown).toEqual([]);
+  });
+});
+
+describe('планка — на время', () => {
+  const plankEvents = (seconds: number, extra: Partial<FloorParams> = {}, target = 100): EngineEvent[] => {
+    const session = new ExerciseSession(def('plank'), target, 0);
+    const noise = gaussian(0.003, 8);
+    const events: EngineEvent[] = [];
+    for (let t = 0; t <= seconds * 1000; t += 33) {
+      events.push(...session.update(floorFrame({ elbow: 90, forearms: true, ...extra }, t, noise), t));
+    }
+    return events;
+  };
+  it('10 с в планке — 10 повторов-секунд без ошибок', () => {
+    const events = plankEvents(10.05);
+    const reps = events.filter((e) => e.type === 'rep');
+    expect(reps.length).toBeGreaterThanOrEqual(9);
+    expect(reps.length).toBeLessThanOrEqual(10);
+    expect(reps.flatMap((e) => (e.type === 'rep' ? e.errors : []))).toEqual([]);
+  });
+  it('цель в секундах: 5 с — подход закрыт', () => {
+    const events = plankEvents(8, {}, 5);
+    expect(events.filter((e) => e.type === 'set_complete')).toHaveLength(1);
+    expect(events.filter((e) => e.type === 'rep')).toHaveLength(5);
+  });
+  it('таз провис — подсказка и сниженная оценка секунд', () => {
+    const events = plankEvents(6, { sag: 0.12 });
+    expect(events.some((e) => e.type === 'form_error' && e.code === 'hips_sag')).toBe(true);
+    const scores = events.flatMap((e) => (e.type === 'rep' ? [e.score] : []));
+    expect(scores.length).toBeGreaterThanOrEqual(4);
+    expect(Math.max(...scores)).toBeLessThan(100);
+  });
+  it('стоит — секунды не идут', () => {
+    const session = new ExerciseSession(def('plank'), 100, 0);
+    const noise = gaussian(0.003, 6);
+    const events: EngineEvent[] = [];
+    for (let t = 0; t < 5000; t += 33) events.push(...session.update(synthFrame({ ...STAND }, t, noise), t));
+    expect(events.filter((e) => e.type === 'rep')).toHaveLength(0);
+  });
+});
+
+describe('бёрпи', () => {
+  /** Стойка → присед → упор лёжа лицом к камере → присед → встал → прыжок (если jump). */
+  const burpees = (o: { jump?: boolean; plank?: boolean; fps?: number } = {}) => {
+    const noise = gaussian(0.003, 41);
+    const stand = synthFrame({ ...STAND, arms: 10 }, 0);
+    // Присед с руками к полу — плечи опускаются лишь наполовину; упор лёжа — до ~0,3 высоты стоя.
+    const crouch = synthFrame({ ...squatPose(90), lean: 30, arms: 10 }, 0);
+    const low =
+      o.plank === false ? synthFrame({ ...squatPose(100), lean: 30, arms: 10 }, 0) : frontPlankFrame({}, 0);
+    const jump = synthFrame(
+      { ...STAND, arms: o.jump === false ? 10 : 175, footY: o.jump === false ? 0.92 : 0.85 },
+      0,
+    );
+    const keys: [number, PoseFrame][] = [
+      [0, stand],
+      [0.15, crouch],
+      [0.3, low],
+      [0.5, low],
+      [0.65, crouch],
+      [0.76, stand],
+      [0.88, jump],
+      [1, stand],
+    ];
+    const period = 3600;
+    const frames: PoseFrame[] = [];
+    for (let t = 0; t <= 1500 + 5 * period + 1500; t += 1000 / (o.fps ?? 30)) {
+      const u = t - 1500;
+      let f = stand;
+      if (u >= 0 && u < 5 * period) {
+        const k = (u % period) / period;
+        for (let i = 1; i < keys.length; i++) {
+          const [k0, a] = keys[i - 1]!;
+          const [k1, b] = keys[i]!;
+          if (k <= k1) {
+            f = blendFrames(a, b, 0.5 - 0.5 * Math.cos((Math.PI * (k - k0)) / (k1 - k0)), t);
+            break;
+          }
+        }
+      }
+      frames.push({
+        ...f,
+        t,
+        image: f.image.map((p) => ({ ...p, x: p.x + noise(), y: p.y + noise() })),
+      });
+    }
+    return frames;
+  };
+  it('5 бёрпи с прыжком — 5, без ошибок; на 15 FPS тоже', () => {
+    clean(burpees(), 'burpee', 5);
+    clean(burpees({ fps: 15 }), 'burpee', 5);
+  });
+  it('без прыжка в конце — «выпрыгни вверх»', () => {
+    const res = runSession(burpees({ jump: false }), def('burpee'));
+    expect(res.reps).toHaveLength(5);
+    expect(res.reps.every((r) => r.errors.includes('no_jump'))).toBe(true);
+  });
+  it('только присед вместо упора лёжа — не бёрпи, но подсказка «до упора лёжа»', () => {
+    const res = runSession(burpees({ plank: false }), def('burpee'));
+    expect(res.reps.every((r) => r.errors.includes('not_low'))).toBe(true);
+    expect(shown(res)).toContain('not_low');
+  });
+  it('реальная запись: 3 бёрпи между «звёздочками», сами «звёздочки» — не бёрпи', () => {
+    for (const every of [1, 2]) {
+      const res = runSession(fixtureFrames(loadFixture('jumping-jack-front.json'), every), def('burpee'));
+      expect(res.reps).toHaveLength(3);
+      // В записи человек встаёт без прыжка — это честная ошибка, и других нет (упор лёжа — до конца).
+      for (const r of res.reps) expect(r.errors).toEqual(['no_jump']);
+    }
+  });
+});
