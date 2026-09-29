@@ -3,6 +3,7 @@
 // Дальняя от камеры сторона (по z MediaPipe) рисуется первой и темнее — фигура читается объёмной.
 
 import type { Landmark } from '../../engine/types';
+import { capsulePath } from './shapes';
 import { toScreen, type View } from './skeleton';
 
 const MIN_V = 0.5;
@@ -82,20 +83,21 @@ export function drawBody(ctx: CanvasRenderingContext2D, v: View, lms: Landmark[]
     const bad = isBad(a, b);
     const width = Math.max(4, sw * w);
     const line = bad ? errColor : s.line;
-    // Контур: та же капсула шире, со свечением.
+    // Сужающаяся капсула: у плеча/бедра толще, к кисти/стопе тоньше. Контур — та же капсула шире.
+    const r1 = width / 2;
+    const r2 = r1 * 0.72;
     ctx.shadowColor = bad ? errColor : (s.glow ?? 'transparent');
     ctx.shadowBlur = s.glow || bad ? outline * 5 : 0;
-    ctx.strokeStyle = line;
-    ctx.lineWidth = width + outline * 2;
-    seg(ctx, A, B);
+    ctx.fillStyle = line;
+    capsulePath(ctx, A, B, r1 + outline, r2 + outline);
+    ctx.fill();
     ctx.shadowBlur = 0;
-    // Заливка.
-    ctx.strokeStyle = bad ? withAlpha(errColor, 0.55) : s.fill;
-    ctx.lineWidth = width;
-    seg(ctx, A, B);
+    ctx.fillStyle = bad ? withAlpha(errColor, 0.55) : s.fill;
+    capsulePath(ctx, A, B, r1, r2);
+    ctx.fill();
     if (dim) {
-      ctx.strokeStyle = 'rgba(5, 8, 16, 0.32)';
-      seg(ctx, A, B);
+      ctx.fillStyle = 'rgba(5, 8, 16, 0.32)';
+      ctx.fill();
     }
     if (s.core) {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
