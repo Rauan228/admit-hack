@@ -20,21 +20,42 @@ export interface GhostProps {
   highlight?: ReadonlySet<number>;
   /** Отсчёт времени снаружи (синхронизация с HUD на лендинге), иначе — с момента монтирования. */
   clock?: () => number;
+  /**
+   * Только анатомическая модель, без промежуточных 2D/процедурных версий (лендинг): пока модель грузится,
+   * холст пуст, снаружи показываем заставку. Без WebGL или если модель не пришла за 12 с — 2D.
+   */
+  anatomyOnly?: boolean;
+  /** Первый кадр нарисован (для плавного появления). */
+  onReady?: () => void;
 }
 
 const MOBILE = isMobileDevice();
 /** three.js — отдельный чанк: грузим один раз и только там, где есть атлет. */
 let load3d: Promise<typeof import('../three')> | null = null;
 const FRAME_MS = 1000 / 30;
+const ANATOMY_TIMEOUT_MS = 12_000;
+/** Вид атлета на упражнение — один на страницу: смена упражнения мгновенная, без повторной сборки мешей. */
+const zviews = new Map<GhostId, import('../three').ZAthleteView>();
 
-export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlight, clock }: GhostProps) {
+export function Ghost({
+  exercise,
+  className,
+  yaw: yawProp,
+  sway = false,
+  highlight,
+  clock,
+  anatomyOnly = false,
+  onReady,
+}: GhostProps) {
   const yaw = yawProp ?? PREFERRED_YAW[exercise];
   const ref = useRef<HTMLCanvasElement>(null);
   const hl = useRef(highlight);
   const clk = useRef(clock);
+  const ready = useRef(onReady);
   useEffect(() => {
     hl.current = highlight;
     clk.current = clock;
+    ready.current = onReady;
   });
 
   useEffect(() => {
@@ -49,18 +70,28 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
     let view: import('../three').AthleteView | null = null;
     let zview: import('../three').ZAthleteView | null = null;
     let cancelled = false;
+    let shown = false;
+    const show = () => {
+      if (shown) return;
+      shown = true;
+      ready.current?.();
+    };
     // Упражнения без эталона — стикмен по призраку движка, 3D не грузим.
     const stick = !hasRecordedMotion(exercise);
+    // anatomyOnly: ждём анатомию; не пришла — честный 2D, а не пустая карточка.
+    let waitAnatomy = anatomyOnly && !stick;
+    const giveUp = waitAnatomy ? setTimeout(() => (waitAnatomy = false), ANATOMY_TIMEOUT_MS) : 0;
     if (!stick) {
       load3d ??= import('../three');
       load3d
         .then((m) => {
           if (cancelled) return;
-          view = new m.AthleteView(exercise);
-          zview = new m.ZAthleteView(exercise);
+          if (!anatomyOnly) view = new m.AthleteView(exercise);
+          zview = zviews.get(exercise) ?? new m.ZAthleteView(exercise);
+          zviews.set(exercise, zview);
         })
         .catch(() => {
-          /* без 3D — остаётся 2D */
+          waitAnatomy = false; // без 3D — остаётся 2D
         });
     }
 
@@ -83,6 +114,7 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);
         drawStick(ctx, W, H, exercise as ExerciseId, t, hl.current);
+        show();
         if (reduced) {
           cancelAnimationFrame(raf);
           raf = 0;
@@ -96,6 +128,9 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
       const drawn3d =
         (!!zview && zview.render(ctx, canvas.width, canvas.height, pose, o3d)) ||
         (!!view && view.render(ctx, canvas.width, canvas.height, pose, o3d));
+      // Ждём анатомию: холст не трогаем (при смене упражнения остаётся прошлый кадр, он под затуханием).
+      if (!drawn3d && waitAnatomy) return;
+      show();
       if (!drawn3d) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);
@@ -125,11 +160,12 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
     kick();
     return () => {
       cancelled = true;
+      clearTimeout(giveUp);
       cancelAnimationFrame(raf);
       io?.disconnect();
       document.removeEventListener('visibilitychange', kick);
     };
-  }, [exercise, yaw, sway]);
+  }, [exercise, yaw, sway, anatomyOnly]);
 
   return <canvas ref={ref} className={className} aria-hidden="true" />;
 }

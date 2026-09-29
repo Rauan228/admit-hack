@@ -5,7 +5,7 @@
 // Единственный клик в приложении — «Начать»: браузеру нужен жест, чтобы дать камеру и звук.
 
 import { useEffect, useRef, useState } from 'react';
-import { FORM_ERRORS } from '../../engine/hints';
+import { FORM_ERRORS, findFormError } from '../../engine/hints';
 import { EXERCISES } from '../../engine/types';
 import { Ghost } from '../components/Ghost';
 import { Icon } from '../components/Icon';
@@ -17,10 +17,111 @@ import { useReveal } from '../lib/useReveal';
 import './Landing.css';
 
 const ERROR_COUNT = Object.values(FORM_ERRORS).reduce((a, list) => a + list.length, 0);
-/** Каждый четвёртый повтор в витрине — с ошибкой «колени внутрь»: так видно режим «ошибка». */
-const ERROR_EVERY = 4;
-const TARGET = 15;
-const KNEES = new Set([23, 24, 25, 26]);
+
+// ——— Витрина первого экрана: подходы по 5 повторов, четвёртый — с ошибкой, потом следующее упражнение ———
+const SET = 5;
+/** Номер повтора с ошибкой (с нуля): видно режим «ошибка» и что следующий уже чистый. */
+const BAD_REP = 3;
+/** Пауза после подхода («подход выполнен») и затухание перед сменой упражнения, мс. */
+const HOLD_MS = 2000;
+const FADE_MS = 420;
+
+const LEGS = [23, 24, 25, 26, 27, 28, 31, 32];
+const ARMS = [11, 12, 13, 14, 15, 16];
+
+interface Call {
+  name: string;
+  ru: string;
+  /** Подпись; `%` заменяется нагрузкой по глубине повтора. */
+  value: string;
+  side: 'l' | 'r';
+  top: number;
+  /** Мышца, которую касается ошибка витрины. */
+  err?: boolean;
+  dim?: boolean;
+}
+
+interface Show {
+  ex: 'squat' | 'jumping_jack' | 'lunge' | 'arm_raise';
+  code: string;
+  yaw: number;
+  /** Длительность одного повтора, мс (выпад в записи — обе ноги, повтор — одна). */
+  rep: number;
+  hl: ReadonlySet<number>;
+  calls: Call[];
+}
+
+const SHOWCASE: Show[] = [
+  {
+    ex: 'squat',
+    code: 'knees_in',
+    yaw: 0.5,
+    rep: durationOf('squat'),
+    hl: new Set([23, 24, 25, 26]),
+    calls: [
+      { name: 'Deltoid', ru: 'дельты', value: 'стабилизация', side: 'r', top: 38, dim: true },
+      { name: 'Gluteus', ru: 'ягодичные', value: 'активны', side: 'r', top: 58 },
+      { name: 'Quadriceps', ru: 'квадрицепсы', value: 'нагрузка %', side: 'l', top: 70, err: true },
+      { name: 'Calf', ru: 'икры', value: 'опора', side: 'l', top: 85, dim: true },
+    ],
+  },
+  {
+    ex: 'jumping_jack',
+    code: 'arms_low',
+    yaw: 0.22,
+    rep: durationOf('jumping_jack'),
+    hl: new Set([...ARMS]),
+    calls: [
+      { name: 'Deltoid', ru: 'дельты', value: 'нагрузка %', side: 'r', top: 36, err: true },
+      { name: 'Abductors', ru: 'отводящие', value: 'активны', side: 'r', top: 53 },
+      { name: 'Quadriceps', ru: 'квадрицепсы', value: 'амортизация', side: 'l', top: 64, dim: true },
+      { name: 'Calf', ru: 'икры', value: 'толчок', side: 'l', top: 80 },
+    ],
+  },
+  {
+    ex: 'lunge',
+    code: 'knee_past_toe',
+    yaw: 0.75,
+    rep: durationOf('lunge') / 2,
+    hl: new Set(LEGS),
+    calls: [
+      { name: 'Deltoid', ru: 'дельты', value: 'баланс', side: 'r', top: 36, dim: true },
+      { name: 'Gluteus', ru: 'ягодичные', value: 'активны', side: 'r', top: 55 },
+      { name: 'Quadriceps', ru: 'квадрицепсы', value: 'нагрузка %', side: 'l', top: 66, err: true },
+      { name: 'Hamstrings', ru: 'бицепс бедра', value: 'активны', side: 'l', top: 80 },
+    ],
+  },
+  {
+    ex: 'arm_raise',
+    code: 'elbows_bent',
+    yaw: 0.2,
+    rep: durationOf('arm_raise'),
+    hl: new Set(ARMS),
+    calls: [
+      { name: 'Trapezius', ru: 'трапеция', value: 'активна', side: 'r', top: 24 },
+      { name: 'Deltoid', ru: 'дельты', value: 'нагрузка %', side: 'l', top: 30, err: true },
+      { name: 'Core', ru: 'корпус', value: 'стабилизация', side: 'r', top: 54, dim: true },
+      { name: 'Calf', ru: 'икры', value: 'опора', side: 'l', top: 80, dim: true },
+    ],
+  },
+];
+
+const segLen = (s: Show) => SET * s.rep + HOLD_MS;
+const LOOP_MS = SHOWCASE.reduce((a, s) => a + segLen(s), 0);
+
+/** Где мы в витрине по общим часам: упражнение и время внутри подхода. */
+function locate(t: number) {
+  let u = ((t % LOOP_MS) + LOOP_MS) % LOOP_MS;
+  for (let i = 0; i < SHOWCASE.length; i += 1) {
+    const s = SHOWCASE[i]!;
+    if (u < segLen(s)) return { i, s, u };
+    u -= segLen(s);
+  }
+  return { i: 0, s: SHOWCASE[0]!, u: 0 };
+}
+
+/** Оценка повтора k в подходе i: ошибочный — ниже, чистые — 91–98. */
+const scoreOf = (i: number, k: number) => (k === BAD_REP ? 64 : 91 + ((k * 5 + i * 3) % 8));
 
 const STEPS = [
   { n: '01', title: 'Встань', text: 'Камера находит тело и строит скелет из 33 точек.' },
@@ -61,8 +162,17 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
     const t0 = performance.now();
     return () => performance.now() - t0;
   });
-  const rep = useRep(clock);
-  const bad = rep.n > 0 && rep.n % ERROR_EVERY === 0;
+  const show = useShowcase(clock);
+  const cur = SHOWCASE[show.i]!;
+  // Атлет видит время своего подхода; после пятого повтора — стоит (поза конца цикла = стойка).
+  const [athleteClock] = useState(() => () => {
+    const { s, u } = locate(clock());
+    return Math.min(u, SET * s.rep - 1);
+  });
+  const [ready, setReady] = useState(false);
+  const bad = show.live === 'bad';
+  const error = findFormError(cur.ex, cur.code)?.message ?? '';
+  const clean = show.scores.filter((_, k) => k !== BAD_REP).length;
 
   return (
     <main ref={root} className="landing">
@@ -110,38 +220,58 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
           </dl>
         </div>
 
-        <figure className="atlas rise" style={order(2)} aria-hidden="true">
+        <figure
+          className={`atlas rise ${ready ? 'is-ready' : ''} ${show.leaving ? 'is-leaving' : ''}`}
+          style={order(2)}
+          aria-hidden="true"
+        >
           <span className="atlas__corner atlas__corner--tl" />
           <span className="atlas__corner atlas__corner--tr" />
           <span className="atlas__corner atlas__corner--bl" />
           <span className="atlas__corner atlas__corner--br" />
           <span className="atlas__axis atlas__axis--x" />
           <span className="atlas__axis atlas__axis--y" />
+          <div className="atlas__boot">
+            <span className="atlas__scan" />
+            <span className="tag">loading anatomy model</span>
+          </div>
           <Ghost
-            exercise="squat"
-            yaw={0.5}
-            clock={clock}
-            highlight={bad ? KNEES : undefined}
+            exercise={cur.ex}
+            yaw={cur.yaw}
+            clock={athleteClock}
+            highlight={bad ? cur.hl : undefined}
             className="atlas__ghost"
+            anatomyOnly
+            onReady={() => setReady(true)}
           />
-          <Callout className="atlas__call--delts" name="Deltoid" ru="дельты" value="стабилизация" />
-          <Callout
-            className="atlas__call--quads"
-            name="Quadriceps"
-            ru="квадрицепсы"
-            value={`нагрузка ${Math.round(40 + 55 * rep.depth)}%`}
-            bad={bad}
-          />
-          <Callout className="atlas__call--glutes" name="Gluteus" ru="ягодичные" value="активны" />
-          <Callout className="atlas__call--calf" name="Calf" ru="икры" value="опора" />
+          <div className="atlas__calls" key={cur.ex}>
+            {cur.calls.map((c, k) => (
+              <Callout
+                key={c.name}
+                call={c}
+                i={k}
+                value={c.value.replace('%', `${Math.round(40 + 55 * show.depth)}%`)}
+                bad={bad && !!c.err}
+              />
+            ))}
+          </div>
           <figcaption className="atlas__meta">
             <span>pose · 33 kp</span>
-            <span>squat · rep {String(rep.n).padStart(2, '0')}</span>
+            <span>
+              {cur.ex.replace('_', ' ')} · rep {String(show.n).padStart(2, '0')}/
+              {String(SET).padStart(2, '0')}
+            </span>
           </figcaption>
         </figure>
 
         <aside className="hud rise" style={order(3)} aria-label="Пример анализа повтора">
-          <div className={`hud__ring ${bad ? 'is-bad' : 'is-good'}`}>
+          <header className="hud__head" key={cur.ex}>
+            <span className="tag">
+              упражнение {String(show.i + 1).padStart(2, '0')} / {String(SHOWCASE.length).padStart(2, '0')}
+            </span>
+            <b>{EXERCISE_META[cur.ex].short}</b>
+          </header>
+          <div className={`hud__ring ${show.lastBad ? 'is-bad' : 'is-good'}`}>
             <svg viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="44" className="hud__track" />
               <circle
@@ -150,21 +280,48 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
                 r="44"
                 pathLength="100"
                 className="hud__fill"
-                style={{ strokeDasharray: `${rep.score} 100` }}
+                style={{ strokeDasharray: `${show.score} 100` }}
               />
             </svg>
-            <b>+{rep.score}</b>
-            <small>оценка техники</small>
+            <b>{show.score ? show.score : '—'}</b>
+            <small>{show.done ? 'средняя оценка' : 'оценка техники'}</small>
           </div>
           <div className="hud__row">
             <span className="tag">повторы</span>
             <b>
-              {Math.min(rep.n, TARGET)} <small>/ {TARGET}</small>
+              {show.n} <small>/ {SET}</small>
             </b>
           </div>
-          <div className={`hud__state ${bad ? 'is-bad' : 'is-good'}`} key={rep.n}>
+          <ol className="hud__pips" aria-hidden="true">
+            {Array.from({ length: SET }, (_, k) => (
+              <li
+                key={k}
+                className={
+                  k < show.n
+                    ? k === BAD_REP
+                      ? 'is-bad'
+                      : 'is-good'
+                    : k === show.n && !show.done
+                      ? 'is-now'
+                      : ''
+                }
+              />
+            ))}
+          </ol>
+          <div
+            className={`hud__state is-${show.done ? 'done' : bad ? 'bad' : 'good'}`}
+            key={show.live + show.n}
+          >
             <Icon name={bad ? 'alert' : 'check'} size={18} />
-            {bad ? 'Колени внутрь — разведи по носкам' : 'Чистое повторение'}
+            {show.done
+              ? `Подход выполнен · ${clean} из ${SET} чисто`
+              : bad
+                ? error
+                : show.n === 0
+                  ? 'Скелет найден — начинаем'
+                  : show.lastBad
+                    ? 'Исправил — так держать'
+                    : 'Чистое повторение'}
           </div>
           <p className="tag hud__foot">real-time analysis</p>
         </aside>
@@ -296,47 +453,76 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
   );
 }
 
-/** Счётчик повторов витрины по тем же часам, что и атлет: номер повтора, глубина (0..1), оценка. */
-function useRep(clock: () => number) {
-  const dur = durationOf('squat');
-  const [state, setState] = useState({ n: 0, depth: 0, score: 96 });
+interface ShowState {
+  i: number;
+  /** Засчитано повторов в подходе. */
+  n: number;
+  /** Идущий сейчас повтор: чистый или с ошибкой. */
+  live: 'good' | 'bad';
+  lastBad: boolean;
+  done: boolean;
+  leaving: boolean;
+  depth: number;
+  /** Оценка последнего повтора, после подхода — средняя; 0 — ещё нет. */
+  score: number;
+  scores: number[];
+}
+
+/** Состояние витрины по тем же часам, что и атлет: повтор атлета = повтор на счётчике. */
+function useShowcase(clock: () => number): ShowState {
+  // При reduced motion — статичный кадр: середина подхода с ошибкой (самое информативное).
+  const [reduced] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+  const [state, setState] = useState<ShowState>(() =>
+    reduced ? { ...at(SHOWCASE[0]!.rep * 3.5), depth: 0.8 } : at(0),
+  );
   useEffect(() => {
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    const tick = () => {
-      if (reduced) return setState({ n: 12, depth: 0.8, score: 95 });
-      const t = clock();
-      const n = Math.floor(t / dur);
-      const u = (t % dur) / dur;
-      const depth = Math.sin(Math.PI * Math.min(1, u / 0.9));
-      const bad = n > 0 && n % ERROR_EVERY === 0;
-      const score = bad ? 64 : 92 + ((n * 7) % 7);
-      setState((s) => (s.n === n && Math.abs(s.depth - depth) < 0.05 ? s : { n, depth, score }));
-    };
-    const id = setInterval(tick, reduced ? 60_000 : 120);
+    if (reduced) return;
+    const tick = () =>
+      setState((s) => {
+        const next = at(clock());
+        const same =
+          s.i === next.i &&
+          s.n === next.n &&
+          s.live === next.live &&
+          s.done === next.done &&
+          s.leaving === next.leaving &&
+          Math.abs(s.depth - next.depth) < 0.04;
+        return same ? s : next;
+      });
+    const id = setInterval(tick, 80);
     return () => clearInterval(id);
-  }, [clock, dur]);
+  }, [clock, reduced]);
   return state;
 }
 
-function Callout({
-  className,
-  name,
-  ru,
-  value,
-  bad,
-}: {
-  className: string;
-  name: string;
-  ru: string;
-  value: string;
-  bad?: boolean;
-}) {
+function at(t: number): ShowState {
+  const { i, s, u } = locate(t);
+  const c = Math.floor(u / s.rep);
+  const n = Math.min(SET, c);
+  const done = c >= SET;
+  const scores = Array.from({ length: n }, (_, k) => scoreOf(i, k));
+  const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+  return {
+    i,
+    n,
+    live: !done && c === BAD_REP ? 'bad' : 'good',
+    lastBad: !done && n - 1 === BAD_REP,
+    done,
+    leaving: u > segLen(s) - FADE_MS,
+    depth: done ? 0 : Math.sin(Math.PI * ((u % s.rep) / s.rep)),
+    score: done ? avg : (scores[n - 1] ?? 0),
+    scores,
+  };
+}
+
+function Callout({ call, i, value, bad }: { call: Call; i: number; value: string; bad: boolean }) {
+  const cls = ['atlas__call', `atlas__call--${call.side}`, call.dim ? 'is-dim' : '', bad ? 'is-bad' : ''];
   return (
-    <span className={`atlas__call ${className} ${bad ? 'is-bad' : ''}`}>
+    <span className={cls.join(' ')} style={{ top: `${call.top}%`, animationDelay: `${120 + i * 70}ms` }}>
       <i />
-      <b>{name}</b>
+      <b>{call.name}</b>
       <small>
-        {ru} · {value}
+        {call.ru} · {value}
       </small>
     </span>
   );

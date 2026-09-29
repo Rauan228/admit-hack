@@ -229,6 +229,60 @@
   inset: 2% 12%;
   width: 76%;
   height: 94%;
+  opacity: 0;
+  transform: translateY(8px) scale(0.985);
+  transition:
+    opacity 420ms var(--ease-out),
+    transform 620ms var(--ease-out);
+}
+
+.atlas.is-ready .atlas__ghost {
+  opacity: 1;
+  transform: none;
+}
+
+.atlas.is-ready.is-leaving .atlas__ghost {
+  opacity: 0;
+  transform: translateY(4px) scale(0.99);
+  transition-duration: 360ms;
+}
+
+/* Заставка, пока грузится анатомическая модель: тонкая линия сканирования. */
+.atlas__boot {
+  position: absolute;
+  inset: 8% 24%;
+  display: grid;
+  place-items: end center;
+  padding-bottom: 6%;
+  border-inline: 1px dashed var(--a-line);
+  transition: opacity 400ms var(--ease);
+  pointer-events: none;
+}
+
+.atlas.is-ready .atlas__boot {
+  opacity: 0;
+}
+
+.atlas__scan {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--a-blue), transparent);
+  box-shadow: 0 0 12px rgba(143, 179, 217, 0.5);
+  animation: atlas-scan 1.8s var(--ease) infinite alternate;
+}
+
+@keyframes atlas-scan {
+  to {
+    top: 100%;
+  }
+}
+
+.atlas__calls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .atlas__corner {
@@ -339,57 +393,85 @@
   background: var(--a-bad);
 }
 
-/* Выноски справа — линия уходит влево к телу, слева — вправо. */
-.atlas__call--delts {
-  top: 24%;
-  right: 4%;
+/* Выноски справа — линия уходит влево к телу, слева — вправо. Высота — из данных упражнения. */
+.atlas__call {
+  opacity: 0;
+  animation: call-in 480ms var(--ease-out) forwards;
+  transition:
+    opacity var(--t-med) var(--ease),
+    border-color var(--t-med) var(--ease);
 }
 
-.atlas__call--glutes {
-  top: 50%;
-  right: 2%;
+.atlas:not(.is-ready) .atlas__call {
+  animation-play-state: paused;
 }
 
-.atlas__call--delts i,
-.atlas__call--glutes i {
+.atlas.is-leaving .atlas__call {
+  animation: call-out 300ms var(--ease) forwards;
+}
+
+@keyframes call-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes call-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.atlas__call.is-dim b {
+  color: var(--a-muted);
+}
+
+.atlas__call.is-dim i::after {
+  background: transparent;
+}
+
+.atlas__call--r {
+  right: 3%;
+}
+
+.atlas__call--r i {
   right: calc(100% + 1px);
 }
 
-.atlas__call--delts i::after,
-.atlas__call--glutes i::after {
+.atlas__call--r i::after {
   left: -4px;
 }
 
-.atlas__call--quads,
-.atlas__call--calf {
+.atlas__call--l {
+  left: -5%;
   padding: 0 10px 0 0;
   border-left: 0;
   border-right: 1px solid var(--a-line-2);
   align-items: flex-end;
 }
 
-.atlas__call--quads {
-  top: 60%;
-  left: 0;
-}
-
-.atlas__call--calf {
-  top: 78%;
-  left: 6%;
-}
-
-.atlas__call--quads i,
-.atlas__call--calf i {
+.atlas__call--l i {
   left: calc(100% + 1px);
 }
 
-.atlas__call--quads i::after,
-.atlas__call--calf i::after {
+.atlas__call--l i::after {
   right: -4px;
 }
 
-.atlas__call--quads.is-bad {
+.atlas__call--l.is-bad {
   border-right-color: var(--a-bad);
+}
+
+.atlas__call--r.is-bad {
+  border-left-color: var(--a-bad);
 }
 
 .atlas__meta {
@@ -416,6 +498,20 @@
   background: var(--a-panel);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+.hud__head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--a-line-2);
+  animation: state-in 420ms var(--ease-out) both;
+}
+
+.hud__head b {
+  font: 700 17px / 1.2 var(--f-head);
+  letter-spacing: -0.01em;
 }
 
 .hud__ring {
@@ -489,8 +585,44 @@
   color: var(--a-muted);
 }
 
+.hud__pips {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin: calc(var(--s-2) * -1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hud__pips li {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--a-line-2);
+  transition: background-color 260ms var(--ease);
+}
+
+.hud__pips li.is-good {
+  background: var(--a-good);
+}
+
+.hud__pips li.is-bad {
+  background: var(--a-bad);
+}
+
+.hud__pips li.is-now {
+  background: var(--a-blue);
+  animation: pip-now 1.1s var(--ease) infinite alternate;
+}
+
+@keyframes pip-now {
+  from {
+    opacity: 0.35;
+  }
+}
+
 .hud__state {
   display: flex;
+  min-height: 72px;
   align-items: center;
   gap: var(--s-2);
   padding: 10px 12px;
@@ -505,6 +637,16 @@
   color: var(--a-good);
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.hud__state.is-done {
+  color: var(--a-fg);
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.4);
+}
+
+.hud__state.is-done svg {
+  color: var(--a-accent);
 }
 
 .hud__state.is-bad {
@@ -864,6 +1006,14 @@
     padding-top: 0;
     gap: var(--s-3);
   }
+  .hud__head,
+  .hud__pips {
+    flex: 1 1 100%;
+    margin: 0;
+  }
+  .hud__state {
+    flex: 1 1 240px;
+  }
   .cats,
   .steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -905,6 +1055,9 @@
   .atlas__call i {
     width: 22px;
   }
+  .atlas__call--l {
+    left: 0;
+  }
   .hud {
     flex-direction: row;
     padding: var(--s-4);
@@ -939,7 +1092,14 @@
     transform: none;
     transition: none;
   }
-  .hud__state {
+  .hud__state,
+  .hud__head,
+  .atlas__scan,
+  .hud__pips li.is-now {
     animation: none;
+  }
+  .atlas__call {
+    animation: none;
+    opacity: 1;
   }
 }
