@@ -3,7 +3,8 @@
 import { useEffect, useRef } from 'react';
 import { GHOST_KEYFRAMES, ghostPoseAt } from '../../engine/ghostPoses';
 import type { ExerciseId } from '../../engine/types';
-import { BONES, drawSkeleton, type View } from '../lib/skeleton';
+import { drawBody } from '../lib/body';
+import { BONES, type View } from '../lib/skeleton';
 import { COLORS } from '../theme';
 
 export function Ghost({
@@ -38,10 +39,11 @@ export function Ghost({
       // При reduced motion показываем нижнюю точку движения статично — самую информативную позу.
       const t = reduced ? 1400 : performance.now() - start;
       const lms = ghostPoseAt(exercise, t);
-      drawSkeleton(ctx, fitView(W, H, box), lms, {
-        color,
-        glow: color,
-        width: Math.max(5, H * 0.018),
+      drawBody(ctx, fitView(W, H, box), lms, {
+        fill: color,
+        line: '#fdba74',
+        glow: 'rgba(249, 115, 22, 0.7)',
+        outline: Math.max(2, H * 0.006),
       });
     };
     raf = requestAnimationFrame(draw);

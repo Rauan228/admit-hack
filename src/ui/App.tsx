@@ -43,13 +43,13 @@ const SCENE: Record<Screen['name'], [dim: number, skeleton: number]> = {
   loading: [0.8, 0],
   error: [0.9, 0],
   calibration: [0.25, 1],
-  menu: [0.62, 0.55],
-  picker: [0.62, 0.55],
-  intro: [0.7, 0.35],
+  menu: [0.62, 0.3],
+  picker: [0.62, 0.3],
+  intro: [0.7, 0.2],
   workout: [0.12, 1],
-  summary: [0.78, 0.3],
-  name: [0.78, 0.3],
-  leaderboard: [0.78, 0.3],
+  summary: [0.8, 0.12],
+  name: [0.8, 0.12],
+  leaderboard: [0.8, 0.12],
 };
 
 export function App() {

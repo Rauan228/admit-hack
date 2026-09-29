@@ -1,18 +1,31 @@
-// U-03: сцена — зеркальное видео камеры и скелет поверх, на всех экранах одна и та же.
-// Рисуем сами на canvas (а не <video> + CSS), чтобы видео и скелет прошли одно преобразование cover.
+// U-03: сцена — зеркальное видео камеры и объёмная фигура поверх, на всех экранах одна и та же.
+// Рисуем сами на canvas (а не <video> + CSS), чтобы видео и фигура прошли одно преобразование cover.
+// На чистом повторе — вспышка фигуры, ударная волна и частицы из центра тела.
 
 import { useEffect, useRef } from 'react';
 import { live } from '../engine/bus';
 import { ERROR_TTL_MS, overlay } from '../engine/overlay';
-import { coverView, drawHintArrows, drawSkeleton } from '../lib/skeleton';
+import { bodyCenter, drawBody } from '../lib/body';
+import { coverView, drawHintArrows } from '../lib/skeleton';
 import { COLORS } from '../theme';
 import './Stage.css';
 
 /** Размер кадра мок-движка и камеры по умолчанию (ENGINE_CONFIG.camera). */
 const DEFAULT_SRC = { w: 640, h: 480 };
 const FLASH_MS = 520;
-/** Если кадров нет дольше — скелет не рисуем (человек ушёл или движок стоит). */
+const WAVE_MS = 700;
+/** Если кадров нет дольше — фигуру не рисуем (человек ушёл или движок стоит). */
 const STALE_MS = 700;
+
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  size: number;
+  color: string;
+}
 
 export function Stage({ video }: { video: HTMLVideoElement | null }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -21,7 +34,29 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     let raf = 0;
+    let lastFlash = 0;
+    let wave: { x: number; y: number; at: number; color: string } | null = null;
+    const particles: Particle[] = [];
+
+    const burst = (x: number, y: number, clean: boolean) => {
+      if (reduced) return;
+      const palette = clean ? [COLORS.good, COLORS.primary, COLORS.fg] : [COLORS.warn, COLORS.primary];
+      for (let i = 0; i < (clean ? 46 : 16); i += 1) {
+        const a = Math.random() * Math.PI * 2;
+        const speed = 3 + Math.random() * (clean ? 9 : 5);
+        particles.push({
+          x,
+          y,
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed - 2,
+          life: 1,
+          size: 3 + Math.random() * 5,
+          color: palette[i % palette.length] ?? COLORS.primary,
+        });
+      }
+    };
 
     const draw = () => {
       raf = requestAnimationFrame(draw);
@@ -60,7 +95,7 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
       }
 
       const lms = live.landmarks;
-      if (!lms || now - live.lastFrameAt > STALE_MS || overlay.skeleton <= 0) return;
+      const fresh = !!lms && now - live.lastFrameAt <= STALE_MS && overlay.skeleton > 0;
 
       const errorAge = now - overlay.errorAt;
       const errorActive = overlay.errorAt > 0 && errorAge < ERROR_TTL_MS;
@@ -69,21 +104,76 @@ export function Stage({ video }: { video: HTMLVideoElement | null }) {
       const flashColor = overlay.flashClean ? COLORS.good : COLORS.warn;
       const errorColor = overlay.errorSeverity === 'warn' ? COLORS.warn : COLORS.bad;
 
-      drawSkeleton(ctx, view, lms, {
-        color: flashing ? flashColor : COLORS.primary,
-        glow: flashing ? flashColor : 'rgba(249, 115, 22, 0.55)',
-        alpha: overlay.skeleton,
-        errorJoints: errorActive ? overlay.errorJoints : undefined,
-        errorColor,
-        pulse: 0.5 + 0.5 * Math.sin(now / 130),
-        width: flashing ? Math.max(6, view.dh * 0.012) : undefined,
-      });
-
-      if (errorActive && overlay.errorArrow) {
-        ctx.globalAlpha = Math.min(1, (ERROR_TTL_MS - errorAge) / 400);
-        drawHintArrows(ctx, view, lms, overlay.errorJoints, overlay.errorArrow, errorColor, now);
-        ctx.globalAlpha = 1;
+      // Новый повтор: волна и частицы из центра тела.
+      if (overlay.flashAt !== lastFlash) {
+        lastFlash = overlay.flashAt;
+        const c = fresh && lms ? bodyCenter(view, lms) : null;
+        if (c && overlay.flashAt > 0) {
+          wave = { ...c, at: now, color: flashColor };
+          burst(c.x, c.y, overlay.flashClean);
+        }
       }
+
+      if (fresh && lms) {
+        const k = flashing ? 1 - flashAge / FLASH_MS : 0;
+        drawBody(ctx, view, lms, {
+          fill: flashing
+            ? overlay.flashClean
+              ? `rgba(34, 197, 94, ${0.28 + 0.3 * k})`
+              : `rgba(250, 204, 21, ${0.25 + 0.25 * k})`
+            : 'rgba(249, 115, 22, 0.26)',
+          line: flashing ? flashColor : COLORS.primary2,
+          glow: flashing ? flashColor : 'rgba(249, 115, 22, 0.85)',
+          alpha: overlay.skeleton,
+          dots: true,
+          core: true,
+          errorJoints: errorActive ? overlay.errorJoints : undefined,
+          errorColor,
+          pulse: 0.5 + 0.5 * Math.sin(now / 130),
+        });
+
+        if (errorActive && overlay.errorArrow) {
+          ctx.globalAlpha = Math.min(1, (ERROR_TTL_MS - errorAge) / 400);
+          drawHintArrows(ctx, view, lms, overlay.errorJoints, overlay.errorArrow, errorColor, now);
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      // Ударная волна.
+      if (wave) {
+        const t = (now - wave.at) / WAVE_MS;
+        if (t >= 1) wave = null;
+        else {
+          ctx.save();
+          ctx.strokeStyle = wave.color;
+          ctx.globalAlpha = (1 - t) * 0.8;
+          ctx.lineWidth = 10 * (1 - t) + 2;
+          ctx.beginPath();
+          ctx.arc(wave.x, wave.y, 30 + t * Math.min(W, H) * 0.35, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // Частицы.
+      for (let i = particles.length - 1; i >= 0; i -= 1) {
+        const p = particles[i]!;
+        p.vy += 0.28;
+        p.vx *= 0.97;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.022;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
