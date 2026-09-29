@@ -34,6 +34,10 @@
         <div class="inbox" id="inbox"></div>
         <section class="online" id="online" aria-labelledby="online-title" hidden>
           <h2 class="inbox__title" id="online-title">Позвать на дуэль — бой в одно время</h2>
+          <label class="field">
+            Упражнение
+            <select class="exercise-select" id="online-exercise"></select>
+          </label>
           <input
             class="invite__search"
             id="online-search"
@@ -85,10 +89,11 @@
 
       <div class="setup" data-for="setup">
         <p class="setup__status" id="setup-status" role="status">Загружаю модель…</p>
-        <p class="setup__how">
+        <p class="setup__how" id="setup-how">
           Прими упор лёжа боком к камере. Когда будешь готов — подними обе руки или нажми кнопку ниже.
         </p>
         <div class="lobby" id="lobby" hidden>
+          <p class="lobby__exercise" id="lobby-exercise"></p>
           <p class="lobby__opp" id="lobby-opp" role="status"></p>
           <button class="btn btn--small" id="lobby-share" type="button">Отправить ссылку на дуэль</button>
           <input
@@ -106,7 +111,7 @@
 
       <div class="countdown" data-for="countdown">
         <span class="countdown__num" id="countdown">5</span>
-        <p class="countdown__text">Ложись в упор</p>
+        <p class="countdown__text" id="countdown-text">Ложись в упор</p>
       </div>
 
       <div class="battle-foot" data-for="battle">
@@ -133,7 +138,7 @@
     </main>
 
     <div class="toast" id="invite-toast" role="alert" hidden>
-      <p class="toast__text"><b id="toast-from"></b> зовёт тебя на дуэль онлайн</p>
+      <p class="toast__text"><b id="toast-from"></b> зовёт тебя на дуэль: <b id="toast-ex"></b></p>
       <button class="btn btn--small btn--primary" id="toast-accept" type="button">Принять</button>
       <button class="btn btn--small" id="toast-decline" type="button">Не сейчас</button>
     </div>

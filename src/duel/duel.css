@@ -663,6 +663,7 @@ body {
 }
 
 .field input,
+.exercise-select,
 .invite__search,
 .invite__link {
   min-height: 48px;
@@ -800,6 +801,18 @@ body {
 
 .lobby[hidden] {
   display: none;
+}
+
+.lobby__exercise {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.exercise-select:focus-visible {
+  outline: 3px solid var(--info);
+  outline-offset: 2px;
 }
 
 .lobby__opp {

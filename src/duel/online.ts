@@ -3,7 +3,9 @@
 // Время боя назначает сервер; страница только переводит его часы в свои (Live.toLocal).
 // Все имена — через textContent: ники и имена гостей приходят от других людей.
 
+import type { ExerciseId } from '../engine/types';
 import type { RoomView, ServerMsg } from '../shared/duelRoom';
+import { CATEGORIES, EXERCISE_META } from '../ui/lib/exercises';
 import { api, type Player } from './api';
 import { Live } from './live';
 
@@ -24,6 +26,9 @@ const el = {
   section: $<HTMLElement>('online'),
   list: $<HTMLUListElement>('online-list'),
   search: $<HTMLInputElement>('online-search'),
+  exercise: $<HTMLSelectElement>('online-exercise'),
+  lobbyExercise: $<HTMLParagraphElement>('lobby-exercise'),
+  toastEx: $<HTMLElement>('toast-ex'),
   create: $<HTMLButtonElement>('online-create'),
   note: $<HTMLParagraphElement>('online-note'),
   card: $<HTMLDivElement>('room-card'),
@@ -55,13 +60,40 @@ let players: Player[] = [];
 const called = new Map<string, 'online' | 'waiting'>();
 let sending: string | null = null;
 
+/** E-29: упражнения онлайн-дуэли — отжимания и «звёздочка» первыми, дальше как в каталоге платформы. */
+const ORDER: ExerciseId[] = [
+  'push_up',
+  'jumping_jack',
+  ...CATEGORIES.flatMap((c) => c.items).filter((x) => x !== 'push_up' && x !== 'jumping_jack'),
+];
+
+export function exerciseTitle(ex: ExerciseId): string {
+  return EXERCISE_META[ex]?.title ?? ex;
+}
+
+/** Как ставить камеру: на полу боком (отжимания, планка) или стоя лицом. */
+export function cameraTip(ex: ExerciseId): string {
+  return (
+    EXERCISE_META[ex]?.setup ??
+    'Поставь телефон или ноутбук в 2–3 метрах и встань лицом к нему — чтобы в кадре был виден ты целиком.'
+  );
+}
+
 export function initOnline(h: OnlineHooks): void {
   hooks = h;
+  const initial = new URLSearchParams(location.search).get('ex');
+  for (const ex of ORDER) {
+    const o = document.createElement('option');
+    o.value = ex;
+    o.textContent = exerciseTitle(ex);
+    o.selected = ex === initial;
+    el.exercise.append(o);
+  }
   live = new Live({ message: onMessage, connected: () => renderList() });
   live.connect();
   el.create.addEventListener('click', () => {
     pendingInvite = null;
-    live.create();
+    live.create(el.exercise.value);
   });
   el.lobbyShare.addEventListener('click', () => void shareRoom());
   el.lobbyLeave.addEventListener('click', () => live.send({ t: 'leave' }));
@@ -92,6 +124,7 @@ export const onlineDuel = {
   active: () => !!view,
   oppName: () => (view ? (view.players[1 - view.you]?.name ?? 'Соперник') : ''),
   oppReps: () => (view ? (view.players[1 - view.you]?.reps ?? 0) : 0),
+  exercise: (): ExerciseId => view?.exercise ?? 'push_up',
   ready: () => live.send({ t: 'ready', ready: true }),
   rep: () => live.send({ t: 'rep' }),
   giveUp: () => live.send({ t: 'giveup' }),
@@ -127,7 +160,7 @@ function onMessage(m: ServerMsg): void {
       renderLobby();
       return hooks.leftRoom();
     case 'invited':
-      return showToast(m.room, m.from);
+      return showToast(m.room, m.from, m.exercise);
     case 'declined':
       el.lobbyOpp.textContent = `${m.by} не может сейчас — позови кого-то ещё или отправь ссылку.`;
       return;
@@ -215,7 +248,7 @@ function renderList(): void {
       if (view && view.you === 0 && view.players.length < 2) live.send({ t: 'invite', nick: p.nick });
       else {
         pendingInvite = p.nick;
-        live.create();
+        live.create(el.exercise.value);
       }
     });
     li.append(dot, text('span', 'person__nick', p.nick), call);
@@ -254,6 +287,7 @@ function showRoomCard(): void {
 function renderLobby(): void {
   el.lobby.hidden = !view;
   if (!view) return;
+  el.lobbyExercise.textContent = `${exerciseTitle(view.exercise)}. ${cameraTip(view.exercise)}`;
   const opp = view.players[1 - view.you];
   const host = view.you === 0;
   el.lobbyShare.hidden = !host || !!opp;
@@ -283,11 +317,12 @@ async function shareRoom(): Promise<void> {
 }
 
 // ——— Приглашение поверх экрана ———
-function showToast(room: string, from: string): void {
+function showToast(room: string, from: string, exercise: ExerciseId): void {
   // Уже в бою — не отвлекаем; в лобби своей комнаты — тоже.
   if (el.app.dataset.screen === 'countdown' || el.app.dataset.screen === 'battle') return;
   toastRoom = { room, from };
   el.toastFrom.textContent = from;
+  el.toastEx.textContent = exerciseTitle(exercise);
   el.toast.hidden = false;
 }
 
