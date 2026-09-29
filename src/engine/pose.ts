@@ -11,6 +11,7 @@ import { ENGINE_CONFIG, type PoseModel } from './config';
 import { isMobileDevice } from './perf';
 import { PersonSelector } from './person';
 import { ShadowLift } from './shadow';
+import { FrameSnapshots } from './snapshot';
 import type { Vec3 } from './geometry';
 import type { Landmark } from './types';
 
@@ -29,6 +30,8 @@ export interface PoseDetector {
   readonly model: PoseModel;
   /** Человек в кадре или null, если никого нет. */
   detect(video: HTMLVideoElement, timestampMs: number): PoseDetection | null;
+  /** Снимок кадра, на котором посчитаны последние точки (snapshot.ts); нет — экран рисует видео. */
+  readonly frame?: HTMLCanvasElement | null;
   close(): void;
 }
 
@@ -40,6 +43,8 @@ export interface PoseDetectorOptions {
   numPoses?: number;
   /** Подсветка теней перед моделью (по умолчанию из конфига). */
   shadowLift?: boolean;
+  /** Снимок кадра для модели и экрана (по умолчанию из конфига). */
+  snapshot?: boolean;
 }
 
 /** Приводит точки MediaPipe к формату контракта (visibility → v). */
@@ -118,14 +123,22 @@ export async function createPoseDetector(options: PoseDetectorOptions = {}): Pro
   let lastTs = -1;
   const selector = new PersonSelector();
   const shadow = (options.shadowLift ?? cfg.shadowLift.enabled) ? new ShadowLift() : null;
+  const snapshots = (options.snapshot ?? cfg.frameSnapshot) ? new FrameSnapshots() : null;
   let last: Landmark[] | null = null;
   return {
     delegate,
     model: modelFor(delegate),
+    get frame() {
+      return snapshots?.frame ?? null;
+    },
     detect(video, timestampMs) {
       lastTs = nextTimestamp(lastTs, timestampMs);
-      const input = shadow ? shadow.prepare(video, last, lastTs) : video;
+      // Модель и экран берут один и тот же снимок кадра: видео могло бы смениться посреди детекции.
+      const snap = snapshots?.capture(video) ?? null;
+      const source = snap ?? video;
+      const input = shadow ? shadow.prepare(source, last, lastTs) : source;
       const result = landmarker.detectForVideo(input, lastTs);
+      if (snap) snapshots?.commit();
       const people = result.landmarks.filter((p) => p.length > 0).map(toLandmarks);
       const i = selector.pick(people);
       const image = people[i];

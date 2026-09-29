@@ -9,6 +9,8 @@ type Listener = (e: EngineEvent) => void;
 /** Последний кадр движка: читает Stage в requestAnimationFrame. */
 export const live = {
   landmarks: null as Landmark[] | null,
+  /** Кадр камеры, на котором посчитаны landmarks (E-23): сцена рисует его, а не живое видео, — скелет кадр в кадр. */
+  image: null as HTMLCanvasElement | null,
   fps: 0,
   lastFrameAt: 0,
   /** Курсор-рука в долях экрана (уже зеркально), null — рука опущена. */
@@ -27,6 +29,7 @@ export function attachEngine(next: Engine): void {
   detach = next.on((e) => {
     if (e.type === 'frame') {
       live.landmarks = e.landmarks;
+      live.image = typeof HTMLCanvasElement !== 'undefined' && e.image instanceof HTMLCanvasElement ? e.image : null;
       live.fps = e.fps;
       live.lastFrameAt = performance.now();
     } else if (e.type === 'pointer') {
