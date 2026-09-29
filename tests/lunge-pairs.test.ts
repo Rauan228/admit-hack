@@ -1,4 +1,4 @@
-import { createLunge } from '../src/engine/exercises/lunge';
+import { createLunge, type LungeMetrics } from '../src/engine/exercises/lunge';
 import type { PoseFrame } from '../src/engine/geometry';
 import { ExerciseSession } from '../src/engine/session';
 import type { EngineEvent } from '../src/engine/types';
@@ -60,5 +60,41 @@ describe('выпады: повтор — пара ног', () => {
     expect(of(events, 'set_complete')).toHaveLength(1);
     expect(of(events, 'half_rep')).toHaveLength(4);
     expect(of(events, 'set_complete')[0]?.stats.reps).toBe(2);
+  });
+
+  it('пауза между половинами (ушёл из кадра посреди второго выпада) пару не рвёт', () => {
+    const frames = lungeSet({ reps: 2 });
+    const session = new ExerciseSession(createLunge(), 100, 0);
+    // Первый выпад целиком и начало второго (к 4,8 с человек уже опускается) — потом ушёл из кадра.
+    const before = frames.filter((f) => f.t < 4800).flatMap((f) => session.update(f, f.t));
+    const cut = session.interrupt();
+    // Вернулся через 3 с: постоял и сделал второй выпад заново.
+    const after = frames
+      .filter((f) => f.t >= 3700)
+      .map((f) => ({ ...f, t: f.t + 4000 }))
+      .flatMap((f) => session.update(f, f.t));
+    const events = [...before, ...cut, ...after];
+    expect(of(events, 'half_rep').map((e) => e.side)).toEqual(['left', 'right']);
+    expect(of(events, 'rep')).toHaveLength(1);
+    expect(of(events, 'form_error').filter((e) => e.code === 'switch_side')).toHaveLength(0);
+  });
+
+  it('сторона не определилась — пара закрывается, ложной подсказки «та же нога» нет', () => {
+    const lunge = createLunge();
+    let calls = 0;
+    const def = { ...lunge, sideOf: (m: LungeMetrics) => (calls++ === 0 ? null : lunge.sideOf!(m)) };
+    const session = new ExerciseSession(def, 100, 0);
+    const events = lungeSet({ reps: 2 }).flatMap((f) => session.update(f, f.t));
+    // Первая половина угадана как правая, вторая на самом деле правая — всё равно это пара.
+    expect(of(events, 'half_rep').map((e) => e.side)).toEqual(['right', 'right']);
+    expect(of(events, 'rep')).toHaveLength(1);
+    expect(of(events, 'form_error').filter((e) => e.code === 'switch_side')).toHaveLength(0);
+  });
+
+  it('та же нога и ошибка техники разом — говорим про технику, «смени ногу» не перебивает', () => {
+    const events = play(concat(lungeSet({ reps: 1 }), lungeSet({ reps: 1, depth: 0.45 })));
+    expect(of(events, 'half_rep')).toHaveLength(2);
+    expect(of(events, 'rep')).toHaveLength(0);
+    expect(of(events, 'form_error').map((e) => e.code)).toEqual(['back_knee_high']);
   });
 });

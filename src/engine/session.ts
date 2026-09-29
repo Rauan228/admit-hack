@@ -29,8 +29,12 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
   private atBottom: M | null = null;
   private recent: { t: number; m: M }[] = [];
   private count = 0;
-  /** Упражнения на две стороны: первая сделанная сторона пары, ждём вторую. */
-  private pending: { side: Side; errors: string[]; startT: number } | null = null;
+  /**
+   * Упражнения на две стороны: первая сделанная сторона пары, ждём вторую. guessed — сторону по нижней
+   * точке определить не удалось, она угадана. Паузу (interrupt) половина переживает намеренно: UI уже
+   * показал «правая ✓ — теперь левая», а событие «половина сброшена» в контракте нет.
+   */
+  private pending: { side: Side; guessed: boolean; errors: string[]; startT: number } | null = null;
   private finished = false;
   /** Когда последний раз удалось измерить позу для этого упражнения. */
   private lastMeasuredAt: number;
@@ -130,7 +134,8 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
         const h = this.rules.onRepMoment('attempt', this.context(e.summary), t);
         if (h) out.push(h);
       } else if (e.kind === 'rep' && this.atBottom) {
-        out.push(...this.completeRep(this.context(e.summary), t));
+        const hinted = out.some((x) => x.type === 'form_error');
+        out.push(...this.completeRep(this.context(e.summary), t, hinted));
       }
       if (e.kind === 'rep' || e.kind === 'attempt' || e.kind === 'timeout') {
         this.repFrames = [];
@@ -144,17 +149,22 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
    * Одна сторона упражнения на две стороны. Первая — half_rep и ждём вторую; та же сторона ещё раз —
    * подсказка «теперь другой ногой» (засчитываем последнюю попытку этой стороны); другая сторона —
    * повтор с общими ошибками обеих половин.
+   *
+   * Сторону не определить — считаем её второй половиной пары (или правой, если пара только начинается).
+   * «Та же нога» ругаем, только если обе стороны определены: по догадке подсказка была бы ложной.
+   * Подсказку техники в этот же момент не перебиваем — одна подсказка за раз, самая важная.
    */
-  private completeSide(ctx: RepContext<M>, errors: string[], _t: number): EngineEvent[] {
+  private completeSide(ctx: RepContext<M>, errors: string[], hinted: boolean): EngineEvent[] {
     const exercise = this.def.id;
     const out: EngineEvent[] = [];
-    const guess = this.pending ? OTHER[this.pending.side] : 'right';
-    const side = this.def.sideOf?.(ctx.atBottom) ?? guess;
+    const known = this.def.sideOf?.(ctx.atBottom) ?? null;
+    const side = known ?? (this.pending ? OTHER[this.pending.side] : 'right');
     out.push({ type: 'half_rep', exercise, side, errors });
     if (errors.length === 0) out.push({ type: 'form_ok', exercise });
 
-    if (!this.pending || this.pending.side === side) {
-      if (this.pending) {
+    const repeat = this.pending?.side === side && known !== null && !this.pending.guessed;
+    if (!this.pending || repeat) {
+      if (repeat && !hinted) {
         const next = OTHER[side];
         out.push({
           type: 'form_error',
@@ -165,7 +175,7 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
           severity: 'warn',
         });
       }
-      this.pending = { side, errors, startT: ctx.summary.startT };
+      this.pending = { side, guessed: known === null, errors, startT: ctx.summary.startT };
       return out;
     }
 
@@ -185,13 +195,13 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
     return { summary, frames: this.repFrames, atBottom: this.atBottom as M };
   }
 
-  private completeRep(ctx: RepContext<M>, t: number): EngineEvent[] {
+  private completeRep(ctx: RepContext<M>, t: number, hinted: boolean): EngineEvent[] {
     const out: EngineEvent[] = [];
     const exercise = this.def.id;
     const hint = this.rules.onRepMoment('rep', ctx, t);
     if (hint) out.push(hint);
     const errors = this.rules.repErrors;
-    if (this.def.sideOf) return [...out, ...this.completeSide(ctx, [...errors], t)];
+    if (this.def.sideOf) return [...out, ...this.completeSide(ctx, [...errors], hinted || hint !== null)];
     const score = this.set.addRep(errors, ctx.summary.startT, ctx.summary.endT);
     this.count += 1;
     if (errors.length === 0) out.push({ type: 'form_ok', exercise });
