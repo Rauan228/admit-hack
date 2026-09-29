@@ -65,7 +65,13 @@ export function plannedError(exercise: ExerciseId, i: number): FormErrorDef | nu
 }
 
 /** Поза упражнения в момент цикла 0..1 (0 — исходное положение, 0.5 — нижняя точка). */
-export function exercisePose(exercise: ExerciseId, cycle: number, err: FormErrorDef | null): BodyParams {
+export function exercisePose(
+  exercise: ExerciseId,
+  cycle: number,
+  err: FormErrorDef | null,
+  /** Номер повтора: упражнения со сменой сторон чередуют ногу. */
+  rep = 0,
+): BodyParams {
   const wave = easeInOut(cycle < 0.5 ? cycle * 2 : (1 - cycle) * 2);
   const code = err?.code;
   switch (exercise) {
@@ -117,6 +123,48 @@ export function exercisePose(exercise: ExerciseId, cycle: number, err: FormError
         armR: 12 + wave * (rightTop - 12),
         elbowL: bent,
         elbowR: bent,
+      });
+    }
+    case 'high_knees': {
+      // Каждый повтор — одно колено: чётные — левое, нечётные — правое; руки согнуты, как в беге.
+      const lift = wave * (code === 'knees_low' ? 0.45 : 1);
+      return body({
+        ...(rep % 2 === 0 ? { kneeLiftL: lift } : { kneeLiftR: lift }),
+        lean: code === 'lean_back' ? -14 * wave : 0,
+        armL: 20,
+        armR: 20,
+        elbowL: 95,
+        elbowR: 95,
+      });
+    }
+    case 'knee_to_elbow': {
+      // Руки за головой; чётные повторы — правое колено и левый локоть, нечётные — наоборот.
+      const lift = wave * (code === 'knee_low' ? 0.3 : 0.9);
+      const reach = wave * (code === 'elbow_far' ? 35 : 95);
+      const rightKnee = rep % 2 === 0;
+      return body({
+        ...(rightKnee ? { kneeLiftR: lift } : { kneeLiftL: lift }),
+        lean: 12 * wave,
+        armL: 150 - (rightKnee ? reach : 0),
+        armR: 150 - (rightKnee ? 0 : reach),
+        elbowL: 150,
+        elbowR: 150,
+      });
+    }
+    case 'squat_press': {
+      // Первая половина цикла — присед (кисти у плеч), вторая — встал и выжал руки вверх.
+      const depth = cycle < 0.5 ? easeInOut(cycle < 0.25 ? cycle * 4 : (0.5 - cycle) * 4) : 0;
+      const press =
+        cycle >= 0.45 ? easeInOut(cycle < 0.725 ? (cycle - 0.45) / 0.275 : (1 - cycle) / 0.275) : 0;
+      const armTop = code === 'press_low' ? 115 : 175;
+      return body({
+        squat: depth * (code === 'shallow_depth' ? 0.45 : 1),
+        kneeIn: code === 'knees_in' ? depth : 0,
+        lean: depth * 10,
+        armL: 25 + press * (armTop - 25),
+        armR: 25 + press * (armTop - 25),
+        elbowL: 150 - press * (code === 'press_low' ? 90 : 145),
+        elbowR: 150 - press * (code === 'press_low' ? 90 : 145),
       });
     }
   }
@@ -300,7 +348,7 @@ class MockEngine implements Engine {
     this.newScene((t) => {
       const i = Math.min(reps - 1, Math.floor(t / REP_MS));
       const cycle = (t % REP_MS) / REP_MS;
-      return exercisePose(exercise, cycle, errFor(i));
+      return exercisePose(exercise, cycle, errFor(i), i);
     });
 
     for (let i = 0; i < reps; i += 1) {

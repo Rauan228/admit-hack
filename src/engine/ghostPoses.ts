@@ -15,6 +15,9 @@ export const GHOST_DURATION_MS: Record<ExerciseId, number> = {
   jumping_jack: 1100,
   lunge: 5600, // два выпада: правой ногой назад, потом левой
   arm_raise: 2600,
+  high_knees: 1000, // два шага: левое колено, правое
+  knee_to_elbow: 3000, // два касания: левый локоть к правому колену, правый к левому
+  squat_press: 3200,
 };
 
 /** Сколько ключевых кадров на цикл. */
@@ -44,6 +47,40 @@ function poseAt(exercise: ExerciseId, u: number): Landmark[] {
     }
     case 'arm_raise':
       return synthFrame({ ...STAND, ...base, arms: 10 + w * 165 }, 0).image;
+    case 'high_knees': {
+      // Первая половина — левое колено до уровня пояса, вторая — правое; руки согнуты, как в беге.
+      const lift = 88 * wave(u < 0.5 ? u * 2 : (u - 0.5) * 2);
+      return synthFrame(
+        { ...STAND, ...base, arms: 15, elbow: 95, ...(u < 0.5 ? { liftL: lift } : { liftR: lift }) },
+        0,
+      ).image;
+    }
+    case 'knee_to_elbow': {
+      // Руки за головой; колено поднимается, противоположный локоть идёт к нему, корпус чуть вперёд.
+      const c = wave(u < 0.5 ? u * 2 : (u - 0.5) * 2);
+      const right = u < 0.5;
+      return synthFrame(
+        {
+          ...STAND,
+          ...base,
+          handsBehindHead: true,
+          lean: 15 * c,
+          crunch: c,
+          crunchElbow: right ? 'left' : 'right',
+          ...(right ? { liftR: 80 * c } : { liftL: 80 * c }),
+        },
+        0,
+      ).image;
+    }
+    case 'squat_press': {
+      // Кисти у плеч → присед ниже параллели → встал → руки прямо вверх → кисти обратно к плечам.
+      const depth = u < 0.45 ? wave(u / 0.45) : 0;
+      const press = u >= 0.4 && u < 0.85 ? wave((u - 0.4) / 0.45) : 0;
+      return synthFrame(
+        { ...squatPose(depth * 100, base), arms: 20 + press * 160, elbow: 160 * (1 - press) },
+        0,
+      ).image;
+    }
   }
 }
 
@@ -53,6 +90,9 @@ export const GHOST_KEYFRAMES: Record<ExerciseId, Landmark[][]> = {
   jumping_jack: frames('jumping_jack'),
   lunge: frames('lunge'),
   arm_raise: frames('arm_raise'),
+  high_knees: frames('high_knees'),
+  knee_to_elbow: frames('knee_to_elbow'),
+  squat_press: frames('squat_press'),
 };
 
 function frames(exercise: ExerciseId): Landmark[][] {

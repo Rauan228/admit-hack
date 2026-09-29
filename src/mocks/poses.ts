@@ -31,6 +31,9 @@ export interface BodyParams {
   visibility: number;
   /** видимость ног отдельно: для статуса partial ноги «обрезаны» кадром */
   legVisibility: number;
+  /** подъём колена: 0 — нога на полу, 1 — колено на уровне таза (высокие колени, локоть к колену) */
+  kneeLiftL: number;
+  kneeLiftR: number;
 }
 
 export const STANDING: BodyParams = {
@@ -48,6 +51,8 @@ export const STANDING: BodyParams = {
   lungeFront: 0,
   visibility: 0.96,
   legVisibility: 0.95,
+  kneeLiftL: 0,
+  kneeLiftR: 0,
 };
 
 export function body(overrides: Partial<BodyParams> = {}): BodyParams {
@@ -198,12 +203,18 @@ export function buildPose(p: BodyParams): Landmark[] {
     const front = s.sign > 0 ? p.lungeFront : -p.lungeFront;
     const ax = hipX + ((s.sign * p.stance) / 2) * H + front * H * 0.35;
     const ay = p.groundY - (s.sign > 0 ? 0 : p.lungeFront * H * 0.12);
-    set(s.ankle, ax, ay, 0, p.legVisibility);
-    const kx = (hx + ax) / 2 - s.sign * p.kneeIn * 0.06 * H;
-    const ky = hipY + (ay - hipY) * 0.52 + p.squat * 0.01 * H;
+    const kx0 = (hx + ax) / 2 - s.sign * p.kneeIn * 0.06 * H;
+    const ky0 = hipY + (ay - hipY) * 0.52 + p.squat * 0.01 * H;
+    // Подъём колена: колено идёт к уровню таза, голень висит под ним, стопа отрывается от пола.
+    const lift = s.sign > 0 ? p.kneeLiftL : p.kneeLiftR;
+    const kx = kx0 + (hx - kx0) * lift;
+    const ky = ky0 + (hipY + 0.03 * H - ky0) * lift;
+    const fx = ax + (kx - ax) * lift;
+    const fy = ay + (ky + (ay - ky0) - ay) * lift;
+    set(s.ankle, fx, fy, 0, p.legVisibility);
     set(s.knee, kx, ky, 0, p.legVisibility);
-    set(s.heel, ax - s.sign * 0.01 * H, ay + 0.015 * H, 0, p.legVisibility);
-    set(s.foot, ax + s.sign * 0.02 * H, ay + 0.035 * H, 0, p.legVisibility);
+    set(s.heel, fx - s.sign * 0.01 * H, fy + 0.015 * H, 0, p.legVisibility);
+    set(s.foot, fx + s.sign * 0.02 * H, fy + 0.035 * H, 0, p.legVisibility);
   }
 
   return pts.map((pt) => ({ x: pt.x, y: pt.y, z: pt.z ?? 0, v: pt.v ?? p.visibility }));
