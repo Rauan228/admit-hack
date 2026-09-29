@@ -62,7 +62,10 @@ describe('онлайн-дуэль по WebSocket', () => {
         setTimeout(() => reject(new Error(`не дождались ${t}`)), 3000);
       });
     const send = (m: unknown) => ws.send(JSON.stringify(m));
-    return { ws, next, send };
+    /** Сообщение такого типа так и не пришло за ms. */
+    const none = (t: Msg['t'], ms = 300) =>
+      new Promise<boolean>((r) => setTimeout(() => r(!inbox.some((m) => m.t === t)), ms));
+    return { ws, next, send, none };
   }
 
   it('приветствие и «кто онлайн»: второй вошёл — первый узнал', async () => {
@@ -86,6 +89,7 @@ describe('онлайн-дуэль по WebSocket', () => {
     a.send({ t: 'invite', nick: 'rauan' });
     const inv = await b.next('invited');
     expect(inv).toMatchObject({ room: created.room.id, from: 'Arslan' });
+    expect(await a.next('invite_sent')).toMatchObject({ nick: 'rauan', online: true });
 
     b.send({ t: 'join', room: inv.room });
     const joined = await b.next('room', (m) => m.room.players.length === 2);
@@ -138,16 +142,38 @@ describe('онлайн-дуэль по WebSocket', () => {
     });
   });
 
-  it('проверки: создать — только после входа; позвать можно только того, кто онлайн', async () => {
+  it('позвать того, кто не в сети: приглашение ждёт и приходит, как только он откроет дуэль', async () => {
+    const a = await player(await cookieOf('Arslan'));
+    const rauanCookie = await cookieOf('Rauan');
+    a.send({ t: 'create' });
+    const { room } = await a.next('room');
+    a.send({ t: 'invite', nick: 'Rauan' });
+    expect(await a.next('invite_sent')).toMatchObject({ nick: 'Rauan', online: false });
+    const b = await player(rauanCookie);
+    expect(await b.next('invited')).toMatchObject({ room: room.id, from: 'Arslan' });
+  });
+
+  it('комнаты уже нет — отложенное приглашение не приходит', async () => {
+    const a = await player(await cookieOf('Arslan'));
+    const otherCookie = await cookieOf('Other');
+    a.send({ t: 'create' });
+    await a.next('room');
+    a.send({ t: 'invite', nick: 'Other' });
+    await a.next('invite_sent');
+    a.send({ t: 'leave' });
+    await a.next('left');
+    const b = await player(otherCookie);
+    await b.next('hello');
+    expect(await b.none('invited')).toBe(true);
+  });
+
+  it('проверки: создать — только после входа; неизвестная комната; мусор', async () => {
     const guest = await player();
     guest.send({ t: 'create' });
     expect((await guest.next('error')).message).toMatch(/Войди/);
     const a = await player(await cookieOf('Arslan'));
-    await cookieOf('Offline');
     a.send({ t: 'create' });
     await a.next('room');
-    a.send({ t: 'invite', nick: 'Offline' });
-    expect((await a.next('error')).message).toMatch(/не в сети/);
     a.send({ t: 'join', room: 'NOPE0000' });
     expect((await a.next('error')).message).toMatch(/не найдена/);
     a.send('не json' as unknown as object);

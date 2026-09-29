@@ -55,6 +55,8 @@ export type ServerMsg =
   | { t: 'room'; room: RoomView; key: string }
   | { t: 'left' }
   | { t: 'invited'; room: string; from: string }
+  /** Приглашение ушло: online — сразу, иначе дождётся, когда игрок откроет дуэль. */
+  | { t: 'invite_sent'; nick: string; online: boolean }
   | { t: 'declined'; by: string }
   | { t: 'error'; message: string };
 
