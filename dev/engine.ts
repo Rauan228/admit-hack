@@ -55,6 +55,8 @@ const ctx = canvas.getContext('2d')!;
 
 const params = new URLSearchParams(location.search);
 const target = Number(params.get('target') ?? 10);
+/** ?live=1 — под скелетом живое видео, как было до E-23 (для сравнения глазами). */
+const live = params.get('live') === '1';
 let detector: PoseDetector | null = null;
 /** Запись фикстуры (E-15): пока включена, каждая сырая детекция идёт в файл. */
 let recorder: PoseRecorder | null = null;
@@ -85,10 +87,13 @@ function toMode(name: string | null): EngineMode {
     : 'calibration';
 }
 
-function draw(points: Landmark[]): void {
+function draw(points: Landmark[], image?: CanvasImageSource): void {
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Кадр, на котором модель считала точки, поверх живого видео: скелет совпадает с телом кадр в кадр.
+  // ?live=1 — старый вид (живое видео под скелетом), для сравнения.
+  if (image && !live) ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  else ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.lineWidth = 4;
   ctx.strokeStyle = '#4ade80';
   for (const [a, b] of BONES) {
@@ -131,7 +136,7 @@ function onEvent(e: EngineEvent): void {
     case 'frame':
       state.fps = e.fps;
       state.points = e.landmarks.filter((p) => p.v >= 0.5).length;
-      draw(e.landmarks);
+      draw(e.landmarks, e.image);
       break;
     case 'calibration':
       state.calibration = `${e.status} — ${e.hint}`;
