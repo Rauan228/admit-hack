@@ -69,10 +69,9 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
             AI Fitness Coach
           </p>
           <h1 className="hero__title">
-            <Line i={0}>Тренер,</Line>
-            <Line i={1}>которому</Line>
-            <Line i={2} accent>
-              не нужны руки
+            <Line i={0}>Тренер, которому</Line>
+            <Line i={1}>
+              не нужны <span className="primary">руки</span>
             </Line>
           </h1>
           <p className="hero__lead rise" style={order(4)}>
@@ -188,12 +187,10 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
   );
 }
 
-function Line({ i, accent, children }: { i: number; accent?: boolean; children: ReactNode }) {
+function Line({ i, children }: { i: number; children: ReactNode }) {
   return (
     <span className="hero__line">
-      <span className={accent ? 'primary' : undefined} style={order(i)}>
-        {children}
-      </span>
+      <span style={order(i)}>{children}</span>
     </span>
   );
 }

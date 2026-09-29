@@ -1,6 +1,6 @@
 /* Парящий экран-HUD в перспективе (как телевизор перед атлетом). */
 .screenhud {
-  --tilt-y: -16deg;
+  --tilt-y: -8deg;
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
@@ -19,22 +19,14 @@
     radial-gradient(70% 70% at 40% 55%, rgba(249, 115, 22, 0.14), transparent 70%),
     linear-gradient(160deg, rgba(22, 30, 50, 0.92), rgba(8, 12, 24, 0.94));
   box-shadow:
-    0 40px 120px rgba(0, 0, 0, 0.65),
-    0 0 60px rgba(249, 115, 22, 0.18),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   transform: rotateY(var(--tilt-y)) rotateX(3deg);
   transform-style: preserve-3d;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   overflow: hidden;
   isolation: isolate;
-  animation: hud-float 7s var(--ease) infinite alternate;
-}
-
-@keyframes hud-float {
-  to {
-    transform: rotateY(calc(var(--tilt-y) + 5deg)) rotateX(1deg) translateY(-10px);
-  }
 }
 
 /* Бегущее свечение по контуру. */
