@@ -245,6 +245,13 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
       <footer className="lfoot">
         <span className="lnav__logo">FORMA</span>
         <span>ADMIT Hackathon 2026 · Motion: камера вместо джойстика</span>
+        <span>
+          3D-анатомия:{' '}
+          <a href="https://github.com/Z-Anatomy/Models-of-human-anatomy" target="_blank" rel="noreferrer">
+            Z-Anatomy
+          </a>{' '}
+          и BodyParts3D, CC BY-SA 4.0
+        </span>
       </footer>
     </main>
   );

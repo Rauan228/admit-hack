@@ -1,0 +1,439 @@
+// Анатомический атлет на модели Z-Anatomy (CC BY-SA 4.0, на основе BodyParts3D, CC BY-SA 2.1 JP).
+// Модель подготовлена scripts/blender/prep-zanatomy.py: мышцы и видимые кости упрощены, подсвечиваемые
+// мышечные группы — отдельные меши по сторонам (quads_l, glutes_r, ...), суставы — в zanatomyJoints.json.
+//
+// Скелета в модели нет — строим его сами: веса вершин считаем при загрузке по расстоянию до сегментов
+// костей (голень, бедро, плечо...), а каждый кадр ставим кости по 3D-точкам движения (lib/athlete.ts):
+// поворот + растяжение сегмента под длину (у человека из записи другие пропорции, чем у модели).
+
+import {
+  Bone,
+  BufferAttribute,
+  Color,
+  DirectionalLight,
+  Group,
+  HemisphereLight,
+  Matrix4,
+  Mesh,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+  PerspectiveCamera,
+  Quaternion,
+  Scene,
+  Skeleton,
+  SkinnedMesh,
+  Vector3,
+  CircleGeometry,
+  CanvasTexture,
+  type BufferGeometry,
+} from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import type { ExerciseId } from '../../engine/types';
+import { MUSCLES, activation, athleteBounds, type Muscle } from '../lib/athlete';
+import { sharedRenderer, blitTo } from './renderer';
+import J from './zanatomyJoints.json';
+
+type V3 = { x: number; y: number; z: number };
+type JointName = keyof typeof J;
+
+import { isMobileDevice } from '../../engine/perf';
+
+/** Телефону — облегчённая модель (~3× меньше треугольников). */
+const MODEL_URL = `${import.meta.env.BASE_URL}models/${isMobileDevice() ? 'athlete-lite' : 'athlete'}.glb`;
+
+// ——— Кости ———
+
+interface BoneDef {
+  name: string;
+  /** Сегмент в покое (модель): от сустава a к b. */
+  a: JointName;
+  b: JointName;
+  /** Те же суставы в данных движения (индексы MediaPipe). */
+  ia: number;
+  ib: number;
+  /** Радиус «капсулы» для весов, м. */
+  r: number;
+  kind: 'limb' | 'pelvis' | 'chest' | 'head';
+}
+
+const BONES: BoneDef[] = [
+  { name: 'pelvis', a: 'hip.l', b: 'hip.r', ia: 23, ib: 24, r: 0.13, kind: 'pelvis' },
+  { name: 'chest', a: 'shoulder.l', b: 'shoulder.r', ia: 11, ib: 12, r: 0.15, kind: 'chest' },
+  { name: 'head', a: 'neck', b: 'head', ia: -1, ib: -1, r: 0.1, kind: 'head' },
+  { name: 'thigh.l', a: 'hip.l', b: 'knee.l', ia: 23, ib: 25, r: 0.085, kind: 'limb' },
+  { name: 'thigh.r', a: 'hip.r', b: 'knee.r', ia: 24, ib: 26, r: 0.085, kind: 'limb' },
+  { name: 'shin.l', a: 'knee.l', b: 'ankle.l', ia: 25, ib: 27, r: 0.06, kind: 'limb' },
+  { name: 'shin.r', a: 'knee.r', b: 'ankle.r', ia: 26, ib: 28, r: 0.06, kind: 'limb' },
+  { name: 'foot.l', a: 'ankle.l', b: 'toe.l', ia: 27, ib: 31, r: 0.045, kind: 'limb' },
+  { name: 'foot.r', a: 'ankle.r', b: 'toe.r', ia: 28, ib: 32, r: 0.045, kind: 'limb' },
+  { name: 'arm.l', a: 'shoulder.l', b: 'elbow.l', ia: 11, ib: 13, r: 0.055, kind: 'limb' },
+  { name: 'arm.r', a: 'shoulder.r', b: 'elbow.r', ia: 12, ib: 14, r: 0.055, kind: 'limb' },
+  { name: 'forearm.l', a: 'elbow.l', b: 'wrist.l', ia: 13, ib: 15, r: 0.045, kind: 'limb' },
+  { name: 'forearm.r', a: 'elbow.r', b: 'wrist.r', ia: 14, ib: 16, r: 0.045, kind: 'limb' },
+  { name: 'hand.l', a: 'wrist.l', b: 'hand.l', ia: 15, ib: 19, r: 0.035, kind: 'limb' },
+  { name: 'hand.r', a: 'wrist.r', b: 'hand.r', ia: 16, ib: 20, r: 0.035, kind: 'limb' },
+];
+
+const jv = (n: JointName) => new Vector3(...(J[n] as [number, number, number]));
+const mid = (a: Vector3, b: Vector3) => a.clone().add(b).multiplyScalar(0.5);
+
+/** Опорные точки торса в покое. */
+const REST = (() => {
+  const hipMid = mid(jv('hip.l'), jv('hip.r'));
+  const shMid = mid(jv('shoulder.l'), jv('shoulder.r'));
+  return { hipMid, shMid, neck: jv('neck'), head: jv('head') };
+})();
+
+/** Сегмент «кости» в покое для весов: торс — вертикальные отрезки по центру. */
+function restSegment(b: BoneDef): [Vector3, Vector3] {
+  if (b.kind === 'pelvis')
+    return [REST.hipMid.clone().add(new Vector3(0, -0.05, 0)), REST.hipMid.clone().lerp(REST.shMid, 0.45)];
+  if (b.kind === 'chest') return [REST.hipMid.clone().lerp(REST.shMid, 0.55), REST.shMid.clone()];
+  if (b.kind === 'head') return [REST.neck.clone(), REST.head.clone().add(new Vector3(0, 0.08, 0))];
+  return [jv(b.a), jv(b.b)];
+}
+
+function distToSegment(p: Vector3, a: Vector3, b: Vector3): number {
+  const ab = b.clone().sub(a);
+  const t = Math.max(0, Math.min(1, p.clone().sub(a).dot(ab) / ab.lengthSq()));
+  return p.distanceTo(a.clone().add(ab.multiplyScalar(t)));
+}
+
+/** Веса вершин: две ближайшие кости (по поверхности капсулы), мягкий переход у суставов. */
+function skinGeometry(geo: BufferGeometry): void {
+  const pos = geo.getAttribute('position');
+  const n = pos.count;
+  const idx = new Uint16Array(n * 4);
+  const wts = new Float32Array(n * 4);
+  const segs = BONES.map(restSegment);
+  const p = new Vector3();
+  for (let v = 0; v < n; v += 1) {
+    p.fromBufferAttribute(pos, v);
+    let b1 = 0;
+    let b2 = 0;
+    let d1 = Infinity;
+    let d2 = Infinity;
+    for (let i = 0; i < BONES.length; i += 1) {
+      const [a, b] = segs[i]!;
+      const d = Math.max(0.004, distToSegment(p, a, b) - BONES[i]!.r * 0.6);
+      if (d < d1) {
+        d2 = d1;
+        b2 = b1;
+        d1 = d;
+        b1 = i;
+      } else if (d < d2) {
+        d2 = d;
+        b2 = i;
+      }
+    }
+    const w1 = 1 / d1 ** 4;
+    const w2 = 1 / d2 ** 4;
+    idx[v * 4] = b1;
+    idx[v * 4 + 1] = b2;
+    wts[v * 4] = w1 / (w1 + w2);
+    wts[v * 4 + 1] = w2 / (w1 + w2);
+  }
+  geo.setAttribute('skinIndex', new BufferAttribute(idx, 4));
+  geo.setAttribute('skinWeight', new BufferAttribute(wts, 4));
+}
+
+// ——— Загрузка модели (один раз) ———
+
+interface Model {
+  parts: { name: string; geo: BufferGeometry }[];
+}
+let modelPromise: Promise<Model> | null = null;
+
+export function loadModel(): Promise<Model> {
+  modelPromise ??= new GLTFLoader().loadAsync(MODEL_URL).then((gltf) => {
+    const parts: Model['parts'] = [];
+    gltf.scene.updateMatrixWorld(true);
+    gltf.scene.traverse((o) => {
+      const m = o as Mesh;
+      if (!m.isMesh) return;
+      const geo = m.geometry.clone();
+      geo.applyMatrix4(m.matrixWorld);
+      geo.deleteAttribute('uv');
+      skinGeometry(geo);
+      parts.push({ name: m.name, geo });
+    });
+    return { parts };
+  });
+  return modelPromise;
+}
+
+// ——— Материалы ———
+
+const SKIN = new MeshStandardMaterial({ color: new Color('#b9bfc8'), roughness: 0.48, metalness: 0.04 });
+const BONE = new MeshStandardMaterial({ color: new Color('#d8d0bf'), roughness: 0.62, metalness: 0 });
+const ERROR = new MeshStandardMaterial({
+  color: new Color('#ef4444'),
+  roughness: 0.4,
+  emissive: new Color('#ff2020'),
+  emissiveIntensity: 0.5,
+});
+
+function muscleMaterial(): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    color: new Color('#e2483c'),
+    roughness: 0.42,
+    metalness: 0.02,
+    emissive: new Color('#ff2a14'),
+    emissiveIntensity: 0.2,
+  });
+}
+
+function shadowTexture(): CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grd.addColorStop(0, 'rgba(0,0,0,0.6)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 128, 128);
+  return new CanvasTexture(c);
+}
+let shadowTex: CanvasTexture | null = null;
+
+/** Группа меша → мышца и сторона для подсчёта нагрузки. */
+function muscleOf(part: string): { muscle: Muscle | 'pecs'; act: string } | null {
+  const [g, side] = part.split('_') as [string, string | undefined];
+  const S = side === 'l' ? 'L' : 'R';
+  switch (g) {
+    case 'quads':
+    case 'hamstrings':
+      return { muscle: g, act: `quads${S}` };
+    case 'delts':
+      return { muscle: 'delts', act: `delts${S}` };
+    case 'glutes':
+    case 'adductors':
+    case 'calves':
+    case 'traps':
+    case 'abductors':
+      return { muscle: g, act: g };
+    case 'pecs':
+      return { muscle: 'pecs', act: 'traps' };
+    default:
+      return null;
+  }
+}
+
+/** Какие суставы (данные) закрывает подсветка ошибки для группы меша. */
+const PART_JOINTS: Record<string, [number, number]> = {
+  quads_l: [23, 25],
+  quads_r: [24, 26],
+  hamstrings_l: [23, 25],
+  hamstrings_r: [24, 26],
+  adductors_l: [23, 25],
+  adductors_r: [24, 26],
+  calves_l: [25, 27],
+  calves_r: [26, 28],
+  delts_l: [11, 13],
+  delts_r: [12, 14],
+};
+
+// ——— Вид ———
+
+export class ZAthleteView {
+  private readonly scene = new Scene();
+  private readonly camera = new PerspectiveCamera(24, 1, 0.1, 50);
+  private readonly group = new Group();
+  private readonly bones = BONES.map(() => new Bone());
+  private readonly skeleton = new Skeleton(
+    this.bones,
+    BONES.map(() => new Matrix4()),
+  );
+  private readonly meshes: { mesh: SkinnedMesh; part: string; mat: MeshStandardMaterial | null }[] = [];
+  private ready = false;
+
+  constructor(readonly exercise: ExerciseId) {
+    this.scene.add(new HemisphereLight('#ffffff', '#0f172a', 0.7));
+    const key = new DirectionalLight('#ffffff', 1.9);
+    key.position.set(1.6, 3.2, 3.4);
+    const fill = new DirectionalLight('#9cc8ff', 0.55);
+    fill.position.set(-2.4, 1.2, 2);
+    const rim = new DirectionalLight('#fb923c', 2.4);
+    rim.position.set(-1.8, 2.4, -2.8);
+    this.scene.add(key, fill, rim, this.group);
+    shadowTex ??= shadowTexture();
+    const shadow = new Mesh(
+      new CircleGeometry(1, 32),
+      new MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }),
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.scale.set(0.55, 0.32, 1);
+    shadow.position.y = 0.002;
+    this.scene.add(shadow);
+    for (const b of this.bones) {
+      b.matrixAutoUpdate = false;
+      b.matrixWorldAutoUpdate = false;
+    }
+
+    const active = new Set<string>(MUSCLES[exercise]);
+    void loadModel().then((model) => {
+      for (const { name, geo } of model.parts) {
+        const m = muscleOf(name);
+        const on = !!m && active.has(m.muscle);
+        const mat = on ? muscleMaterial() : null;
+        const mesh = new SkinnedMesh(geo, mat ?? (name === 'bones' ? BONE : SKIN));
+        mesh.bindMode = 'detached';
+        mesh.bind(this.skeleton, new Matrix4());
+        mesh.frustumCulled = false;
+        this.group.add(mesh);
+        this.meshes.push({ mesh, part: name, mat });
+      }
+      this.ready = true;
+    });
+  }
+
+  render(
+    target: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    pose: (V3 | null)[],
+    opts: { yaw: number; mobile: boolean; highlight?: ReadonlySet<number> },
+  ): boolean {
+    if (!this.ready) return false;
+    const r = sharedRenderer(opts.mobile);
+    if (!r) return false;
+    if (!this.pose(pose, opts.highlight)) return false;
+    this.group.rotation.y = -opts.yaw;
+    this.fit(W / H);
+    return blitTo(r, this.scene, this.camera, target, W, H);
+  }
+
+  private fit(aspect: number): void {
+    const b = athleteBounds();
+    const cam = this.camera;
+    cam.aspect = aspect;
+    const vfov = (cam.fov * Math.PI) / 180;
+    const distH = (b.h * 1.08) / 2 / Math.tan(vfov / 2);
+    const distW = (b.w * 1.02) / 2 / (Math.tan(vfov / 2) * aspect);
+    cam.position.set(0, b.h * 0.5, Math.max(distH, distW));
+    cam.lookAt(0, b.h * 0.47, 0);
+    cam.updateProjectionMatrix();
+  }
+
+  /** Ставит кости по позе: поворот + растяжение сегментов, торс — по базису плеч и таза. */
+  private pose(pose: (V3 | null)[], highlight?: ReadonlySet<number>): boolean {
+    // Данные: y вниз, лицом к зрителю −z → three: Y вверх, к камере +Z.
+    const P = (i: number) => {
+      const p = pose[i];
+      return p ? new Vector3(p.x, -p.y, -p.z) : null;
+    };
+    const ls = P(11);
+    const rs = P(12);
+    const lh = P(23);
+    const rh = P(24);
+    if (!ls || !rs || !lh || !rh) return false;
+    const hipMid = mid(lh, rh);
+    const shMid = mid(ls, rs);
+
+    const basis = (right: Vector3, upRaw: Vector3) => {
+      const x = right.clone().normalize();
+      const y = upRaw
+        .clone()
+        .sub(x.clone().multiplyScalar(upRaw.dot(x)))
+        .normalize();
+      const z = new Vector3().crossVectors(x, y);
+      return new Matrix4().makeBasis(x, y, z);
+    };
+    const restPelvis = basis(jv('hip.r').sub(jv('hip.l')), REST.shMid.clone().sub(REST.hipMid));
+    const restChest = basis(jv('shoulder.r').sub(jv('shoulder.l')), REST.shMid.clone().sub(REST.hipMid));
+    const tPelvis = basis(rh.clone().sub(lh), shMid.clone().sub(hipMid));
+    const tChest = basis(rs.clone().sub(ls), shMid.clone().sub(hipMid));
+    const rot = (target: Matrix4, rest: Matrix4) => target.clone().multiply(rest.clone().transpose());
+    const rigid = (from: Vector3, to: Vector3, R: Matrix4) =>
+      new Matrix4()
+        .makeTranslation(to.x, to.y, to.z)
+        .multiply(R)
+        .multiply(new Matrix4().makeTranslation(-from.x, -from.y, -from.z));
+
+    const Rp = rot(tPelvis, restPelvis);
+    const Rc = rot(tChest, restChest);
+    // Голова: вслед за грудью, наклон — по направлению шея → голова.
+    const le = P(7);
+    const re = P(8);
+    const headT =
+      le && re
+        ? mid(le, re).add(new Vector3(0, 0.02, 0))
+        : (P(0) ?? shMid.clone().add(new Vector3(0, 0.25, 0)));
+    const neckT = shMid.clone().add(headT.clone().sub(shMid).multiplyScalar(0.35));
+    const headDir0 = REST.head
+      .clone()
+      .sub(REST.neck)
+      .applyMatrix4(new Matrix4().extractRotation(Rc))
+      .normalize();
+    const headDir = headT.clone().sub(neckT).normalize();
+    const Rh = new Matrix4()
+      .makeRotationFromQuaternion(new Quaternion().setFromUnitVectors(headDir0, headDir))
+      .multiply(Rc);
+
+    BONES.forEach((b, i) => {
+      let M: Matrix4;
+      if (b.kind === 'pelvis') M = rigid(REST.hipMid, hipMid, Rp);
+      else if (b.kind === 'chest') M = rigid(REST.shMid, shMid, Rc);
+      else if (b.kind === 'head') M = rigid(REST.neck, neckT, Rh);
+      else {
+        const A0 = jv(b.a);
+        const B0 = jv(b.b);
+        const A = P(b.ia);
+        const B = P(b.ib);
+        if (!A || !B) {
+          M = rigid(A0, A0, new Matrix4());
+        } else {
+          const d0 = B0.clone().sub(A0);
+          const d = B.clone().sub(A);
+          const k = d.length() / d0.length();
+          const n = d0.clone().normalize();
+          // Растяжение вдоль кости: S = I + (k − 1)·n·nᵀ.
+          const S = new Matrix4().set(
+            1 + (k - 1) * n.x * n.x,
+            (k - 1) * n.x * n.y,
+            (k - 1) * n.x * n.z,
+            0,
+            (k - 1) * n.y * n.x,
+            1 + (k - 1) * n.y * n.y,
+            (k - 1) * n.y * n.z,
+            0,
+            (k - 1) * n.z * n.x,
+            (k - 1) * n.z * n.y,
+            1 + (k - 1) * n.z * n.z,
+            0,
+            0,
+            0,
+            0,
+            1,
+          );
+          // Поворот: сначала вместе с торсом (без «скручивания»), потом кратчайшая дуга до цели.
+          const Rt = i >= 9 ? Rc : Rp;
+          const d0t = n.clone().applyMatrix4(new Matrix4().extractRotation(Rt)).normalize();
+          const R = new Matrix4()
+            .makeRotationFromQuaternion(new Quaternion().setFromUnitVectors(d0t, d.clone().normalize()))
+            .multiply(Rt);
+          M = new Matrix4()
+            .makeTranslation(A.x, A.y, A.z)
+            .multiply(R)
+            .multiply(S)
+            .multiply(new Matrix4().makeTranslation(-A0.x, -A0.y, -A0.z));
+        }
+      }
+      this.bones[i]!.matrixWorld.copy(M);
+    });
+
+    const act = activation(this.exercise, pose) as Record<string, number>;
+    for (const m of this.meshes) {
+      const js = PART_JOINTS[m.part];
+      const hl = !!highlight && !!js && highlight.has(js[0]) && highlight.has(js[1]);
+      if (m.mat) {
+        const mm = muscleOf(m.part)!;
+        const load = act[mm.act] ?? 0;
+        m.mat.emissiveIntensity = 0.08 + 0.6 * load;
+        m.mat.color.setRGB(0.72 + 0.2 * load, 0.2 + 0.06 * (1 - load), 0.16);
+      }
+      m.mesh.material = hl ? ERROR : (m.mat ?? (m.part === 'bones' ? BONE : SKIN));
+    }
+    return true;
+  }
+}

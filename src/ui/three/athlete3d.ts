@@ -3,12 +3,9 @@
 // Движение — те же 3D-точки, что у 2D-версии (lib/athlete.ts): присед из записи человека,
 // остальное — кинематика на его пропорциях.
 //
-// Производительность: ОДИН WebGL-рендерер на всё приложение. Каждый видимый атлет рисуется в свою
-// область буфера (scissor) и копируется в свой 2D-холст — так на странице может быть сколько угодно
-// атлетов без лимита WebGL-контекстов (на телефонах их ~8).
+// Запасной вариант, пока грузится модель Z-Anatomy (three/zanatomy.ts). Рендерер общий (three/renderer.ts).
 
 import {
-  ACESFilmicToneMapping,
   CanvasTexture,
   CapsuleGeometry,
   CircleGeometry,
@@ -29,43 +26,14 @@ import {
   SRGBColorSpace,
   Vector2,
   Vector3,
-  WebGLRenderer,
   type BufferGeometry,
   type Material,
 } from 'three';
 import type { ExerciseId } from '../../engine/types';
 import { MUSCLES, activation, athleteBounds, type Muscle } from '../lib/athlete';
+import { blitTo, sharedRenderer } from './renderer';
 
 type V3 = { x: number; y: number; z: number };
-
-// ——— Общий рендерер ———
-
-let renderer: WebGLRenderer | null = null;
-let bufW = 0;
-let bufH = 0;
-
-function sharedRenderer(mobile: boolean): WebGLRenderer | null {
-  if (renderer) return renderer;
-  try {
-    renderer = new WebGLRenderer({ antialias: !mobile, alpha: true, powerPreference: 'high-performance' });
-  } catch {
-    return null;
-  }
-  renderer.setPixelRatio(1);
-  renderer.outputColorSpace = SRGBColorSpace;
-  renderer.toneMapping = ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
-  renderer.setClearColor(0x000000, 0);
-  renderer.setScissorTest(true);
-  return renderer;
-}
-
-function ensureBuffer(r: WebGLRenderer, w: number, h: number): void {
-  if (w <= bufW && h <= bufH) return;
-  bufW = Math.min(2048, Math.max(bufW, w));
-  bufH = Math.min(2048, Math.max(bufH, h));
-  r.setSize(bufW, bufH, false);
-}
 
 // ——— Материалы и геометрии (общие для всех атлетов) ———
 
@@ -342,14 +310,7 @@ export class AthleteView {
     this.body.rotation.y = -opts.yaw;
     this.fit(W / H);
 
-    ensureBuffer(r, W, H);
-    r.setViewport(0, 0, W, H);
-    r.setScissor(0, 0, W, H);
-    r.clear();
-    r.render(this.scene, this.camera);
-    target.clearRect(0, 0, W, H);
-    target.drawImage(r.domElement, 0, bufH - H, W, H, 0, 0, W, H);
-    return true;
+    return blitTo(r, this.scene, this.camera, target, W, H);
   }
 
   private fit(aspect: number): void {

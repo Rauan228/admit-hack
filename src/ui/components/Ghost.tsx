@@ -22,7 +22,7 @@ export interface GhostProps {
 
 const MOBILE = isMobileDevice();
 /** three.js — отдельный чанк: грузим один раз и только там, где есть атлет. */
-let load3d: Promise<typeof import('../three/athlete3d')> | null = null;
+let load3d: Promise<typeof import('../three')> | null = null;
 const FRAME_MS = 1000 / 30;
 
 export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlight, clock }: GhostProps) {
@@ -44,12 +44,15 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
     let raf = 0;
     let visible = true;
     let last = 0;
-    let view: import('../three/athlete3d').AthleteView | null = null;
+    let view: import('../three').AthleteView | null = null;
+    let zview: import('../three').ZAthleteView | null = null;
     let cancelled = false;
-    load3d ??= import('../three/athlete3d');
+    load3d ??= import('../three');
     load3d
       .then((m) => {
-        if (!cancelled) view = new m.AthleteView(exercise);
+        if (cancelled) return;
+        view = new m.AthleteView(exercise);
+        zview = new m.ZAthleteView(exercise);
       })
       .catch(() => {
         /* без 3D — остаётся 2D */
@@ -72,13 +75,11 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
       const y = sway && !reduced ? yaw + Math.sin(now / 2400) * 0.3 : yaw;
       const pose = athletePose(exercise, t);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const o3d = { yaw: y, mobile: MOBILE, highlight: hl.current };
+      // Анатомическая модель; пока грузится — процедурный 3D; без WebGL — 2D.
       const drawn3d =
-        !!view &&
-        view.render(ctx, canvas.width, canvas.height, pose, {
-          yaw: y,
-          mobile: MOBILE,
-          highlight: hl.current,
-        });
+        (!!zview && zview.render(ctx, canvas.width, canvas.height, pose, o3d)) ||
+        (!!view && view.render(ctx, canvas.width, canvas.height, pose, o3d));
       if (!drawn3d) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);

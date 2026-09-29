@@ -1,0 +1,6 @@
+athlete.glb, athlete-lite.glb — derived from:
+  "Z-Anatomy — The libre 3D atlas of anatomy" (https://github.com/Z-Anatomy/Models-of-human-anatomy), CC BY-SA 4.0
+  "BodyParts3D — The Database Center for Life Science" (https://dbarchive.biosciencedbc.jp/en/bodyparts3d/), CC BY-SA 2.1 Japan
+Changes: muscles and visible bones only, fasciae/tendons removed, meshes decimated, muscle groups merged
+by side, exported to glTF (scripts/blender/prep-zanatomy.py).
+These derived models are distributed under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).
