@@ -67,6 +67,10 @@ export function athletePose(exercise: ExerciseId, tMs: number): (V3 | null)[] {
  * атлеты везде одного роста, фигура не «прыгает» и не обрезается.
  */
 let bounds: { w: number; h: number } | null = null;
+export function athleteBounds(): { w: number; h: number } {
+  return boundsOf();
+}
+
 function boundsOf(): { w: number; h: number } {
   if (bounds) return bounds;
   let w = 0;
@@ -102,10 +106,11 @@ export interface AthleteStyle {
  * присед — квадрицепсы и ягодичные (+ приводящие); выпад — квадрицепсы и ягодичные передней ноги (+ икры);
  * «звёздочка» — дельты, отводящие мышцы бедра, икры; подъём рук — средние и передние дельты, трапеции.
  */
-type Muscle = 'quads' | 'adductors' | 'glutes' | 'calves' | 'delts' | 'traps' | 'abductors';
+export type Muscle =
+  'quads' | 'hamstrings' | 'adductors' | 'glutes' | 'calves' | 'delts' | 'traps' | 'abductors';
 export const MUSCLES: Record<ExerciseId, Muscle[]> = {
   squat: ['quads', 'glutes', 'adductors'],
-  lunge: ['quads', 'glutes', 'calves'],
+  lunge: ['quads', 'glutes', 'hamstrings', 'calves'],
   jumping_jack: ['delts', 'abductors', 'calves'],
   arm_raise: ['delts', 'traps'],
 };
@@ -113,7 +118,7 @@ export const MUSCLES: Record<ExerciseId, Muscle[]> = {
 /** Названия для подписей в интерфейсе. */
 export const MUSCLE_NAMES: Record<ExerciseId, string[]> = {
   squat: ['квадрицепсы', 'ягодичные', 'приводящие'],
-  lunge: ['квадрицепсы', 'ягодичные', 'икры'],
+  lunge: ['квадрицепсы', 'ягодичные', 'бицепс бедра', 'икры'],
   jumping_jack: ['дельты', 'отводящие бедра', 'икры'],
   arm_raise: ['дельты', 'трапеции'],
 };
@@ -281,7 +286,7 @@ export function drawAthlete(
 }
 
 /** Нагрузка мышц 0..1 из самой позы: сгиб колена, подъём рук, ширина стойки. */
-function activation(exercise: ExerciseId, pose: (V3 | null)[]) {
+export function activation(exercise: ExerciseId, pose: (V3 | null)[]) {
   const bend = (h: number, k: number, a: number) => {
     const H = pose[h];
     const K = pose[k];

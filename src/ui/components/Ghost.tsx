@@ -1,4 +1,5 @@
-// U-12: «призрак» — атлет-эталон в стиле анатомического атласа (lib/athlete.ts).
+// U-12: «призрак» — 3D-атлет в стиле анатомического атласа (three/athlete3d.ts, three.js грузится лениво);
+// пока 3D не загрузился или WebGL недоступен — 2D-версия (lib/athlete.ts).
 // Производительность: рисуем только когда холст виден на экране, не чаще 30 кадров в секунду,
 // на телефоне — плотность пикселей 1 и без свечения (shadowBlur на мобильных GPU очень дорогой).
 
@@ -20,6 +21,8 @@ export interface GhostProps {
 }
 
 const MOBILE = isMobileDevice();
+/** three.js — отдельный чанк: грузим один раз и только там, где есть атлет. */
+let load3d: Promise<typeof import('../three/athlete3d')> | null = null;
 const FRAME_MS = 1000 / 30;
 
 export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlight, clock }: GhostProps) {
@@ -41,6 +44,16 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
     let raf = 0;
     let visible = true;
     let last = 0;
+    let view: import('../three/athlete3d').AthleteView | null = null;
+    let cancelled = false;
+    load3d ??= import('../three/athlete3d');
+    load3d
+      .then((m) => {
+        if (!cancelled) view = new m.AthleteView(exercise);
+      })
+      .catch(() => {
+        /* без 3D — остаётся 2D */
+      });
 
     const draw = (now: number) => {
       raf = 0;
@@ -54,16 +67,23 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
       if (!W || !H) return;
       if (canvas.width !== Math.round(W * dpr)) canvas.width = Math.round(W * dpr);
       if (canvas.height !== Math.round(H * dpr)) canvas.height = Math.round(H * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, W, H);
       // При reduced motion — статичная середина движения (самая информативная поза).
       const t = reduced ? 1300 : (clk.current?.() ?? now - start);
       const y = sway && !reduced ? yaw + Math.sin(now / 2400) * 0.3 : yaw;
-      drawAthlete(ctx, W, H, exercise, athletePose(exercise, t), {
-        yaw: y,
-        glow: !MOBILE,
-        highlight: hl.current,
-      });
+      const pose = athletePose(exercise, t);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const drawn3d =
+        !!view &&
+        view.render(ctx, canvas.width, canvas.height, pose, {
+          yaw: y,
+          mobile: MOBILE,
+          highlight: hl.current,
+        });
+      if (!drawn3d) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+        drawAthlete(ctx, W, H, exercise, pose, { yaw: y, glow: !MOBILE, highlight: hl.current });
+      }
       if (reduced) {
         cancelAnimationFrame(raf);
         raf = 0;
@@ -87,6 +107,7 @@ export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlig
     document.addEventListener('visibilitychange', kick);
     kick();
     return () => {
+      cancelled = true;
       cancelAnimationFrame(raf);
       io?.disconnect();
       document.removeEventListener('visibilitychange', kick);
