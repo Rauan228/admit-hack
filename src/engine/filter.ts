@@ -113,6 +113,66 @@ export class LandmarkSmoother {
   }
 }
 
+export interface RenderParams {
+  /** Сдвиг за кадр меньше этого (в длинах корпуса) — дрожание, сглаживаем с долей rest. */
+  jitter: number;
+  /** Сдвиг больше этого — движение, точка идёт за телом без задержки. */
+  motion: number;
+  /** Доля шага к новой точке за кадр при 30 FPS, пока точка «стоит». */
+  rest: number;
+}
+
+/**
+ * Сглаживание скелета на экране (E-23). One Euro оценивает скорость с запаздыванием, поэтому в начале
+ * движения держит точку на месте — на экране скелет «догоняет» руку. Здесь решение по самому сдвигу
+ * новой точки от показанной: мелкий сдвиг — дрожание модели (гасим), большой — движение (показываем сразу).
+ * Точки для счёта и подсказок сюда не идут: у них свой фильтр, подобранный под точность счёта.
+ */
+export class RenderSmoother {
+  private shown: { x: number; y: number }[] | null = null;
+  private lastT = 0;
+
+  constructor(
+    private readonly params: RenderParams = ENGINE_CONFIG.filter.render,
+    private readonly resetAfterMs: number = ENGINE_CONFIG.filter.resetAfterMs,
+  ) {}
+
+  /**
+   * raw — сырые точки модели (по ним решаем, где тело), base — те же точки после фильтра движка
+   * (z и видимость берём оттуда); scale — длина корпуса в координатах с поправкой на аспект.
+   */
+  apply(raw: readonly Landmark[], base: readonly Landmark[], tMs: number, aspect: number, scale: number): Landmark[] {
+    const prev = this.shown;
+    const dtMs = tMs - this.lastT;
+    if (!prev || prev.length !== raw.length || dtMs > this.resetAfterMs || !(scale > 0)) {
+      this.shown = raw.map((p) => ({ x: p.x, y: p.y }));
+      this.lastT = tMs;
+      return base.map((p, i) => ({ ...p, x: raw[i]!.x, y: raw[i]!.y }));
+    }
+    if (dtMs <= 0) return base.map((p, i) => ({ ...p, x: prev[i]!.x, y: prev[i]!.y }));
+    const { jitter, motion, rest } = this.params;
+    // Доля шага «в покое» пересчитана на реальный интервал: на 15 FPS за кадр догоняем столько же, сколько за два на 30.
+    const restStep = 1 - Math.pow(1 - rest, dtMs / (1000 / 30));
+    this.lastT = tMs;
+    return base.map((p, i) => {
+      const s = prev[i]!;
+      const r = raw[i]!;
+      if (!Number.isFinite(r.x) || !Number.isFinite(r.y)) return { ...p, x: s.x, y: s.y };
+      const dx = r.x - s.x;
+      const dy = r.y - s.y;
+      const shift = Math.hypot(dx * aspect, dy) / scale;
+      const k = Math.min(1, Math.max(restStep, (shift - jitter) / (motion - jitter)));
+      s.x += k * dx;
+      s.y += k * dy;
+      return { ...p, x: s.x, y: s.y };
+    });
+  }
+
+  reset(): void {
+    this.shown = null;
+  }
+}
+
 /**
  * Один шаг конвейера: сырые точки детектора → сглаженный кадр позы.
  * Масштаб для нормализации скорости — длина корпуса по сырым точкам (или четверть кадра, если её нет).

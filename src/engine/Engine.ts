@@ -13,9 +13,9 @@ import { assessCalibration, CalibrationTracker, type CalibrationVerdict } from '
 import { openCamera, stopCamera } from './camera';
 import { ENGINE_CONFIG } from './config';
 import { createExercise } from './exercises';
-import { LandmarkSmoother, smoothPose } from './filter';
+import { LandmarkSmoother, RenderSmoother, smoothPose } from './filter';
 import { FpsCounter } from './fps';
-import type { PoseFrame } from './geometry';
+import { torsoLength, type PoseFrame } from './geometry';
 import { GestureTracker } from './gestures';
 import { CALIBRATION_DETAIL_HINTS, CALIBRATION_HINTS } from './hints';
 import { AdaptivePerf } from './perf';
@@ -54,6 +54,8 @@ class RealEngine implements Engine {
   private readonly listeners = new Set<(e: EngineEvent) => void>();
   private readonly fps = new FpsCounter();
   private readonly smoother = new LandmarkSmoother();
+  /** Скелет на экране: своё сглаживание, без задержки на движении (E-23). */
+  private readonly render = new RenderSmoother();
   private readonly gestures = new GestureTracker();
   /** Полная калибровка (экран калибровки). */
   private readonly calibration = new CalibrationTracker();
@@ -103,6 +105,7 @@ class RealEngine implements Engine {
     this.lastVideoTime = -1;
     this.fps.reset();
     this.smoother.reset();
+    this.render.reset();
     this.perf = new AdaptivePerf();
     this.enterMode(this.mode, this.deps.now());
     this.frameId = this.deps.requestFrame(this.loop);
@@ -179,9 +182,10 @@ class RealEngine implements Engine {
     const frame = detection ? smoothPose(this.smoother, detection.image, detection.world, now, aspect) : null;
     // Пустой массив = в кадре никого: UI стирает скелет. image — кадр, на котором модель считала точки.
     const image = detector.frame;
+    const scale = detection ? torsoLength({ t: now, aspect, image: detection.image, world: null }) || 0.25 : 0;
     this.emit({
       type: 'frame',
-      landmarks: frame?.image ?? [],
+      landmarks: detection && frame ? this.render.apply(detection.image, frame.image, now, aspect, scale) : [],
       fps: this.fps.tick(now),
       ...(image ? { image } : {}),
     });
