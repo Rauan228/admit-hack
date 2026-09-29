@@ -24,6 +24,9 @@ export interface MockEngineOptions {
   seed?: number;
 }
 
+/** Уровень пола стоя (для прыжка и подъёма на носки). */
+const STANDING_GROUND = body().groundY;
+
 /** Длительность одного повторения в моке, мс. */
 const REP_MS = 2400;
 /** Сколько повторений играет автосценарий. */
@@ -65,7 +68,13 @@ export function plannedError(exercise: ExerciseId, i: number): FormErrorDef | nu
 }
 
 /** Поза упражнения в момент цикла 0..1 (0 — исходное положение, 0.5 — нижняя точка). */
-export function exercisePose(exercise: ExerciseId, cycle: number, err: FormErrorDef | null): BodyParams {
+export function exercisePose(
+  exercise: ExerciseId,
+  cycle: number,
+  err: FormErrorDef | null,
+  /** Номер повтора: упражнения со сменой сторон чередуют ногу. */
+  rep = 0,
+): BodyParams {
   const wave = easeInOut(cycle < 0.5 ? cycle * 2 : (1 - cycle) * 2);
   const code = err?.code;
   switch (exercise) {
@@ -117,6 +126,163 @@ export function exercisePose(exercise: ExerciseId, cycle: number, err: FormError
         armR: 12 + wave * (rightTop - 12),
         elbowL: bent,
         elbowR: bent,
+      });
+    }
+    case 'high_knees': {
+      // Каждый повтор — одно колено: чётные — левое, нечётные — правое; руки согнуты, как в беге.
+      const lift = wave * (code === 'knees_low' ? 0.45 : 1);
+      return body({
+        ...(rep % 2 === 0 ? { kneeLiftL: lift } : { kneeLiftR: lift }),
+        lean: code === 'lean_back' ? -14 * wave : 0,
+        armL: 20,
+        armR: 20,
+        elbowL: 95,
+        elbowR: 95,
+      });
+    }
+    case 'knee_to_elbow': {
+      // Руки за головой; чётные повторы — правое колено и левый локоть, нечётные — наоборот.
+      const lift = wave * (code === 'knee_low' ? 0.3 : 0.9);
+      const reach = wave * (code === 'elbow_far' ? 35 : 95);
+      const rightKnee = rep % 2 === 0;
+      return body({
+        ...(rightKnee ? { kneeLiftR: lift } : { kneeLiftL: lift }),
+        lean: 12 * wave,
+        armL: 150 - (rightKnee ? reach : 0),
+        armR: 150 - (rightKnee ? 0 : reach),
+        elbowL: 150,
+        elbowR: 150,
+      });
+    }
+    case 'squat_press': {
+      // Первая половина цикла — присед (кисти у плеч), вторая — встал и выжал руки вверх.
+      const depth = cycle < 0.5 ? easeInOut(cycle < 0.25 ? cycle * 4 : (0.5 - cycle) * 4) : 0;
+      const press =
+        cycle >= 0.45 ? easeInOut(cycle < 0.725 ? (cycle - 0.45) / 0.275 : (1 - cycle) / 0.275) : 0;
+      const armTop = code === 'press_low' ? 115 : 175;
+      return body({
+        squat: depth * (code === 'shallow_depth' ? 0.45 : 1),
+        kneeIn: code === 'knees_in' ? depth : 0,
+        lean: depth * 10,
+        armL: 25 + press * (armTop - 25),
+        armR: 25 + press * (armTop - 25),
+        elbowL: 150 - press * (code === 'press_low' ? 90 : 145),
+        elbowR: 150 - press * (code === 'press_low' ? 90 : 145),
+      });
+    }
+    case 'side_bend': {
+      // Чётные повторы — наклон влево, нечётные — вправо.
+      const tilt = wave * (code === 'shallow_bend' ? 12 : 30) * (rep % 2 === 0 ? 1 : -1);
+      return body({
+        sideTilt: tilt,
+        lean: code === 'lean_forward' ? wave * 30 : 0,
+        centerX: 0.5 + (code === 'hips_shift' ? tilt / 300 : 0),
+        armL: 25,
+        armR: 25,
+        elbowL: 110,
+        elbowR: 110,
+      });
+    }
+    case 'side_leg_raise': {
+      const out = wave * (code === 'leg_low' ? 0.45 : 1);
+      return body({
+        ...(rep % 2 === 0 ? { legOutL: out } : { legOutR: out }),
+        sideTilt: code === 'torso_tilt' ? wave * 20 * (rep % 2 === 0 ? -1 : 1) : 0,
+        armL: 25,
+        armR: 25,
+        elbowL: 110,
+        elbowR: 110,
+      });
+    }
+    case 'side_lunge': {
+      // Широкая стойка, таз уходит к согнутой ноге и вниз.
+      const depth = wave * (code === 'shallow_side' ? 0.45 : 0.9);
+      return body({
+        stance: 0.5,
+        squat: depth,
+        centerX: 0.5 + (rep % 2 === 0 ? 1 : -1) * 0.07 * depth,
+        kneeIn: code === 'knee_in' ? depth : 0,
+        lean: code === 'torso_lean' ? wave * 40 : wave * 8,
+        armL: 30,
+        armR: 30,
+        elbowL: 120,
+        elbowR: 120,
+      });
+    }
+    case 'jump_squat': {
+      const depth = cycle < 0.5 ? easeInOut(cycle < 0.25 ? cycle * 4 : (0.5 - cycle) * 4) : 0;
+      const air =
+        code === 'no_jump' ? 0 : cycle >= 0.5 && cycle < 0.8 ? Math.sin((Math.PI * (cycle - 0.5)) / 0.3) : 0;
+      return body({
+        squat: depth * (code === 'shallow_depth' ? 0.45 : 1),
+        kneeIn: code === 'knees_in' ? depth : 0,
+        groundY: STANDING_GROUND - 0.07 * air,
+        armL: 20 + depth * 40 + air * 120,
+        armR: 20 + depth * 40 + air * 120,
+      });
+    }
+    case 'calf_raise':
+      return body({ groundY: STANDING_GROUND - wave * (code === 'low_raise' ? 0.012 : 0.03) });
+    case 'cross_jack': {
+      const open = code === 'no_cross' ? 0.35 + wave * 0.65 : wave;
+      return body({
+        armL: code === 'arms_low' ? 20 + open * 35 : 20 + open * 70,
+        armR: code === 'arms_low' ? 20 + open * 35 : 20 + open * 70,
+        elbowL: (1 - open) * 140,
+        elbowR: (1 - open) * 140,
+        stance: 0.08 + open * (code === 'feet_narrow' ? 0.14 : 0.5),
+      });
+    }
+    case 'arm_circles': {
+      // Руки в стороны, кисти поднимаются и опускаются по кругу.
+      const a = 2 * Math.PI * cycle;
+      const r = code === 'small_circles' ? 5 : 16;
+      const arm = code === 'arms_low' ? 45 : 90;
+      return body({
+        armL: arm + r * Math.cos(a),
+        armR: arm + r * Math.cos(a),
+        elbowL: code === 'elbows_bent' ? 60 : 4,
+        elbowR: code === 'elbows_bent' ? 60 : 4,
+      });
+    }
+    case 'boxing': {
+      // Защита: кулаки у подбородка; удар — рука распрямляется (чётные — левой, нечётные — правой).
+      const hit = wave * (code === 'short_punch' ? 0.5 : 1);
+      const left = rep % 2 === 0;
+      const guardDrop = code === 'guard_down' ? wave : 0;
+      return body({
+        armL: left ? 30 + hit * 55 : 30 - guardDrop * 20,
+        armR: left ? 30 - guardDrop * 20 : 30 + hit * 55,
+        elbowL: left ? 150 - hit * 145 : 150 - guardDrop * 120,
+        elbowR: left ? 150 - guardDrop * 120 : 150 - hit * 145,
+      });
+    }
+    case 'push_up':
+      return body({
+        lying: 0.82 + wave * (code === 'shallow_pushup' ? 0.05 : 0.14),
+        armL: 175,
+        armR: 175,
+        squat: code === 'hips_sag' ? 0.2 : 0,
+      });
+    case 'plank':
+      return body({
+        lying: 0.9,
+        armL: 175,
+        armR: 175,
+        elbowL: 90,
+        elbowR: 90,
+        squat: code === 'hips_sag' ? 0.2 : 0,
+      });
+    case 'burpee': {
+      // Вниз → упор лёжа → обратно → прыжок.
+      const down = easeInOut(Math.min(1, Math.max(0, cycle < 0.5 ? cycle * 3 : (0.85 - cycle) * 3)));
+      const air = code === 'no_jump' ? 0 : cycle > 0.85 ? Math.sin((Math.PI * (cycle - 0.85)) / 0.15) : 0;
+      return body({
+        squat: Math.min(1, down * 2),
+        lying: Math.max(0, down * 2 - 1) * (code === 'not_low' ? 0.3 : 0.9),
+        groundY: STANDING_GROUND - 0.05 * air,
+        armL: 12 + air * 160,
+        armR: 12 + air * 160,
       });
     }
   }
@@ -300,7 +466,7 @@ class MockEngine implements Engine {
     this.newScene((t) => {
       const i = Math.min(reps - 1, Math.floor(t / REP_MS));
       const cycle = (t % REP_MS) / REP_MS;
-      return exercisePose(exercise, cycle, errFor(i));
+      return exercisePose(exercise, cycle, errFor(i), i);
     });
 
     for (let i = 0; i < reps; i += 1) {

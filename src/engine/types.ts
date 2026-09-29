@@ -1,7 +1,25 @@
 // Контракт движок ↔ UI. Источник правды: brain/PLAN.md §4.
 // Меняем только по согласованию обоих разработчиков.
 
-export type ExerciseId = 'squat' | 'jumping_jack' | 'lunge' | 'arm_raise';
+export type ExerciseId =
+  | 'squat'
+  | 'jumping_jack'
+  | 'lunge'
+  | 'arm_raise'
+  | 'high_knees'
+  | 'knee_to_elbow'
+  | 'squat_press'
+  | 'side_bend'
+  | 'side_leg_raise'
+  | 'side_lunge'
+  | 'jump_squat'
+  | 'calf_raise'
+  | 'cross_jack'
+  | 'arm_circles'
+  | 'boxing'
+  | 'push_up'
+  | 'plank'
+  | 'burpee';
 export type Joint = number; // индекс точки MediaPipe (0..32)
 
 export interface Landmark {
@@ -60,4 +78,23 @@ export interface Engine {
   on(cb: (e: EngineEvent) => void): () => void;
 }
 
-export const EXERCISES: readonly ExerciseId[] = ['squat', 'jumping_jack', 'lunge', 'arm_raise'];
+export const EXERCISES: readonly ExerciseId[] = [
+  'squat',
+  'jumping_jack',
+  'lunge',
+  'arm_raise',
+  'high_knees',
+  'knee_to_elbow',
+  'squat_press',
+  'side_bend',
+  'side_leg_raise',
+  'side_lunge',
+  'jump_squat',
+  'calf_raise',
+  'cross_jack',
+  'arm_circles',
+  'boxing',
+  'push_up',
+  'plank',
+  'burpee',
+];

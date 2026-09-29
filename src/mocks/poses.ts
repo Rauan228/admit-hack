@@ -31,6 +31,16 @@ export interface BodyParams {
   visibility: number;
   /** видимость ног отдельно: для статуса partial ноги «обрезаны» кадром */
   legVisibility: number;
+  /** подъём колена: 0 — нога на полу, 1 — колено на уровне таза (высокие колени, локоть к колену) */
+  kneeLiftL: number;
+  kneeLiftR: number;
+  /** наклон корпуса вбок, градусы: + к левому боку человека (вправо по картинке) */
+  sideTilt: number;
+  /** отведение прямой ноги в сторону: 0 — стоит, 1 — на 45° */
+  legOutL: number;
+  legOutR: number;
+  /** лёжа: 0 — стоит, 1 — тело горизонтально (упор лёжа), голова слева по картинке */
+  lying: number;
 }
 
 export const STANDING: BodyParams = {
@@ -48,6 +58,12 @@ export const STANDING: BodyParams = {
   lungeFront: 0,
   visibility: 0.96,
   legVisibility: 0.95,
+  kneeLiftL: 0,
+  kneeLiftR: 0,
+  sideTilt: 0,
+  legOutL: 0,
+  legOutR: 0,
+  lying: 0,
 };
 
 export function body(overrides: Partial<BodyParams> = {}): BodyParams {
@@ -98,8 +114,10 @@ export function buildPose(p: BodyParams): Landmark[] {
   // Наклон корпуса: плечи уезжают вперёд (вправо на картинке) и вниз.
   const leanX = Math.sin(rad(p.lean)) * torso;
   const leanY = Math.cos(rad(p.lean)) * torso;
-  const shX = hipX + leanX * 0.6;
-  const shY = hipY - leanY;
+  // Наклон вбок: плечи поворачиваются вокруг таза в плоскости кадра.
+  const tilt = rad(p.sideTilt);
+  const shX = hipX + leanX * 0.6 + Math.sin(tilt) * leanY;
+  const shY = hipY - leanY * Math.cos(tilt);
 
   const pts: Pt[] = new Array<Pt>(33);
   const set = (i: number, x: number, y: number, z = 0, v = p.visibility) => {
@@ -198,15 +216,40 @@ export function buildPose(p: BodyParams): Landmark[] {
     const front = s.sign > 0 ? p.lungeFront : -p.lungeFront;
     const ax = hipX + ((s.sign * p.stance) / 2) * H + front * H * 0.35;
     const ay = p.groundY - (s.sign > 0 ? 0 : p.lungeFront * H * 0.12);
-    set(s.ankle, ax, ay, 0, p.legVisibility);
-    const kx = (hx + ax) / 2 - s.sign * p.kneeIn * 0.06 * H;
-    const ky = hipY + (ay - hipY) * 0.52 + p.squat * 0.01 * H;
+    const kx0 = (hx + ax) / 2 - s.sign * p.kneeIn * 0.06 * H;
+    const ky0 = hipY + (ay - hipY) * 0.52 + p.squat * 0.01 * H;
+    // Подъём колена: колено идёт к уровню таза, голень висит под ним, стопа отрывается от пола.
+    const lift = s.sign > 0 ? p.kneeLiftL : p.kneeLiftR;
+    // Отведение: прямая нога поворачивается вокруг таза наружу (до 45°).
+    const out = rad(45 * (s.sign > 0 ? p.legOutL : p.legOutR));
+    const legX = hx + s.sign * Math.sin(out) * legLen;
+    const legY = hipY + Math.cos(out) * legLen;
+    const ox = out ? (hx + legX) / 2 : kx0;
+    const oy = out ? (hipY + legY) / 2 : ky0;
+    const kx = ox + (hx - ox) * lift;
+    const ky = oy + (hipY + 0.03 * H - oy) * lift;
+    const fx = (out ? legX : ax) + (kx - (out ? legX : ax)) * lift;
+    const fy = out ? legY : ay + (ky + (ay - ky0) - ay) * lift;
+    set(s.ankle, fx, fy, 0, p.legVisibility);
     set(s.knee, kx, ky, 0, p.legVisibility);
-    set(s.heel, ax - s.sign * 0.01 * H, ay + 0.015 * H, 0, p.legVisibility);
-    set(s.foot, ax + s.sign * 0.02 * H, ay + 0.035 * H, 0, p.legVisibility);
+    set(s.heel, fx - s.sign * 0.01 * H, fy + 0.015 * H, 0, p.legVisibility);
+    set(s.foot, fx + s.sign * 0.02 * H, fy + 0.035 * H, 0, p.legVisibility);
   }
 
-  return pts.map((pt) => ({ x: pt.x, y: pt.y, z: pt.z ?? 0, v: pt.v ?? p.visibility }));
+  // Лёжа: всё тело поворачивается вокруг стоп так, что голова уходит влево (упор лёжа боком к камере).
+  const turn = rad(-90 * p.lying);
+  const ox = p.centerX;
+  const oy = p.groundY;
+  return pts.map((pt) => {
+    const dx = pt.x - ox;
+    const dy = pt.y - oy;
+    return {
+      x: ox + dx * Math.cos(turn) - dy * Math.sin(turn),
+      y: oy + dx * Math.sin(turn) + dy * Math.cos(turn),
+      z: pt.z ?? 0,
+      v: pt.v ?? p.visibility,
+    };
+  });
 }
 
 /** Рука тянется к точке (x, y) экрана: нужно, чтобы скелет совпадал с курсором в меню. */

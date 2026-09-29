@@ -36,6 +36,10 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
    */
   private pending: { side: Side; guessed: boolean; errors: string[]; startT: number } | null = null;
   private finished = false;
+  /** Упражнения на время: сколько мс человек в положении, когда был в нём последний кадр, текущая фаза. */
+  private heldMs = 0;
+  private lastHoldT: number | null = null;
+  private holdPhase: 'start' | 'bottom' = 'start';
   /** Когда последний раз удалось измерить позу для этого упражнения. */
   private lastMeasuredAt: number;
 
@@ -75,6 +79,7 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
    * чтобы возвращение в кадр не выглядело «подъёмом» и не дало ложный повтор.
    */
   interrupt(): EngineEvent[] {
+    this.lastHoldT = null;
     if (this.finished || this.counter.phase === 'start') return [];
     this.counter.reset();
     this.meter.reset();
@@ -92,6 +97,7 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
     const m = this.meter.measure(frame, this.counter.phase);
     if (!m) return [];
     this.lastMeasuredAt = t;
+    if (this.def.hold) return this.updateHold(m, t);
 
     const out: EngineEvent[] = [];
     const exercise = this.def.id;
@@ -187,6 +193,41 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
     if (this.count >= this.targetReps) {
       this.finished = true;
       out.push({ type: 'set_complete', exercise, stats: this.set.stats() });
+    }
+    return out;
+  }
+
+  /**
+   * Упражнение на время: каждая полная секунда в положении — повтор (оценка — по ошибкам этой секунды).
+   * Вышел из положения — фаза start, отсчёт на паузе; пропуски кадров больше 250 мс в зачёт не идут.
+   */
+  private updateHold(m: M, t: number): EngineEvent[] {
+    const out: EngineEvent[] = [];
+    const exercise = this.def.id;
+    const phase = m.progress >= 1 ? 'bottom' : 'start';
+    if (phase !== this.holdPhase) {
+      this.holdPhase = phase;
+      out.push({ type: 'phase', exercise, phase });
+      if (phase === 'bottom') {
+        this.rules.beginRep();
+        this.set.markMovement(t);
+      }
+    }
+    const hint = this.rules.onFrame(m, phase, t);
+    if (hint) out.push(hint);
+    if (phase === 'bottom' && this.lastHoldT !== null) this.heldMs += Math.min(250, t - this.lastHoldT);
+    this.lastHoldT = phase === 'bottom' ? t : null;
+    while (this.heldMs >= (this.count + 1) * 1000) {
+      const errors = this.rules.repErrors;
+      const score = this.set.addRep(errors, t - 1000, t);
+      this.count += 1;
+      out.push({ type: 'rep', exercise, count: this.count, score, errors });
+      this.rules.beginRep();
+      if (this.count >= this.targetReps) {
+        this.finished = true;
+        out.push({ type: 'set_complete', exercise, stats: this.set.stats() });
+        break;
+      }
     }
     return out;
   }

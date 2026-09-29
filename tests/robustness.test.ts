@@ -2,7 +2,7 @@ import { createExercise } from '../src/engine/exercises';
 import type { PoseFrame } from '../src/engine/geometry';
 import { bodyOf, PersonSelector } from '../src/engine/person';
 import { ExerciseSession } from '../src/engine/session';
-import type { ExerciseId, Landmark } from '../src/engine/types';
+import { EXERCISES, type Landmark } from '../src/engine/types';
 import { body, buildPose } from '../src/mocks/poses';
 
 /** Человек размером height, стоящий в точке centerX. */
@@ -59,7 +59,7 @@ function rng(seed: number): () => number {
 describe('устойчивость: мусор на входе — ни крашей, ни ложных повторов', () => {
   const kinds = ['random', 'nan', 'half', 'frozen', 'none'] as const;
 
-  it.each(['squat', 'jumping_jack', 'lunge'] as ExerciseId[])('%s: 30 с случайных кадров', (id) => {
+  it.each(EXERCISES.filter((e) => e !== 'plank'))('%s: 30 с случайных кадров', (id) => {
     const r = rng(42);
     const session = new ExerciseSession(createExercise(id)!, 10, 0);
     const frozen = person(0.5, 0.7);
