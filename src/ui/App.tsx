@@ -10,9 +10,11 @@ import { Stage } from './components/Stage';
 import { TopBar } from './components/TopBar';
 import { attachEngine, getEngine, setEngineMode, useEngineEvents } from './engine/bus';
 import { clearFormError, setScene } from './engine/overlay';
-import { CHALLENGE_PLAN, QUICK_PLAN, singlePlan, type Plan } from './lib/exercises';
+import { DemoGuide } from './components/DemoGuide';
+import { CHALLENGE_PLAN, DEMO_PLAN, QUICK_PLAN, singlePlan, type Plan } from './lib/exercises';
 import type { SetResult } from './lib/results';
 import { Calibration } from './screens/Calibration';
+import { DemoIntro } from './screens/DemoIntro';
 import { ErrorScreen } from './screens/ErrorScreen';
 import { Intro } from './screens/Intro';
 import { Landing } from './screens/Landing';
@@ -26,6 +28,7 @@ import { Workout } from './screens/Workout';
 
 export type Screen =
   | { name: 'landing' }
+  | { name: 'demo' }
   | { name: 'loading' }
   | { name: 'error'; message: string; code: string }
   | { name: 'calibration' }
@@ -40,6 +43,7 @@ export type Screen =
 /** Затемнение видео и яркость скелета на каждом экране. */
 const SCENE: Record<Screen['name'], [dim: number, skeleton: number]> = {
   landing: [0.9, 0],
+  demo: [0.9, 0],
   loading: [0.8, 0],
   error: [0.9, 0],
   calibration: [0.25, 1],
@@ -56,6 +60,8 @@ export function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'landing' });
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [mock, setMock] = useState(() => isMockRequested());
+  /** Демо-тур (кнопка «Смотреть демо»): после калибровки сразу идёт короткий план с подсказками. ?mock=1 — просто мок для разработки. */
+  const [tour, setTour] = useState(false);
   const starting = useRef(false);
 
   const go = useCallback((next: Screen) => {
@@ -101,9 +107,39 @@ export function App() {
     [video, go],
   );
 
+  /** Выход из демо: останавливаем мок, убираем ?mock из адреса, возвращаемся на лендинг. */
+  const exitDemo = useCallback(() => {
+    getEngine()?.stop();
+    setMock(false);
+    setTour(false);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('mock')) {
+      url.searchParams.delete('mock');
+      window.history.replaceState(null, '', url);
+    }
+    go({ name: 'landing' });
+  }, [go]);
+
+  const toCamera = useCallback(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('mock')) {
+      url.searchParams.delete('mock');
+      window.history.replaceState(null, '', url);
+    }
+    setTour(false);
+    void start(false);
+  }, [start]);
+
+  const showGuide = mock && !['landing', 'demo', 'error'].includes(screen.name);
+  // Под подсказку тура резервируем низ экрана (DemoGuide.css, .is-demo), чтобы она ничего не закрывала.
+  useEffect(() => {
+    document.documentElement.classList.toggle('is-demo', showGuide);
+  }, [showGuide]);
+
   // «Обе руки вверх» = «назад» на вспомогательных экранах. Тренировка и интро решают сами.
+  // В демо жесты мока ничего не нажимают: там управляют мышью.
   useEngineEvents((e) => {
-    if (e.type !== 'gesture' || e.name !== 'both_hands_up') return;
+    if (mock || e.type !== 'gesture' || e.name !== 'both_hands_up') return;
     if (['picker', 'leaderboard', 'summary', 'name'].includes(screen.name)) go({ name: 'menu' });
   });
 
@@ -118,24 +154,38 @@ export function App() {
   };
 
   return (
-    <DwellProvider>
+    <DwellProvider hand={!mock}>
       <video ref={setVideo} className="camera-source" playsInline muted aria-hidden="true" />
       {screen.name !== 'landing' && <Stage video={mock ? null : video} />}
-      {!['landing', 'loading', 'error'].includes(screen.name) && (
+      {!['landing', 'demo', 'loading', 'error'].includes(screen.name) && (
         <TopBar mock={mock} onHome={screen.name === 'menu' ? undefined : () => go({ name: 'menu' })} />
       )}
 
-      {screen.name === 'landing' && <Landing onStart={() => start()} onDemo={() => start(true)} />}
+      {showGuide && <DemoGuide screen={screen.name} onExit={exitDemo} onCamera={toCamera} />}
+
+      {screen.name === 'landing' && <Landing onStart={() => start()} onDemo={() => go({ name: 'demo' })} />}
+      {screen.name === 'demo' && (
+        <DemoIntro
+          onWatch={() => {
+            setTour(true);
+            void start(true);
+          }}
+          onCamera={toCamera}
+          onBack={() => go({ name: 'landing' })}
+        />
+      )}
       {screen.name === 'loading' && <Loading mock={mock} />}
       {screen.name === 'error' && (
         <ErrorScreen
           message={screen.message}
           code={screen.code}
           onRetry={() => start(false)}
-          onDemo={() => start(true)}
+          onDemo={() => go({ name: 'demo' })}
         />
       )}
-      {screen.name === 'calibration' && <Calibration onDone={() => go({ name: 'menu' })} />}
+      {screen.name === 'calibration' && (
+        <Calibration onDone={() => (tour ? startPlan(DEMO_PLAN) : go({ name: 'menu' }))} />
+      )}
       {screen.name === 'menu' && (
         <Menu
           onQuick={() => startPlan(QUICK_PLAN)}
@@ -171,6 +221,8 @@ export function App() {
           results={screen.results}
           onAgain={() => startPlan(screen.plan)}
           onMenu={() => go({ name: 'menu' })}
+          demo={mock}
+          onCamera={toCamera}
           onSave={(record) => go({ name: 'name', record })}
         />
       )}

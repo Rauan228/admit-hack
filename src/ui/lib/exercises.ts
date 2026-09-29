@@ -75,6 +75,16 @@ export const QUICK_PLAN: Plan = {
   ],
 };
 
+/** Короткий план демо-тура: в моке 1-е повторение чистое, 2-е и 3-е — с ошибками. */
+export const DEMO_PLAN: Plan = {
+  kind: 'quick',
+  label: 'Демо-тренировка',
+  items: [
+    { exercise: 'squat', target: 3 },
+    { exercise: 'jumping_jack', target: 3 },
+  ],
+};
+
 export const CHALLENGE_PLAN: Plan = {
   kind: 'challenge',
   label: 'Челлендж 60 с',

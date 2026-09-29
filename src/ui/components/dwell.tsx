@@ -34,7 +34,12 @@ interface Registry {
 
 const DwellContext = createContext<Registry | null>(null);
 
-export function DwellProvider({ children }: { children: ReactNode }) {
+/** hand = false — курсор-рука выключен (демо без камеры: там кнопки нажимают мышью). */
+export function DwellProvider({ children, hand = true }: { children: ReactNode; hand?: boolean }) {
+  const handOn = useRef(hand);
+  useEffect(() => {
+    handOn.current = hand;
+  }, [hand]);
   const targets = useRef(new Set<Target>());
   const cursorRef = useRef<HTMLDivElement>(null);
   const trailRefs = useRef<(HTMLSpanElement | null)[]>([]);
@@ -71,7 +76,7 @@ export function DwellProvider({ children }: { children: ReactNode }) {
     const loop = () => {
       raf = requestAnimationFrame(loop);
       const cursor = cursorRef.current;
-      const p = live.pointer;
+      const p = handOn.current ? live.pointer : null;
       const now = performance.now();
       if (!cursor) return;
       if (!p) {

@@ -27,19 +27,24 @@ export function Summary({
   onAgain,
   onMenu,
   onSave,
+  demo = false,
+  onCamera,
 }: {
   plan: Plan;
   results: SetResult[];
   onAgain: () => void;
   onMenu: () => void;
   onSave: (r: PendingRecord) => void;
+  /** Демо без камеры: результат не сохраняется, вместо «В рекорды» — «Включить камеру». */
+  demo?: boolean;
+  onCamera?: () => void;
 }) {
   const t = totalsOf(results);
-  const isRecord = qualifies(t.points);
+  const isRecord = !demo && qualifies(t.points);
   const spoke = useRef(false);
 
   useEffect(() => {
-    if (!counted.has(results)) {
+    if (!demo && !counted.has(results)) {
       counted.add(results);
       addToTotals(t.reps, t.cleanReps, t.durationSec);
     }
@@ -53,7 +58,7 @@ export function Summary({
         : 'Подход завершён. В следующий раз получится!',
       'info',
     );
-  }, [results, t.reps, t.cleanReps, t.durationSec, t.cleanPct, t.topErrors]);
+  }, [demo, results, t.reps, t.cleanReps, t.durationSec, t.cleanPct, t.topErrors]);
 
   const record: PendingRecord = {
     kind: plan.kind,
@@ -135,6 +140,11 @@ export function Summary({
       </section>
 
       <footer className="summary__actions">
+        {demo && onCamera && (
+          <DwellButton variant="primary" size="lg" onSelect={onCamera}>
+            <Icon name="camera" size={30} /> Попробовать с камерой
+          </DwellButton>
+        )}
         {isRecord && t.reps > 0 && (
           <DwellButton variant="primary" size="lg" onSelect={() => onSave(record)}>
             <Icon name="trophy" size={30} /> В рекорды
