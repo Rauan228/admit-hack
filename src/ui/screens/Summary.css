@@ -1,184 +1,565 @@
-.summary {
-  padding-top: 88px;
-  gap: var(--s-5);
-  max-width: 1320px;
-  margin: 0 auto;
-  overflow-y: auto;
-}
-
+/* Итоги — «тёмный премиум»: большая карточка с кольцом чистых повторов, плашка рекорда,
+   график и ошибки в две колонки, сохранение, внизу «Ещё раз» и «В меню». */
 .summary__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-3) var(--s-4);
+  margin-bottom: var(--s-5);
 }
 
-.summary__title {
+/* ——— Главная карточка: кольцо + цифры ——— */
+.summary__hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(24px, 4vw, 56px);
+  margin-bottom: var(--s-3);
+  padding: clamp(20px, 2.4vw, 32px);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+}
+
+.summary__ring {
+  position: relative;
+  width: clamp(140px, 12vw, 172px);
+  aspect-ratio: 1;
+}
+
+.summary__ring svg {
   width: 100%;
-  font-size: var(--text-2xl);
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.summary__ring circle {
+  fill: none;
+  stroke-width: 10;
+}
+
+.summary__ring-track {
+  stroke: var(--surface-3);
+}
+
+.summary__ring-bar {
+  stroke: var(--good);
+  stroke-linecap: round;
+}
+
+.summary__ring--warn .summary__ring-bar {
+  stroke: var(--warn);
+}
+
+.summary__ring--bad .summary__ring-bar {
+  stroke: var(--bad);
+}
+
+.summary__ring-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.summary__ring-text b {
+  font-size: clamp(36px, 3.6vw, 48px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary__ring-text small {
+  color: var(--muted);
+  font-size: 14px;
 }
 
 .summary__stats {
   display: grid;
-  grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr));
-  gap: var(--s-4);
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  padding: var(--s-4) var(--s-5);
-  border-radius: var(--r-lg);
-  background: var(--glass);
-  border: 1px solid var(--line);
-}
-
-.stat--big {
-  background: var(--primary);
-  color: var(--on-primary);
-  border-color: var(--primary);
-}
-
-.stat__value {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: var(--text-2xl);
-  line-height: 0.95;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat__label {
-  font-size: var(--text-sm);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.8;
-}
-
-.summary__body {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-4);
-}
-
-.summary__card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-}
-
-.summary__card h3 {
-  font-size: var(--text-lg);
-}
-
-.qchart {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--s-3);
 }
 
-.qchart__svg {
-  width: 100%;
-  height: 120px;
-}
-
-.qchart__goal {
-  stroke: rgba(255, 255, 255, 0.25);
-  stroke-width: 0.4;
-  stroke-dasharray: 1.5 1.5;
-}
-
-.qchart__caption {
+.summary__stat {
   display: flex;
-  gap: var(--s-5);
-  flex-wrap: wrap;
-  font-size: var(--text-sm);
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-height: 128px;
+  padding: var(--s-5);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.summary__stat-value {
+  font-size: clamp(30px, 3vw, 44px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.summary__stat-label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ——— Плашка рекорда ——— */
+.summary__record {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-bottom: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--good-soft);
+}
+
+.summary__record-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+}
+
+.summary__record div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summary__record b {
+  font-size: 17px;
+  font-weight: 600;
+  color: #4ade80;
+}
+
+.summary__record span {
+  font-size: 14px;
   color: var(--muted);
 }
 
-.dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 6px;
+/* ——— Две колонки ——— */
+.summary__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: start;
 }
 
-.dot--good {
-  background: var(--good);
-}
-
-.dot--warn {
-  background: var(--warn);
-}
-
-.summary__sets {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-
-.summary__sets li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--s-4);
-  padding-top: var(--s-2);
-  border-top: 1px solid var(--line);
-  font-size: var(--text-sm);
-}
-
-.summary__errors {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.summary__col {
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
+  min-width: 0;
+}
+
+.summary__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.summary__h,
+.qchart__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+
+/* ——— График повторений ——— */
+.qchart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  margin: 0;
+}
+
+.qchart__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+}
+
+.qchart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.qchart__legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qchart__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.qchart__dot--good,
+.qchart__bar--good {
+  background: var(--good);
+}
+
+.qchart__dot--bad,
+.qchart__bar--bad {
+  background: var(--bad);
+}
+
+.qchart__empty {
+  margin: 0;
+  padding: var(--s-6) 0;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: center;
+  font-size: 14px;
+}
+
+.qchart__body {
+  padding-bottom: 24px;
+}
+
+.qchart__plot {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: clamp(4px, 0.8vw, 10px);
+  height: 180px;
+  padding-right: 28px;
+}
+
+/* Единственная направляющая — порог «чисто» 85. */
+.qchart__goal {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--line-strong);
+  pointer-events: none;
+}
+
+.qchart__goal small {
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: translateY(-50%);
+  color: var(--faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.qchart__col {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+}
+
+.qchart__bar {
+  width: 100%;
+  max-width: 24px;
+  border-radius: 999px;
+  transform-origin: bottom;
+  animation: qchart-grow 600ms var(--ease-out) both;
+}
+
+.qchart__bar--bad {
+  opacity: 0.85;
+}
+
+.qchart__n {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes qchart-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+/* ——— Результаты по упражнениям ——— */
+.summary__sets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.summary__sets li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4) var(--s-3) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: 15px;
+}
+
+.summary__set-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--fg);
+}
+
+.summary__set-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary__set-reps,
+.summary__set-pct {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.summary__set-reps {
+  color: var(--muted);
+}
+
+.summary__set-pct {
+  min-width: 96px;
+}
+
+.summary__set-pct small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* ——— Над чем поработать ——— */
+.summary__errors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .summary__errors li {
-  display: flex;
-  gap: var(--s-4);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
+  gap: var(--s-3);
 }
 
-.summary__errors b {
-  display: block;
-  font-size: var(--text-md);
+.summary__err-icon,
+.summary__clean-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.summary__err-icon {
+  background: var(--bad-soft);
+  color: #f87171;
+}
+
+.summary__err-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.summary__err-text b {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.summary__err-text small {
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .summary__err-count {
-  flex: none;
-  min-width: 56px;
-  padding: var(--s-1) var(--s-2);
-  border-radius: var(--r-md);
-  background: var(--bad-soft);
-  color: var(--bad);
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: var(--text-lg);
-  text-align: center;
+  padding: 5px 10px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .summary__clean {
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  color: var(--good);
-  font-weight: 700;
-  font-size: var(--text-lg);
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--fg);
 }
 
+.summary__clean-icon {
+  background: var(--good-soft);
+  color: #4ade80;
+}
+
+/* ——— Сохранение в рейтинг ——— */
+.summary-save__score {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-3);
+}
+
+.summary-save__num {
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-save__unit {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.summary-save__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.summary-save__text.is-error {
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--bad-soft);
+  color: #fca5a5;
+}
+
+/* Второе по важности действие — белая пилюля (оранжевая — «Ещё раз»). */
+.summary-save__btn.btn {
+  width: 100%;
+  justify-content: center;
+  background: var(--fg);
+  color: #09090b;
+}
+
+.summary-save__btn.btn:hover,
+.summary-save__btn.btn.is-hover {
+  background: #fff;
+}
+
+.summary-save__btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.summary-save__rank {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-3);
+  font-size: 14px;
+}
+
+.summary-save__place {
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.summary-save__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.summary-save__facts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+}
+
+.summary-save__facts b {
+  color: var(--fg);
+}
+
+.summary-save__facts > .summary-save__up {
+  background: var(--good-soft);
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.summary-save__down {
+  font-weight: 600;
+}
+
+.summary-save__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-2);
+}
+
+.summary-save__actions .btn {
+  justify-content: center;
+  min-height: 44px;
+}
+
+/* ——— Кнопки внизу ——— */
 .summary__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-4);
-  padding-bottom: var(--s-4);
+  gap: var(--s-3);
+  margin-top: var(--s-6);
+}
+
+.summary__actions .btn {
+  flex: 0 1 240px;
+  justify-content: center;
 }
 
 .confetti {
@@ -189,117 +570,98 @@
 }
 
 @media (max-width: 960px) {
+  .summary__grid {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* На узком экране колонки распадаются, порядок: график, ошибки, сохранение, упражнения. */
+  .summary__col {
+    display: contents;
+  }
+
+  .summary__panel--chart {
+    order: 1;
+  }
+
+  .summary__panel--errors {
+    order: 2;
+  }
+
+  .summary-save {
+    order: 3;
+  }
+
+  .summary__panel--sets {
+    order: 4;
+  }
+}
+
+@media (max-width: 640px) {
+  .summary__hero {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: var(--s-5);
+    padding: var(--s-5) var(--s-4) var(--s-4);
+  }
+
+  .summary__ring {
+    width: 168px;
+  }
+
   .summary__stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: var(--s-2);
   }
 
-  .stat--big {
-    grid-column: span 2;
+  .summary__stat {
+    min-height: 0;
+    align-items: center;
+    padding: var(--s-4) var(--s-2);
+    text-align: center;
   }
 
-  .summary__body {
-    grid-template-columns: 1fr;
+  .summary__stat-value {
+    font-size: 26px;
+  }
+
+  .summary__stat-label {
+    font-size: 13px;
+  }
+
+  .summary__panel {
+    padding: var(--s-5) var(--s-4);
+  }
+
+  .qchart__plot {
+    height: 140px;
+  }
+
+  .summary__sets li {
+    gap: var(--s-3);
+  }
+
+  .summary__set-pct small {
+    display: none;
+  }
+
+  .summary__set-pct {
+    min-width: 40px;
+  }
+
+  .summary__actions {
+    flex-direction: column;
   }
 
   .summary__actions .btn {
-    flex: 1 1 200px;
+    flex: none;
+    width: 100%;
   }
-}
-
-/* Столбики вырастают по очереди. */
-.qchart__bar {
-  transform-box: fill-box;
-  transform-origin: bottom;
-  animation: bar-grow 600ms var(--ease-out) both;
-}
-
-@keyframes bar-grow {
-  from {
-    transform: scaleY(0);
-  }
-}
-
-.stat--big {
-  background: linear-gradient(135deg, var(--primary), var(--primary-2));
-  box-shadow: 0 18px 50px rgba(249, 115, 22, 0.35);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .qchart__bar {
     animation: none;
   }
-}
-
-/* ——— Сохранение в рейтинг ——— */
-.save {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-5);
-  flex-wrap: wrap;
-  border-color: rgba(249, 115, 22, 0.4);
-}
-
-.save__text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: var(--text-md);
-  max-width: 60ch;
-}
-
-.save__text b {
-  font-size: var(--text-lg);
-  font-family: var(--font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.save--done {
-  border-color: rgba(34, 197, 94, 0.45);
-}
-
-.save__rank {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-3);
-  flex-wrap: wrap;
-}
-
-.save__place {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: var(--text-2xl);
-  line-height: 1;
-  color: var(--primary);
-}
-
-.save__facts {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: var(--text-md);
-}
-
-.save__pb {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  color: var(--good);
-}
-
-.save__up {
-  color: var(--good);
-  font-weight: 800;
-}
-
-.save__down {
-  color: var(--warn);
-  font-weight: 800;
-}
-
-.save__actions {
-  display: flex;
-  gap: var(--s-3);
-  flex-wrap: wrap;
 }

@@ -1,41 +1,47 @@
 // Оценка каждого повторения столбиками. Цвет дублируется подписью «чисто / с ошибкой» —
-// смысл не передаётся одним цветом.
+// смысл не передаётся одним цветом. Стили — в screens/Summary.css.
 
-import { scoreColor } from '../theme';
+/** Порог «чистого» повторения. */
+const CLEAN = 85;
 
 export function QualityChart({ scores }: { scores: number[] }) {
-  if (scores.length === 0) return <p className="muted">Повторений не было</p>;
-  const w = 100 / scores.length;
-  const clean = scores.filter((s) => s >= 85).length;
+  const clean = scores.filter((s) => s >= CLEAN).length;
+  // Подписи номеров — у каждого, если столбиков немного, иначе у каждого второго или пятого.
+  const step = scores.length <= 16 ? 1 : scores.length <= 32 ? 2 : 5;
   return (
     <figure className="qchart" aria-label={`Оценки повторений: ${scores.join(', ')}`}>
-      <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="qchart__svg">
-        <line x1="0" x2="100" y1={40 - 40 * 0.85} y2={40 - 40 * 0.85} className="qchart__goal" />
-        {scores.map((s, i) => {
-          const h = Math.max(2, (s / 100) * 40);
-          return (
-            <rect
-              key={i}
-              x={i * w + w * 0.14}
-              width={w * 0.72}
-              y={40 - h}
-              height={h}
-              rx={Math.min(1.6, w * 0.2)}
-              fill={scoreColor(s)}
-              className="qchart__bar"
-              style={{ animationDelay: `${500 + i * 60}ms` }}
-            />
-          );
-        })}
-      </svg>
-      <figcaption className="qchart__caption">
-        <span>
-          <i className="dot dot--good" /> чисто (85+): {clean}
-        </span>
-        <span>
-          <i className="dot dot--warn" /> с ошибкой: {scores.length - clean}
+      <figcaption className="qchart__head">
+        <h2 className="qchart__title">Каждое повторение</h2>
+        <span className="qchart__legend">
+          <span>
+            <i className="qchart__dot qchart__dot--good" /> Чисто · {clean}
+          </span>
+          <span>
+            <i className="qchart__dot qchart__dot--bad" /> С ошибкой · {scores.length - clean}
+          </span>
         </span>
       </figcaption>
+      {scores.length === 0 ? (
+        <p className="qchart__empty">Повторений не было</p>
+      ) : (
+        <div className="qchart__body">
+          <div className="qchart__plot">
+            <span className="qchart__goal" style={{ bottom: `${CLEAN}%` }} aria-hidden="true">
+              <small>{CLEAN}</small>
+            </span>
+            {scores.map((s, i) => (
+              <span key={i} className="qchart__col">
+                <span
+                  className={`qchart__bar ${s >= CLEAN ? 'qchart__bar--good' : 'qchart__bar--bad'}`}
+                  style={{ height: `${Math.max(4, s)}%`, animationDelay: `${500 + i * 50}ms` }}
+                  title={`Повторение ${i + 1}: ${s}`}
+                />
+                <span className="qchart__n">{(i + 1) % step === 0 ? i + 1 : ''}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </figure>
   );
 }

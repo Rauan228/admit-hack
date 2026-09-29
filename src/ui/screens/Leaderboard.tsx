@@ -71,122 +71,142 @@ export function Leaderboard({
   const meOutside = d?.me && !d.rows.some((r) => r.me) ? d.me : null;
 
   return (
-    <main className="screen board">
-      <header className="board__head">
-        <span className="eyebrow">Рейтинг FORMA</span>
-        <h1 className="board__title">Кто сильнее — и чище</h1>
-        {d && <p className="muted board__rule">{d.rule}</p>}
-      </header>
-
-      <nav className="board__tabs" aria-label="Режим">
-        {KINDS.map((k) => (
-          <DwellButton
-            key={k.kind}
-            size="sm"
-            variant={kind === k.kind ? 'primary' : 'ghost'}
-            className="board__tab"
-            onSelect={() => setBoard(k.kind === 'single' ? `single:${exercise ?? 'squat'}` : k.kind)}
-          >
-            <Icon name={k.icon} size={22} /> {k.label}
+    <main className="page board">
+      <div className="page__inner">
+        <header className="page__head board__head rise" style={order(0)}>
+          <DwellButton className="board__back" onSelect={onBack}>
+            <Icon name="back" size={16} /> В меню
           </DwellButton>
-        ))}
-      </nav>
+          <div className="board__title-row">
+            <div className="board__title-text">
+              <h1 className="page__title">Рейтинг FORMA</h1>
+              <p className="page__sub">{d ? d.rule : 'Кто сильнее — и чище'}</p>
+            </div>
+            {!user && (
+              <DwellButton size="sm" variant="ghost" className="board__signin" onSelect={onSignIn}>
+                <Icon name="user" size={18} /> Войти
+              </DwellButton>
+            )}
+          </div>
+        </header>
 
-      <div className="board__filters">
+        <div className="board__controls">
+          <nav className="pills board__pills" aria-label="Режим">
+            {KINDS.map((k) => (
+              <DwellButton
+                key={k.kind}
+                className={`pill board__pill ${kind === k.kind ? 'is-active' : ''}`}
+                onSelect={() => setBoard(k.kind === 'single' ? `single:${exercise ?? 'squat'}` : k.kind)}
+              >
+                <Icon name={k.icon} size={16} className="board__pill-icon" /> {k.label}
+              </DwellButton>
+            ))}
+          </nav>
+          <nav className="pills board__pills board__periods" aria-label="Период">
+            {PERIODS.map((p) => (
+              <DwellButton
+                key={p.id}
+                className={`pill board__pill ${period === p.id ? 'is-active' : ''}`}
+                onSelect={() => setPeriod(p.id)}
+              >
+                {p.label}
+              </DwellButton>
+            ))}
+          </nav>
+        </div>
+
         {kind === 'single' && (
-          <div className="board__chips" aria-label="Упражнение">
+          <nav className="pills board__pills board__chips" aria-label="Упражнение">
             {RATED_EXERCISES.map((ex: RatedExercise) => (
               <DwellButton
                 key={ex}
-                size="sm"
-                variant={exercise === ex ? 'primary' : 'default'}
-                className="board__chip"
+                className={`pill board__pill board__chip ${exercise === ex ? 'is-active' : ''}`}
                 onSelect={() => setBoard(`single:${ex}`)}
               >
                 {EXERCISE_META[ex].title}
               </DwellButton>
             ))}
-          </div>
+          </nav>
         )}
-        <div className="board__chips board__periods" aria-label="Период">
-          {PERIODS.map((p) => (
-            <DwellButton
-              key={p.id}
-              size="sm"
-              variant={period === p.id ? 'primary' : 'default'}
-              className="board__chip"
-              onSelect={() => setPeriod(p.id)}
-            >
-              {p.label}
-            </DwellButton>
-          ))}
-        </div>
-      </div>
 
-      {loading && (
-        <ol className="board__list" aria-busy="true">
-          {[0, 1, 2, 3].map((i) => (
-            <li key={i} className="board__row board__row--skeleton" />
-          ))}
-        </ol>
-      )}
-
-      {error && (
-        <div className="card board__empty">
-          <Icon name="alert" size={40} className="primary" />
-          <div>
-            <p>{error}</p>
-            <DwellButton size="sm" onSelect={() => setRetry((n) => n + 1)}>
-              <Icon name="retry" size={20} /> Обновить
-            </DwellButton>
-          </div>
-        </div>
-      )}
-
-      {d && d.rows.length === 0 && (
-        <div className="card board__empty">
-          <Icon name="trophy" size={44} className="primary" />
-          <p>
-            {period === 'all' ? 'Здесь пока никого.' : 'За этот период результатов ещё нет.'} Пройди
-            тренировку и сохрани результат — место №1 свободно.
-          </p>
-        </div>
-      )}
-
-      {d && d.rows.length > 0 && (
-        <ol className="board__list">
-          {d.rows.map((r, i) => (
-            <Row key={`${r.rank}-${r.nick}`} r={r} unit={unit} kind={kind} i={i} />
-          ))}
-          {meOutside && (
-            <>
-              <li className="board__gap" aria-hidden="true">
-                ···
-              </li>
-              <Row r={meOutside} unit={unit} kind={kind} i={d.rows.length} />
-            </>
+        <section className="board__table">
+          {(loading || (d && d.rows.length > 0)) && (
+            <div className="board__thead" aria-hidden="true">
+              <span>Место</span>
+              <span>Игрок</span>
+              <span>Результат</span>
+              <span className="board__th-rating">Рейтинг</span>
+            </div>
           )}
-        </ol>
-      )}
 
-      {d && (
-        <p className="muted board__players">
-          Игроков на доске: {d.players}
-          {!user && ' · Войди, чтобы попасть в рейтинг'}
-        </p>
-      )}
+          {loading && (
+            <ol className="board__list" aria-busy="true">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <li key={i} className="board__row board__row--skeleton">
+                  <span />
+                  <span />
+                  <span />
+                </li>
+              ))}
+            </ol>
+          )}
 
-      <footer className="menu__foot board__foot">
-        <DwellButton size="lg" onSelect={onBack}>
-          <Icon name="back" size={28} /> В меню
-        </DwellButton>
-        {!user && (
-          <DwellButton size="lg" variant="ghost" onSelect={onSignIn}>
-            <Icon name="user" size={28} /> Войти
-          </DwellButton>
+          {error && (
+            <div className="board__state board__state--error">
+              <span className="board__state-icon">
+                <Icon name="alert" size={24} />
+              </span>
+              <b>{error}</b>
+              <p>Проверь соединение и попробуй ещё раз.</p>
+              <DwellButton size="sm" onSelect={() => setRetry((n) => n + 1)}>
+                <Icon name="retry" size={18} /> Обновить
+              </DwellButton>
+            </div>
+          )}
+
+          {d && d.rows.length === 0 && (
+            <div className="board__state">
+              <span className="board__state-icon">
+                <Icon name="trophy" size={24} />
+              </span>
+              <b>{period === 'all' ? 'Здесь пока никого.' : 'За этот период результатов ещё нет.'}</b>
+              <p>Пройди тренировку и сохрани результат — место №1 свободно.</p>
+            </div>
+          )}
+
+          {d && d.rows.length > 0 && (
+            <ol className="board__list">
+              {d.rows.map((r, i) => (
+                <Row key={`${r.rank}-${r.nick}`} r={r} unit={unit} kind={kind} i={i} />
+              ))}
+              {meOutside && (
+                <>
+                  <li className="board__gap" aria-hidden="true">
+                    ···
+                  </li>
+                  <Row r={meOutside} unit={unit} kind={kind} i={d.rows.length} />
+                </>
+              )}
+            </ol>
+          )}
+        </section>
+
+        {d && (
+          <div className="board__strip">
+            {d.me ? (
+              <p>
+                Твоё место: <b>{d.me.rank}</b> из {d.players}
+              </p>
+            ) : (
+              <p>
+                Игроков на доске: <b>{d.players}</b>
+                {!user && ' · Войди, чтобы попасть в рейтинг'}
+              </p>
+            )}
+            <span className="board__strip-hint">Обе руки над головой — назад</span>
+          </div>
         )}
-        <p className="muted hide-sm">Обе руки над головой — назад</p>
-      </footer>
+      </div>
     </main>
   );
 }
@@ -199,14 +219,19 @@ function Row({ r, unit, kind, i }: { r: BoardRow; unit: string; kind: string; i:
       style={order(i + 1)}
     >
       <span className="board__place">{r.rank}</span>
-      <span className="board__name">
-        <b>
-          {r.nick}
-          {r.me && <em className="board__you">ты</em>}
-        </b>
-        <small className="muted">{new Date(r.createdAt).toLocaleDateString('ru-RU')}</small>
+      <span className="board__who">
+        <span className="board__avatar" aria-hidden="true">
+          {r.nick.slice(0, 1).toUpperCase()}
+        </span>
+        <span className="board__name">
+          <b>
+            <span className="board__nick">{r.nick}</span>
+            {r.me && <em className="board__you">Ты</em>}
+          </b>
+          <small>{new Date(r.createdAt).toLocaleDateString('ru-RU')}</small>
+        </span>
       </span>
-      <span className="board__meta muted">
+      <span className="board__meta">
         {kind === 'challenge'
           ? `${r.reps} всего · оценка ${r.avgScore}`
           : `${r.cleanReps}/${r.reps} чистых (${cleanPct}%) · ${formatDuration(r.durationSec)}`}
