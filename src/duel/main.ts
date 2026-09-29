@@ -63,6 +63,9 @@ let skeletonPhase: Phase = 'start';
 let errorJoints = new Set<number>();
 let hintUntil = 0;
 let lastLandmarks: Landmark[] | null = null;
+/** Кадр, на котором движок посчитал lastLandmarks (E-23), и когда он пришёл. */
+let lastImage: HTMLCanvasElement | null = null;
+let lastFrameAt = 0;
 /** Человек в кадре (для статуса на экране подготовки); null — ещё не знаем. */
 let seen: boolean | null = null;
 let shown = { me: -1, opp: -1, second: -1, lastTen: false };
@@ -140,6 +143,8 @@ function onEvent(e: EngineEvent): void {
   switch (e.type) {
     case 'frame':
       lastLandmarks = e.landmarks;
+      lastImage = e.image instanceof HTMLCanvasElement ? e.image : null;
+      lastFrameAt = performance.now();
       // Статус подготовки — по кадрам: калибровка в меню молчит, пока человек стабильно в кадре.
       if (screen === 'setup' && engineReady && e.landmarks.length > 0 !== seen) {
         seen = e.landmarks.length > 0;
@@ -307,8 +312,24 @@ function draw(): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
   if (!lastLandmarks || screen === 'intro' || screen === 'result') return;
+  // Кадр, на котором движок посчитал точки (E-23), поверх живого видео — скелет лежит на теле кадр в кадр.
+  // Движок встал (кадр старше 0,7 с) — остаётся живое видео под холстом.
+  const image = lastImage && lastImage.width > 0 && performance.now() - lastFrameAt < 700 ? lastImage : null;
   // Мок-движок работает без видео: берём обычный кадр 16:9.
-  const view = coverView(W, H, video.videoWidth || 1280, video.videoHeight || 720, true);
+  const view = coverView(
+    W,
+    H,
+    image?.width ?? (video.videoWidth || 1280),
+    image?.height ?? (video.videoHeight || 720),
+    true,
+  );
+  if (image) {
+    ctx.save();
+    ctx.translate(W, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(image, view.ox, view.oy, view.dw, view.dh);
+    ctx.restore();
+  }
   const down = skeletonPhase === 'down' || skeletonPhase === 'bottom';
   drawSkeleton(ctx, view, lastLandmarks, {
     color: down ? COLORS.primary : COLORS.good,
