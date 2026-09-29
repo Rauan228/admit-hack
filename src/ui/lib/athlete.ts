@@ -82,12 +82,13 @@ export const PREFERRED_YAW: Record<GhostId, number> = {
   side_leg_raise: 0.15,
   side_lunge: 0.15,
   jump_squat: 0.35,
-  calf_raise: 0.5,
+  calf_raise: 0.9,
   cross_jack: 0.18,
   arm_circles: 0.15,
   boxing: 0.5,
-  push_up: 0,
-  plank: 0,
+  // Упор лёжа — сбоку, как бёрпи: иначе линию тела не видно.
+  push_up: 1.15,
+  plank: 1.15,
 };
 
 /** Есть ли у упражнения настоящий эталон (запись или кинематика в athleteMotion.json). Нет — рисуем стикмен призрака движка. */
@@ -121,7 +122,7 @@ export function athletePose(exercise: GhostId, tMs: number): (V3 | null)[] {
  */
 const boundsCache = new Map<string, { w: number; h: number }>();
 /** Эталоны со своим масштабом: бёрпи с планкой в полтора метра уменьшил бы всех остальных атлетов. */
-const OWN_BOUNDS = new Set<GhostId>(['burpee']);
+const OWN_BOUNDS = new Set<GhostId>(['burpee', 'push_up', 'plank']);
 
 export function athleteBounds(exercise?: GhostId): { w: number; h: number } {
   const own = exercise && OWN_BOUNDS.has(exercise);

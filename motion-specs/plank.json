@@ -1,0 +1,338 @@
+{
+  "id": "plank",
+  "name_ru": "Планка",
+  "source_video": "планка.mp4",
+  "camera_view": "side",
+  "rep_definition": "удержание: одно повторение = одна секунда прямой планки; цикл анимации = спокойный вдох и выдох",
+  "cycle_ms": 4000,
+  "symmetry": "symmetric",
+  "phases": [
+    {
+      "name": "вдох",
+      "start": 0,
+      "end": 0.5,
+      "easing": "ease_in_out",
+      "ground_contact": "forearms"
+    },
+    {
+      "name": "выдох",
+      "start": 0.5,
+      "end": 1.0,
+      "easing": "ease_in_out",
+      "ground_contact": "forearms"
+    }
+  ],
+  "keyframes": [
+    {
+      "t": 0,
+      "hip_flex_l": 0,
+      "hip_flex_r": 0,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 44,
+      "ankle_plantar_r": 44,
+      "foot_turnout_l": 6,
+      "foot_turnout_r": 6,
+      "foot_pos_l": [
+        -0.15,
+        -0.86
+      ],
+      "foot_pos_r": [
+        0.15,
+        -0.86
+      ],
+      "shoulder_flex_l": 80,
+      "shoulder_flex_r": 80,
+      "shoulder_abd_l": 0,
+      "shoulder_abd_r": 0,
+      "elbow_flex_l": 90,
+      "elbow_flex_r": 90,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "на полу",
+      "hand_pos_l": [
+        -0.18,
+        0.75
+      ],
+      "hand_pos_r": [
+        0.18,
+        0.75
+      ],
+      "trunk_lean": 83,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.629,
+      "head": "вниз",
+      "contacts": [
+        "left_toes",
+        "right_toes",
+        "left_forearm",
+        "right_forearm",
+        "left_hand",
+        "right_hand"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.291,
+        "note": "планка на предплечьях: носки и предплечья на полу, тело в линию, выдох",
+        "shoulder_above_floor_m": 0.352,
+        "hip_above_floor_m": 0.291,
+        "line_gap_m": 0.016
+      }
+    },
+    {
+      "t": 0.25,
+      "hip_flex_l": -1.0,
+      "hip_flex_r": -1.0,
+      "hip_abd_l": 4.0,
+      "hip_abd_r": 4.0,
+      "knee_flex_l": 6.5,
+      "knee_flex_r": 6.5,
+      "ankle_plantar_l": 43.0,
+      "ankle_plantar_r": 43.0,
+      "foot_turnout_l": 6.0,
+      "foot_turnout_r": 6.0,
+      "foot_pos_l": [
+        -0.15,
+        -0.86
+      ],
+      "foot_pos_r": [
+        0.15,
+        -0.86
+      ],
+      "shoulder_flex_l": 80.0,
+      "shoulder_flex_r": 80.0,
+      "shoulder_abd_l": 0,
+      "shoulder_abd_r": 0,
+      "elbow_flex_l": 90.0,
+      "elbow_flex_r": 90.0,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "на полу",
+      "hand_pos_l": [
+        -0.18,
+        0.75
+      ],
+      "hand_pos_r": [
+        0.18,
+        0.75
+      ],
+      "trunk_lean": 82.5,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.634,
+      "head": "вниз",
+      "contacts": [
+        "left_toes",
+        "right_toes",
+        "left_forearm",
+        "right_forearm",
+        "left_hand",
+        "right_hand"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.286,
+        "note": "планка на предплечьях: носки и предплечья на полу, тело в линию, между выдохом и вдохом",
+        "shoulder_above_floor_m": 0.351,
+        "hip_above_floor_m": 0.286,
+        "line_gap_m": 0.012
+      }
+    },
+    {
+      "t": 0.5,
+      "hip_flex_l": -2,
+      "hip_flex_r": -2,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 7,
+      "knee_flex_r": 7,
+      "ankle_plantar_l": 42,
+      "ankle_plantar_r": 42,
+      "foot_turnout_l": 6,
+      "foot_turnout_r": 6,
+      "foot_pos_l": [
+        -0.15,
+        -0.86
+      ],
+      "foot_pos_r": [
+        0.15,
+        -0.86
+      ],
+      "shoulder_flex_l": 80,
+      "shoulder_flex_r": 80,
+      "shoulder_abd_l": 0,
+      "shoulder_abd_r": 0,
+      "elbow_flex_l": 90,
+      "elbow_flex_r": 90,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "на полу",
+      "hand_pos_l": [
+        -0.18,
+        0.75
+      ],
+      "hand_pos_r": [
+        0.18,
+        0.75
+      ],
+      "trunk_lean": 82,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.64,
+      "head": "вниз",
+      "contacts": [
+        "left_toes",
+        "right_toes",
+        "left_forearm",
+        "right_forearm",
+        "left_hand",
+        "right_hand"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.28,
+        "note": "планка на предплечьях: носки и предплечья на полу, тело в линию, вдох, таз на 1 см ниже",
+        "shoulder_above_floor_m": 0.35,
+        "hip_above_floor_m": 0.28,
+        "line_gap_m": 0.008
+      }
+    },
+    {
+      "t": 0.75,
+      "hip_flex_l": -1.0,
+      "hip_flex_r": -1.0,
+      "hip_abd_l": 4.0,
+      "hip_abd_r": 4.0,
+      "knee_flex_l": 6.5,
+      "knee_flex_r": 6.5,
+      "ankle_plantar_l": 43.0,
+      "ankle_plantar_r": 43.0,
+      "foot_turnout_l": 6.0,
+      "foot_turnout_r": 6.0,
+      "foot_pos_l": [
+        -0.15,
+        -0.86
+      ],
+      "foot_pos_r": [
+        0.15,
+        -0.86
+      ],
+      "shoulder_flex_l": 80.0,
+      "shoulder_flex_r": 80.0,
+      "shoulder_abd_l": 0,
+      "shoulder_abd_r": 0,
+      "elbow_flex_l": 90.0,
+      "elbow_flex_r": 90.0,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "на полу",
+      "hand_pos_l": [
+        -0.18,
+        0.75
+      ],
+      "hand_pos_r": [
+        0.18,
+        0.75
+      ],
+      "trunk_lean": 82.5,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.634,
+      "head": "вниз",
+      "contacts": [
+        "left_toes",
+        "right_toes",
+        "left_forearm",
+        "right_forearm",
+        "left_hand",
+        "right_hand"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.286,
+        "note": "планка на предплечьях: носки и предплечья на полу, тело в линию, между вдохом и выдохом",
+        "shoulder_above_floor_m": 0.351,
+        "hip_above_floor_m": 0.286,
+        "line_gap_m": 0.012
+      }
+    },
+    {
+      "t": 1.0,
+      "hip_flex_l": 0,
+      "hip_flex_r": 0,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 44,
+      "ankle_plantar_r": 44,
+      "foot_turnout_l": 6,
+      "foot_turnout_r": 6,
+      "foot_pos_l": [
+        -0.15,
+        -0.86
+      ],
+      "foot_pos_r": [
+        0.15,
+        -0.86
+      ],
+      "shoulder_flex_l": 80,
+      "shoulder_flex_r": 80,
+      "shoulder_abd_l": 0,
+      "shoulder_abd_r": 0,
+      "elbow_flex_l": 90,
+      "elbow_flex_r": 90,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "на полу",
+      "hand_pos_l": [
+        -0.18,
+        0.75
+      ],
+      "hand_pos_r": [
+        0.18,
+        0.75
+      ],
+      "trunk_lean": 83,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.629,
+      "head": "вниз",
+      "contacts": [
+        "left_toes",
+        "right_toes",
+        "left_forearm",
+        "right_forearm",
+        "left_hand",
+        "right_hand"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.291,
+        "note": "планка на предплечьях: носки и предплечья на полу, тело в линию, выдох",
+        "shoulder_above_floor_m": 0.352,
+        "hip_above_floor_m": 0.291,
+        "line_gap_m": 0.016
+      }
+    }
+  ],
+  "muscles": {
+    "primary": [
+      "abs",
+      "delts",
+      "glutes"
+    ],
+    "secondary": [
+      "quads",
+      "pecs",
+      "lower_back"
+    ],
+    "peak_t": [
+      0.5
+    ]
+  },
+  "detection_notes": "Камера сбоку у пола. Предплечья и носки на полу, локти под плечами, тело близко к горизонтали. Таз не провисает и не задирается. Считаются секунды удержания.",
+  "confidence": {
+    "angles": "high",
+    "timing": "high"
+  },
+  "notes": "В клипе планка на предплечьях. Первый и последний кадр — с задранным тазом, ровное удержание посередине, около 9 с. Эталон — это ровное удержание, не «домик». Цикл 4 с: выдох, середина, вдох (таз на 1 см ниже), середина, выдох. Кисти под плечами, предплечья вперёд по полу. На вдохе тело всё ещё на линии плечо–лодыжка. Взгляд в пол."
+}

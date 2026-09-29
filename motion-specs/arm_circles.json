@@ -1,0 +1,465 @@
+{
+  "id": "arm_circles",
+  "name_ru": "Круги руками",
+  "source_video": "Круги руками.mp4",
+  "camera_view": "three_quarter",
+  "rep_definition": "одно повторение = один полный круг обеими руками",
+  "cycle_ms": 2800,
+  "symmetry": "symmetric",
+  "phases": [
+    {
+      "name": "назад и вверх",
+      "start": 0,
+      "end": 0.25,
+      "easing": "linear",
+      "ground_contact": "both"
+    },
+    {
+      "name": "через верх",
+      "start": 0.25,
+      "end": 0.5,
+      "easing": "linear",
+      "ground_contact": "both"
+    },
+    {
+      "name": "вперёд и вниз",
+      "start": 0.5,
+      "end": 0.75,
+      "easing": "linear",
+      "ground_contact": "both"
+    },
+    {
+      "name": "к исходному",
+      "start": 0.75,
+      "end": 1.0,
+      "easing": "linear",
+      "ground_contact": "both"
+    }
+  ],
+  "keyframes": [
+    {
+      "t": 0,
+      "hip_flex_l": 2,
+      "hip_flex_r": 2,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 0,
+      "ankle_plantar_r": 0,
+      "foot_turnout_l": 8,
+      "foot_turnout_r": 8,
+      "foot_pos_l": [
+        -0.11,
+        0
+      ],
+      "foot_pos_r": [
+        0.11,
+        0
+      ],
+      "shoulder_flex_l": 15,
+      "shoulder_flex_r": 15,
+      "shoulder_abd_l": 55,
+      "shoulder_abd_r": 55,
+      "elbow_flex_l": 10,
+      "elbow_flex_r": 10,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "свободно",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 2,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.001,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.919,
+        "note": "обе стопы на полу, руки прямые"
+      }
+    },
+    {
+      "t": 0.125,
+      "hip_flex_l": 2,
+      "hip_flex_r": 2,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 0,
+      "ankle_plantar_r": 0,
+      "foot_turnout_l": 8,
+      "foot_turnout_r": 8,
+      "foot_pos_l": [
+        -0.11,
+        0
+      ],
+      "foot_pos_r": [
+        0.11,
+        0
+      ],
+      "shoulder_flex_l": -10,
+      "shoulder_flex_r": -10,
+      "shoulder_abd_l": 95,
+      "shoulder_abd_r": 95,
+      "elbow_flex_l": 10,
+      "elbow_flex_r": 10,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "свободно",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 2,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.001,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.919,
+        "note": "обе стопы на полу, руки прямые"
+      }
+    },
+    {
+      "t": 0.25,
+      "hip_flex_l": 2,
+      "hip_flex_r": 2,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 0,
+      "ankle_plantar_r": 0,
+      "foot_turnout_l": 8,
+      "foot_turnout_r": 8,
+      "foot_pos_l": [
+        -0.11,
+        0
+      ],
+      "foot_pos_r": [
+        0.11,
+        0
+      ],
+      "shoulder_flex_l": -18,
+      "shoulder_flex_r": -18,
+      "shoulder_abd_l": 140,
+      "shoulder_abd_r": 140,
+      "elbow_flex_l": 10,
+      "elbow_flex_r": 10,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "свободно",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 2,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.001,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.919,
+        "note": "обе стопы на полу, руки прямые"
+      }
+    },
+    {
+      "t": 0.375,
+      "hip_flex_l": 2,
+      "hip_flex_r": 2,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 0,
+      "ankle_plantar_r": 0,
+      "foot_turnout_l": 8,
+      "foot_turnout_r": 8,
+      "foot_pos_l": [
+        -0.11,
+        0
+      ],
+      "foot_pos_r": [
+        0.11,
+        0
+      ],
+      "shoulder_flex_l": 0,
+      "shoulder_flex_r": 0,
+      "shoulder_abd_l": 172,
+      "shoulder_abd_r": 172,
+      "elbow_flex_l": 10,
+      "elbow_flex_r": 10,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "свободно",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 2,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.001,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.919,
+        "note": "обе стопы на полу, руки прямые"
+      }
+    },
+    {
+      "t": 0.5,
+      "hip_flex_l": 2,
+      "hip_flex_r": 2,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 0,
+      "ankle_plantar_r": 0,
+      "foot_turnout_l": 8,
+      "foot_turnout_r": 8,
+      "foot_pos_l": [
+        -0.11,
+        0
+      ],
+      "foot_pos_r": [
+        0.11,
+        0
+      ],
+      "shoulder_flex_l": 20,
+      "shoulder_flex_r": 20,
+      "shoulder_abd_l": 148,
+      "shoulder_abd_r": 148,
+      "elbow_flex_l": 10,
+      "elbow_flex_r": 10,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "свободно",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 2,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.001,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.919,
+        "note": "обе стопы на полу, руки прямые"
+      }
+    },
+    {
+      "t": 0.625,
+      "hip_flex_l": 2,
+      "hip_flex_r": 2,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 0,
+      "ankle_plantar_r": 0,
+      "foot_turnout_l": 8,
+      "foot_turnout_r": 8,
+      "foot_pos_l": [
+        -0.11,
+        0
+      ],
+      "foot_pos_r": [
+        0.11,
+        0
+      ],
+      "shoulder_flex_l": 50,
+      "shoulder_flex_r": 50,
+      "shoulder_abd_l": 105,
+      "shoulder_abd_r": 105,
+      "elbow_flex_l": 10,
+      "elbow_flex_r": 10,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "свободно",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 2,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.001,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.919,
+        "note": "обе стопы на полу, руки прямые"
+      }
+    },
+    {
+      "t": 0.75,
+      "hip_flex_l": 2,
+      "hip_flex_r": 2,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 0,
+      "ankle_plantar_r": 0,
+      "foot_turnout_l": 8,
+      "foot_turnout_r": 8,
+      "foot_pos_l": [
+        -0.11,
+        0
+      ],
+      "foot_pos_r": [
+        0.11,
+        0
+      ],
+      "shoulder_flex_l": 42,
+      "shoulder_flex_r": 42,
+      "shoulder_abd_l": 62,
+      "shoulder_abd_r": 62,
+      "elbow_flex_l": 10,
+      "elbow_flex_r": 10,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "свободно",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 2,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.001,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.919,
+        "note": "обе стопы на полу, руки прямые"
+      }
+    },
+    {
+      "t": 0.875,
+      "hip_flex_l": 2,
+      "hip_flex_r": 2,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 0,
+      "ankle_plantar_r": 0,
+      "foot_turnout_l": 8,
+      "foot_turnout_r": 8,
+      "foot_pos_l": [
+        -0.11,
+        0
+      ],
+      "foot_pos_r": [
+        0.11,
+        0
+      ],
+      "shoulder_flex_l": 22,
+      "shoulder_flex_r": 22,
+      "shoulder_abd_l": 42,
+      "shoulder_abd_r": 42,
+      "elbow_flex_l": 10,
+      "elbow_flex_r": 10,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "свободно",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 2,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.001,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.919,
+        "note": "обе стопы на полу, руки прямые"
+      }
+    },
+    {
+      "t": 1.0,
+      "hip_flex_l": 2,
+      "hip_flex_r": 2,
+      "hip_abd_l": 4,
+      "hip_abd_r": 4,
+      "knee_flex_l": 6,
+      "knee_flex_r": 6,
+      "ankle_plantar_l": 0,
+      "ankle_plantar_r": 0,
+      "foot_turnout_l": 8,
+      "foot_turnout_r": 8,
+      "foot_pos_l": [
+        -0.11,
+        0
+      ],
+      "foot_pos_r": [
+        0.11,
+        0
+      ],
+      "shoulder_flex_l": 15,
+      "shoulder_flex_r": 15,
+      "shoulder_abd_l": 55,
+      "shoulder_abd_r": 55,
+      "elbow_flex_l": 10,
+      "elbow_flex_r": 10,
+      "palm_l": "вниз",
+      "palm_r": "вниз",
+      "hands": "свободно",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 2,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.001,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.919,
+        "note": "обе стопы на полу, руки прямые"
+      }
+    }
+  ],
+  "muscles": {
+    "primary": [
+      "delts",
+      "traps"
+    ],
+    "secondary": [
+      "biceps",
+      "forearms"
+    ],
+    "peak_t": [
+      0.375
+    ]
+  },
+  "detection_notes": "Анфас или вполоборота. Обе руки прямые (локоть больше 150°) и рисуют большой круг с центром в плече. Повтор — каждый полный круг.",
+  "confidence": {
+    "angles": "high",
+    "timing": "medium"
+  },
+  "notes": "В клипе один большой круг обеими руками за 6,6 с, а не круги 30–40 см на уровне плеч: руки уходят через сторону вверх и за голову, затем опускаются вперёд. Локти на видео прямые, резкие сгибы в трекинге — срыв, в эталоне локоть 10°. Направление — назад (сначала чуть назад и в сторону, через верх, вниз вперёд). Для счёта круг ужат до 2,8 с: в клипе он медленнее окна повтора."
+}

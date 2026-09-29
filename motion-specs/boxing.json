@@ -1,0 +1,565 @@
+{
+  "id": "boxing",
+  "name_ru": "Бокс: джеб и кросс",
+  "source_video": "Бокс джеб и кросс.mp4",
+  "camera_view": "front",
+  "rep_definition": "одно повторение = один удар; цикл анимации = джеб левой + кросс правой и возврат в защиту",
+  "cycle_ms": 2400,
+  "symmetry": "alternating",
+  "phases": [
+    {
+      "name": "джеб",
+      "start": 0,
+      "end": 0.14,
+      "easing": "ease_out",
+      "ground_contact": "both"
+    },
+    {
+      "name": "возврат джеба",
+      "start": 0.14,
+      "end": 0.32,
+      "easing": "ease_in",
+      "ground_contact": "both"
+    },
+    {
+      "name": "кросс",
+      "start": 0.32,
+      "end": 0.5,
+      "easing": "ease_out",
+      "ground_contact": "both"
+    },
+    {
+      "name": "возврат кросса",
+      "start": 0.5,
+      "end": 0.72,
+      "easing": "ease_in",
+      "ground_contact": "both"
+    },
+    {
+      "name": "защита",
+      "start": 0.72,
+      "end": 1.0,
+      "easing": "linear",
+      "ground_contact": "both"
+    }
+  ],
+  "keyframes": [
+    {
+      "t": 0,
+      "hip_flex_l": 44,
+      "hip_flex_r": -6,
+      "hip_abd_l": 12,
+      "hip_abd_r": 12,
+      "knee_flex_l": 26,
+      "knee_flex_r": 10,
+      "ankle_plantar_l": -6,
+      "ankle_plantar_r": -4,
+      "foot_turnout_l": 18,
+      "foot_turnout_r": 22,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 52,
+      "shoulder_flex_r": 52,
+      "shoulder_abd_l": 36,
+      "shoulder_abd_r": 36,
+      "elbow_flex_l": 128,
+      "elbow_flex_r": 128,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.059,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "защита: левая стопа впереди, обе на полу"
+      }
+    },
+    {
+      "t": 0.08,
+      "hip_flex_l": 44.0,
+      "hip_flex_r": -6.0,
+      "hip_abd_l": 12.0,
+      "hip_abd_r": 12.0,
+      "knee_flex_l": 26.0,
+      "knee_flex_r": 10.0,
+      "ankle_plantar_l": -6.0,
+      "ankle_plantar_r": -4.0,
+      "foot_turnout_l": 18.0,
+      "foot_turnout_r": 22.0,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 71.8,
+      "shoulder_flex_r": 52.0,
+      "shoulder_abd_l": 21.7,
+      "shoulder_abd_r": 36.0,
+      "elbow_flex_l": 60.9,
+      "elbow_flex_r": 128.0,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16.0,
+      "trunk_side": 0,
+      "trunk_twist": 7.7,
+      "pelvis_height": -0.059,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "джеб на вылете, обе стопы на полу"
+      }
+    },
+    {
+      "t": 0.14,
+      "hip_flex_l": 44,
+      "hip_flex_r": -6,
+      "hip_abd_l": 12,
+      "hip_abd_r": 12,
+      "knee_flex_l": 26,
+      "knee_flex_r": 10,
+      "ankle_plantar_l": -6,
+      "ankle_plantar_r": -4,
+      "foot_turnout_l": 18,
+      "foot_turnout_r": 22,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 88,
+      "shoulder_flex_r": 52,
+      "shoulder_abd_l": 10,
+      "shoulder_abd_r": 36,
+      "elbow_flex_l": 6,
+      "elbow_flex_r": 128,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16,
+      "trunk_side": 0,
+      "trunk_twist": 14,
+      "pelvis_height": -0.059,
+      "head": "за рукой",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "пик джеба: левая рука прямая, правый кулак у подбородка"
+      }
+    },
+    {
+      "t": 0.22,
+      "hip_flex_l": 44.0,
+      "hip_flex_r": -6.0,
+      "hip_abd_l": 12.0,
+      "hip_abd_r": 12.0,
+      "knee_flex_l": 26.0,
+      "knee_flex_r": 10.0,
+      "ankle_plantar_l": -6.0,
+      "ankle_plantar_r": -4.0,
+      "foot_turnout_l": 18.0,
+      "foot_turnout_r": 22.0,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 71.8,
+      "shoulder_flex_r": 52.0,
+      "shoulder_abd_l": 21.7,
+      "shoulder_abd_r": 36.0,
+      "elbow_flex_l": 60.9,
+      "elbow_flex_r": 128.0,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16.0,
+      "trunk_side": 0,
+      "trunk_twist": 7.7,
+      "pelvis_height": -0.059,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "возврат джеба"
+      }
+    },
+    {
+      "t": 0.32,
+      "hip_flex_l": 44,
+      "hip_flex_r": -6,
+      "hip_abd_l": 12,
+      "hip_abd_r": 12,
+      "knee_flex_l": 26,
+      "knee_flex_r": 10,
+      "ankle_plantar_l": -6,
+      "ankle_plantar_r": -4,
+      "foot_turnout_l": 18,
+      "foot_turnout_r": 22,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 52,
+      "shoulder_flex_r": 52,
+      "shoulder_abd_l": 36,
+      "shoulder_abd_r": 36,
+      "elbow_flex_l": 128,
+      "elbow_flex_r": 128,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.059,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "защита"
+      }
+    },
+    {
+      "t": 0.42,
+      "hip_flex_l": 44.0,
+      "hip_flex_r": -6.0,
+      "hip_abd_l": 12.0,
+      "hip_abd_r": 12.0,
+      "knee_flex_l": 26.0,
+      "knee_flex_r": 10.0,
+      "ankle_plantar_l": -6.0,
+      "ankle_plantar_r": -4.0,
+      "foot_turnout_l": 18.0,
+      "foot_turnout_r": 41.8,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 52.0,
+      "shoulder_flex_r": 71.8,
+      "shoulder_abd_l": 36.0,
+      "shoulder_abd_r": 20.6,
+      "elbow_flex_l": 128.0,
+      "elbow_flex_r": 60.9,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16.0,
+      "trunk_side": 0,
+      "trunk_twist": -19.8,
+      "pelvis_height": -0.059,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "кросс на вылете, пятка правой разворачивается"
+      }
+    },
+    {
+      "t": 0.5,
+      "hip_flex_l": 44,
+      "hip_flex_r": -6,
+      "hip_abd_l": 12,
+      "hip_abd_r": 12,
+      "knee_flex_l": 26,
+      "knee_flex_r": 10,
+      "ankle_plantar_l": -6,
+      "ankle_plantar_r": -4,
+      "foot_turnout_l": 18,
+      "foot_turnout_r": 58,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 52,
+      "shoulder_flex_r": 88,
+      "shoulder_abd_l": 36,
+      "shoulder_abd_r": 8,
+      "elbow_flex_l": 128,
+      "elbow_flex_r": 6,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16,
+      "trunk_side": 0,
+      "trunk_twist": -36,
+      "pelvis_height": -0.059,
+      "head": "за рукой",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "пик кросса: правая рука прямая, корпус скручен, правая пятка развёрнута"
+      }
+    },
+    {
+      "t": 0.6,
+      "hip_flex_l": 44.0,
+      "hip_flex_r": -6.0,
+      "hip_abd_l": 12.0,
+      "hip_abd_r": 12.0,
+      "knee_flex_l": 26.0,
+      "knee_flex_r": 10.0,
+      "ankle_plantar_l": -6.0,
+      "ankle_plantar_r": -4.0,
+      "foot_turnout_l": 18.0,
+      "foot_turnout_r": 41.8,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 52.0,
+      "shoulder_flex_r": 71.8,
+      "shoulder_abd_l": 36.0,
+      "shoulder_abd_r": 20.6,
+      "elbow_flex_l": 128.0,
+      "elbow_flex_r": 60.9,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16.0,
+      "trunk_side": 0,
+      "trunk_twist": -19.8,
+      "pelvis_height": -0.059,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "возврат кросса"
+      }
+    },
+    {
+      "t": 0.72,
+      "hip_flex_l": 44,
+      "hip_flex_r": -6,
+      "hip_abd_l": 12,
+      "hip_abd_r": 12,
+      "knee_flex_l": 26,
+      "knee_flex_r": 10,
+      "ankle_plantar_l": -6,
+      "ankle_plantar_r": -4,
+      "foot_turnout_l": 18,
+      "foot_turnout_r": 22,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 52,
+      "shoulder_flex_r": 52,
+      "shoulder_abd_l": 36,
+      "shoulder_abd_r": 36,
+      "elbow_flex_l": 128,
+      "elbow_flex_r": 128,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.059,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "защита"
+      }
+    },
+    {
+      "t": 0.86,
+      "hip_flex_l": 44,
+      "hip_flex_r": -6,
+      "hip_abd_l": 12,
+      "hip_abd_r": 12,
+      "knee_flex_l": 26,
+      "knee_flex_r": 10,
+      "ankle_plantar_l": -6,
+      "ankle_plantar_r": -4,
+      "foot_turnout_l": 18,
+      "foot_turnout_r": 22,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 52,
+      "shoulder_flex_r": 52,
+      "shoulder_abd_l": 36,
+      "shoulder_abd_r": 36,
+      "elbow_flex_l": 128,
+      "elbow_flex_r": 128,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.059,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "защита"
+      }
+    },
+    {
+      "t": 1.0,
+      "hip_flex_l": 44,
+      "hip_flex_r": -6,
+      "hip_abd_l": 12,
+      "hip_abd_r": 12,
+      "knee_flex_l": 26,
+      "knee_flex_r": 10,
+      "ankle_plantar_l": -6,
+      "ankle_plantar_r": -4,
+      "foot_turnout_l": 18,
+      "foot_turnout_r": 22,
+      "foot_pos_l": [
+        -0.2,
+        0.24
+      ],
+      "foot_pos_r": [
+        0.24,
+        -0.26
+      ],
+      "shoulder_flex_l": 52,
+      "shoulder_flex_r": 52,
+      "shoulder_abd_l": 36,
+      "shoulder_abd_r": 36,
+      "elbow_flex_l": 128,
+      "elbow_flex_r": 128,
+      "palm_l": "кулак",
+      "palm_r": "кулак",
+      "hands": "кулаки у подбородка",
+      "hand_pos_l": null,
+      "hand_pos_r": null,
+      "trunk_lean": 16,
+      "trunk_side": 0,
+      "trunk_twist": 0,
+      "pelvis_height": -0.059,
+      "head": "прямо",
+      "contacts": [
+        "left_foot",
+        "right_foot"
+      ],
+      "check": {
+        "pelvis_above_floor_m": 0.861,
+        "note": "защита: левая стопа впереди, обе на полу"
+      }
+    }
+  ],
+  "muscles": {
+    "primary": [
+      "delts",
+      "triceps",
+      "pecs"
+    ],
+    "secondary": [
+      "abs",
+      "obliques",
+      "biceps"
+    ],
+    "peak_t": [
+      0.14,
+      0.5
+    ]
+  },
+  "detection_notes": "Анфас, удар на камеру. В защите оба кулака у подбородка. На пике бьющая рука прямая вперёд (локоть почти 180°), вторая не опускается ниже плеча. Кросс — вместе с поворотом корпуса.",
+  "confidence": {
+    "angles": "medium",
+    "timing": "medium"
+  },
+  "notes": "В клипе один длинный удар впереди стоящей рукой: рука выпрямляется и держится около секунды, вторая остаётся у подбородка, отдельного кросса нет. Эталон сжимает это в джеб левой и добавляет кросс правой до прямой руки. На кроссе trunk_twist отрицательный: грудь поворачивается влево, правое плечо выходит вперёд, правая пятка разворачивается по полу и не отрывается. Стойка левосторонняя, колени мягкие. Удары быстрые: кадр на вылете, на пике и на возврате."
+}

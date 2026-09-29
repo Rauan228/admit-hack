@@ -17,6 +17,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { specMotion } from './ghost-spec.mjs';
+import { spec3dMotion } from './ghost-spec3d.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FRAMES = 60; // кадров на цикл
@@ -441,6 +442,23 @@ out.arm_raise = pack(armRaise(body, FRAMES), 2600, 'кинематика: пря
 // Бёрпи — по спецификации движения (motion-specs/burpee.json, разбор ролика покадрово).
 const burpee = JSON.parse(readFileSync(resolve(root, 'motion-specs/burpee.json'), 'utf8'));
 out.burpee = pack(specMotion(burpee, body, 240), burpee.cycle_ms, 'motion-specs/burpee.json');
+// Эталоны схемы v2 (Grok по видео): 3D-кинематика с опорой, наклонами и скручиванием корпуса.
+for (const id of [
+  'side_lunge',
+  'boxing',
+  'arm_circles',
+  'knee_to_elbow',
+  'side_bend',
+  'side_leg_raise',
+  'push_up',
+  'plank',
+  'calf_raise',
+  'jump_squat',
+]) {
+  const spec = JSON.parse(readFileSync(resolve(root, `motion-specs/${id}.json`), 'utf8'));
+  const n = Math.round(spec.cycle_ms / 25);
+  out[id] = pack(spec3dMotion(spec, body, n), spec.cycle_ms, `motion-specs/${id}.json`);
+}
 
 const target = resolve(root, 'src/ui/lib/athleteMotion.json');
 writeFileSync(target, JSON.stringify(out));
