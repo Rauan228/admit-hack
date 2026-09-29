@@ -212,21 +212,29 @@ body {
   color: var(--fg);
 }
 
-/* ——— Табло ——— */
-.board {
+/* ——— Верх: табло и подсказка под ним (низ кадра занят человеком на полу) ——— */
+.top {
   position: absolute;
   top: max(var(--s-3), env(safe-area-inset-top));
   left: 50%;
   display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  width: min(880px, 100% - 2 * var(--s-3));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.board {
+  display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  width: min(880px, 100% - 2 * var(--s-3));
+  width: 100%;
   padding: var(--s-3) var(--s-4) var(--s-2);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--glass);
   backdrop-filter: blur(14px);
-  transform: translateX(-50%);
 }
 
 .board__side {
@@ -309,27 +317,26 @@ body {
 }
 
 /* ——— Бой ——— */
+/* Цифра — в верхней части, под табло и подсказкой: середину и низ кадра занимает человек в упоре. */
 .big {
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-content: start;
+  padding-top: calc(max(var(--s-3), env(safe-area-inset-top)) + 190px);
   pointer-events: none;
 }
 
 .big__count {
-  margin-top: 8vh;
   color: var(--fg);
-  font: 900 clamp(120px, 30vmin, 300px) / 1 var(--num);
+  font: 900 clamp(110px, 26vmin, 260px) / 1 var(--num);
   font-variant-numeric: tabular-nums;
   text-shadow: 0 6px 40px rgba(0, 0, 0, 0.55);
 }
 
 .hint {
-  position: absolute;
-  bottom: calc(96px + env(safe-area-inset-bottom));
-  left: 50%;
-  max-width: min(640px, 100% - 2 * var(--s-4));
+  max-width: 640px;
   margin: 0;
   padding: var(--s-2) var(--s-4);
   border-radius: var(--r-md);
@@ -337,7 +344,6 @@ body {
   color: var(--on-warn);
   font: 700 var(--text-md) / 1.25 var(--font-body);
   text-align: center;
-  transform: translateX(-50%);
 }
 
 .hint:empty {
@@ -367,14 +373,14 @@ body {
 /* ——— Подготовка ——— */
 .setup {
   position: absolute;
+  top: 0;
   right: 0;
-  bottom: 0;
   left: 0;
   display: grid;
   justify-items: center;
   gap: var(--s-3);
-  padding: var(--s-5) var(--s-4) max(var(--s-5), env(safe-area-inset-bottom));
-  background: linear-gradient(to top, var(--bg) 40%, transparent);
+  padding: max(var(--s-5), env(safe-area-inset-top)) var(--s-4) var(--s-7);
+  background: linear-gradient(to bottom, var(--bg) 55%, transparent);
   text-align: center;
 }
 

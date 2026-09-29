@@ -63,6 +63,8 @@ let skeletonPhase: Phase = 'start';
 let errorJoints = new Set<number>();
 let hintUntil = 0;
 let lastLandmarks: Landmark[] | null = null;
+/** Человек в кадре (для статуса на экране подготовки); null — ещё не знаем. */
+let seen: boolean | null = null;
 let shown = { me: -1, opp: -1, second: -1, lastTen: false };
 let wakeLock: { release(): Promise<void> } | null = null;
 
@@ -129,6 +131,7 @@ async function startEngine(): Promise<void> {
 
 function toSetup(): void {
   show('setup');
+  seen = null;
   engine?.setMode('menu');
   ui.start.disabled = !engineReady;
 }
@@ -137,6 +140,13 @@ function onEvent(e: EngineEvent): void {
   switch (e.type) {
     case 'frame':
       lastLandmarks = e.landmarks;
+      // Статус подготовки — по кадрам: калибровка в меню молчит, пока человек стабильно в кадре.
+      if (screen === 'setup' && engineReady && e.landmarks.length > 0 !== seen) {
+        seen = e.landmarks.length > 0;
+        ui.setupStatus.textContent = seen
+          ? 'Вижу тебя.'
+          : 'Тебя не видно — отойди, чтобы в кадре был ты целиком.';
+      }
       break;
     case 'calibration':
       if (screen === 'setup') ui.setupStatus.textContent = e.status === 'ok' ? 'Вижу тебя.' : e.hint;

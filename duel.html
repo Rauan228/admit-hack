@@ -39,26 +39,29 @@
         <p class="intro__error" id="intro-error" role="alert" hidden></p>
       </section>
 
-      <header class="board" data-for="countdown battle">
-        <div class="board__side board__side--me">
-          <span class="board__avatar" aria-hidden="true">Ты</span>
-          <span class="board__score" id="score-me">0</span>
-        </div>
-        <div class="board__clock" id="clock" aria-label="Осталось времени">1:00</div>
-        <div class="board__side board__side--opp">
-          <span class="board__score" id="score-opp">0</span>
-          <span class="board__avatar" id="opp-avatar" aria-hidden="true">💪</span>
-        </div>
-        <div class="tug" aria-hidden="true">
-          <div class="tug__me" id="tug-me"></div>
-        </div>
-        <p class="board__names"><span>Ты</span><span id="opp-name">Атлет</span></p>
-      </header>
-
       <div class="big" data-for="battle" aria-live="off">
         <span class="big__count" id="big-count">0</span>
       </div>
-      <p class="hint" id="hint" data-for="battle" role="status"></p>
+
+      <!-- Всё сверху: упражнения на полу, нижняя половина кадра — человек. -->
+      <div class="top">
+        <header class="board" data-for="countdown battle">
+          <div class="board__side board__side--me">
+            <span class="board__avatar" aria-hidden="true">Ты</span>
+            <span class="board__score" id="score-me">0</span>
+          </div>
+          <div class="board__clock" id="clock" aria-label="Осталось времени">1:00</div>
+          <div class="board__side board__side--opp">
+            <span class="board__score" id="score-opp">0</span>
+            <span class="board__avatar" id="opp-avatar" aria-hidden="true">💪</span>
+          </div>
+          <div class="tug" aria-hidden="true">
+            <div class="tug__me" id="tug-me"></div>
+          </div>
+          <p class="board__names"><span>Ты</span><span id="opp-name">Атлет</span></p>
+        </header>
+        <p class="hint" id="hint" data-for="battle" role="status"></p>
+      </div>
 
       <div class="setup" data-for="setup">
         <p class="setup__status" id="setup-status" role="status">Загружаю модель…</p>
