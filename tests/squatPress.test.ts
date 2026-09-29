@@ -1,6 +1,7 @@
 import { createSquatPress } from '../src/engine/exercises/squatPress';
 import type { PoseFrame } from '../src/engine/geometry';
-import { runSession } from './helpers/session';
+import { loadFixture } from './helpers/replay';
+import { fixtureFrames, runSession } from './helpers/session';
 import { gaussian, squatPose, synthFrame } from './helpers/synth';
 
 const squatPress = createSquatPress();
@@ -99,5 +100,17 @@ describe('присед + руки вверх', () => {
     expect(res.reps).toHaveLength(0);
     expect(res.attempts).toHaveLength(0);
     expect(res.shown).toEqual([]);
+  });
+
+  it('реальная запись (гири, вполоборота): жимы с приседом чистые, рывки без приседа — только «сядь глубже»', () => {
+    for (const every of [1, 2]) {
+      const res = runSession(fixtureFrames(loadFixture('squat-press-kettlebell.json'), every), squatPress);
+      const withSquat = res.reps.filter((r) => Math.max(...r.ctx.frames.map((m) => m.depth ?? -1)) >= 0.9);
+      expect(withSquat.length).toBeGreaterThanOrEqual(2);
+      // Прямые руки на реальных точках не дают ложного «выпрями руки».
+      expect(withSquat.flatMap((r) => r.errors)).toEqual([]);
+      for (const r of res.reps.filter((x) => !withSquat.includes(x)))
+        expect(r.errors).toEqual(['shallow_depth']);
+    }
   });
 });
