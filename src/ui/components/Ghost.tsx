@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { ExerciseId } from '../../engine/types';
-import { athletePose, drawAthlete } from '../lib/athlete';
+import { PREFERRED_YAW, athletePose, drawAthlete } from '../lib/athlete';
 
 export interface GhostProps {
   exercise: ExerciseId;
@@ -16,7 +16,8 @@ export interface GhostProps {
   clock?: () => number;
 }
 
-export function Ghost({ exercise, className, yaw = 0.35, sway = false, highlight, clock }: GhostProps) {
+export function Ghost({ exercise, className, yaw: yawProp, sway = false, highlight, clock }: GhostProps) {
+  const yaw = yawProp ?? PREFERRED_YAW[exercise];
   const ref = useRef<HTMLCanvasElement>(null);
   const hl = useRef(highlight);
   const clk = useRef(clock);

@@ -63,7 +63,6 @@ export function LivePreview() {
           key={exercise}
           exercise={exercise}
           className="preview__athlete"
-          yaw={0.3}
           sway
           clock={clock}
           highlight={highlight}
