@@ -1,0 +1,213 @@
+// Онлайн-дуэль (E-26): комната на двоих — лобби → общий отсчёт → минута боя → итог → реванш.
+// Судья — сервер: время старта/финиша, приём повторов, итог. Чистая логика со временем снаружи;
+// сеть и таймеры — в server/duelLive.ts. Сообщения клиент ↔ сервер — здесь же (их видит и страница).
+// Только чистый TS без импортов: на VPS копируются лишь server/ и src/shared/.
+
+export type RoomPhase = 'lobby' | 'countdown' | 'battle' | 'over';
+
+export interface RoomPlayer {
+  /** Секрет игрока в комнате (гостю — чтобы вернуться после обрыва). Наружу не отдаётся. */
+  key: string;
+  name: string;
+  userId: number | null;
+  ready: boolean;
+  /** Повторы: мс от начала боя. */
+  reps: number[];
+  gaveUp: boolean;
+  online: boolean;
+}
+
+export interface RoomResult {
+  winner: string | null;
+  reason: 'reps' | 'draw' | 'giveup';
+}
+
+/** Что видит игрок: без ключей и id аккаунтов, время — по часам сервера. */
+export interface RoomView {
+  id: string;
+  phase: RoomPhase;
+  round: number;
+  durationMs: number;
+  countdownMs: number;
+  startsAt: number;
+  endsAt: number;
+  now: number;
+  you: number;
+  players: { name: string; ready: boolean; reps: number; online: boolean; gaveUp: boolean }[];
+  result: { winner: number | null; reason: RoomResult['reason'] } | null;
+}
+
+/** Клиент → сервер. */
+export type ClientMsg =
+  | { t: 'create' }
+  | { t: 'join'; room: string; name?: string; key?: string }
+  | { t: 'ready'; ready: boolean }
+  | { t: 'rep' }
+  | { t: 'giveup' }
+  | { t: 'leave' }
+  | { t: 'invite'; nick: string }
+  | { t: 'decline'; room: string; from: string };
+
+/** Сервер → клиент. */
+export type ServerMsg =
+  | { t: 'hello'; me: string | null; online: string[] }
+  | { t: 'presence'; online: string[] }
+  | { t: 'room'; room: RoomView; key: string }
+  | { t: 'left' }
+  | { t: 'invited'; room: string; from: string }
+  | { t: 'declined'; by: string }
+  | { t: 'error'; message: string };
+
+export const ROOM_MIN_GAP_MS = 300;
+/** Повтор, досчитанный движком чуть позже финиша (задержка сети и распознавания), ещё засчитываем. */
+const LATE_MS = 500;
+
+export class DuelRoom {
+  phase: RoomPhase = 'lobby';
+  round = 1;
+  startsAt = 0;
+  endsAt = 0;
+  players: RoomPlayer[] = [];
+  /** Последняя активность — для уборки брошенных комнат. */
+  touched = 0;
+  private endedBy: 'time' | 'giveup' | null = null;
+  readonly durationMs: number;
+  readonly countdownMs: number;
+
+  constructor(
+    readonly id: string,
+    opts: { durationMs?: number; countdownMs?: number } = {},
+  ) {
+    this.durationMs = opts.durationMs ?? 60_000;
+    this.countdownMs = opts.countdownMs ?? 5000;
+  }
+
+  /** Войти (или вернуться: тот же ключ или тот же аккаунт). Строка — отказ. */
+  join(p: { key: string; name: string; userId: number | null }, now: number): RoomPlayer | string {
+    this.touched = now;
+    const back = this.players.find((x) => x.key === p.key || (p.userId !== null && x.userId === p.userId));
+    if (back) {
+      back.online = true;
+      return back;
+    }
+    if (this.players.length >= 2) return 'В дуэли уже двое';
+    if (this.phase === 'countdown' || this.phase === 'battle') return 'Бой уже идёт';
+    const player: RoomPlayer = { ...p, ready: false, reps: [], gaveUp: false, online: true };
+    this.players.push(player);
+    return player;
+  }
+
+  setReady(key: string, ready: boolean, now: number): void {
+    const p = this.find(key);
+    if (!p || this.phase === 'countdown' || this.phase === 'battle') return;
+    this.touched = now;
+    if (this.phase === 'over') this.newRound();
+    p.ready = ready;
+    if (this.players.length === 2 && this.players.every((x) => x.ready)) {
+      this.phase = 'countdown';
+      this.startsAt = now + this.countdownMs;
+      this.endsAt = this.startsAt + this.durationMs;
+    }
+  }
+
+  /** Ход часов: отсчёт → бой → итог. true — фаза сменилась. */
+  tick(now: number): boolean {
+    const before = this.phase;
+    if (this.phase === 'countdown' && now >= this.startsAt) this.phase = 'battle';
+    if (this.phase === 'battle' && now >= this.endsAt) this.finish('time');
+    return this.phase !== before;
+  }
+
+  /** Повтор игрока. Только в бою (и чуть после финиша по времени), не чаще 0,3 с. */
+  rep(key: string, now: number): boolean {
+    this.tick(now);
+    const p = this.find(key);
+    const inTime =
+      this.phase === 'battle' ||
+      (this.phase === 'over' && this.endedBy === 'time' && now <= this.endsAt + LATE_MS);
+    if (!p || !inTime || p.gaveUp) return false;
+    const t = now - this.startsAt;
+    if (t - (p.reps.at(-1) ?? -Infinity) < ROOM_MIN_GAP_MS) return false;
+    p.reps.push(t);
+    this.touched = now;
+    return true;
+  }
+
+  giveUp(key: string, now: number): void {
+    this.tick(now);
+    const p = this.find(key);
+    if (!p || (this.phase !== 'countdown' && this.phase !== 'battle')) return;
+    p.gaveUp = true;
+    this.touched = now;
+    this.finish('giveup');
+  }
+
+  /** Ушёл: из лобби — освобождает место, посреди боя — сдаётся. */
+  leave(key: string, now: number): void {
+    this.tick(now);
+    if (this.phase === 'countdown' || this.phase === 'battle') return this.giveUp(key, now);
+    this.players = this.players.filter((p) => p.key !== key);
+    this.touched = now;
+  }
+
+  setOnline(key: string, online: boolean): void {
+    const p = this.find(key);
+    if (p) p.online = online;
+  }
+
+  result(): RoomResult | null {
+    if (this.phase !== 'over') return null;
+    const quitter = this.players.find((p) => p.gaveUp);
+    if (quitter) return { winner: this.players.find((p) => p !== quitter)?.key ?? null, reason: 'giveup' };
+    const [a, b] = this.players;
+    if (!a || !b || a.reps.length === b.reps.length) return { winner: null, reason: 'draw' };
+    return { winner: (a.reps.length > b.reps.length ? a : b).key, reason: 'reps' };
+  }
+
+  view(key: string, now: number): RoomView {
+    const r = this.result();
+    return {
+      id: this.id,
+      phase: this.phase,
+      round: this.round,
+      durationMs: this.durationMs,
+      countdownMs: this.countdownMs,
+      startsAt: this.startsAt,
+      endsAt: this.endsAt,
+      now,
+      you: this.players.findIndex((p) => p.key === key),
+      players: this.players.map((p) => ({
+        name: p.name,
+        ready: p.ready,
+        reps: p.reps.length,
+        online: p.online,
+        gaveUp: p.gaveUp,
+      })),
+      result: r && {
+        winner: r.winner === null ? null : this.players.findIndex((p) => p.key === r.winner),
+        reason: r.reason,
+      },
+    };
+  }
+
+  find(key: string): RoomPlayer | undefined {
+    return this.players.find((p) => p.key === key);
+  }
+
+  private finish(by: 'time' | 'giveup'): void {
+    this.phase = 'over';
+    this.endedBy = by;
+    for (const p of this.players) p.ready = false;
+  }
+
+  private newRound(): void {
+    this.phase = 'lobby';
+    this.round += 1;
+    this.endedBy = null;
+    for (const p of this.players) {
+      p.reps = [];
+      p.gaveUp = false;
+      p.ready = false;
+    }
+  }
+}

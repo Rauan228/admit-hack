@@ -12,6 +12,9 @@ const dbPath = resolve(process.env.DB_PATH ?? 'data/forma.db');
 mkdirSync(dirname(dbPath), { recursive: true });
 
 const handle = createApp(openDb(dbPath), { secureCookies: process.env.SECURE_COOKIES === '1' });
-createServer((req, res) => void handle(req, res)).listen(port, '127.0.0.1', () => {
+const server = createServer((req, res) => void handle(req, res));
+// E-26: онлайн-дуэль — WebSocket на /api/duel/ws (nginx пробрасывает Upgrade только для этого пути).
+server.on('upgrade', handle.upgrade);
+server.listen(port, '127.0.0.1', () => {
   console.log(`FORMA API: http://127.0.0.1:${port}/api/health (db: ${dbPath})`);
 });

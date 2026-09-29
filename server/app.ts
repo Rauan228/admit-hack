@@ -22,6 +22,7 @@ import {
   verifyPassword,
 } from './auth.ts';
 import type { Db } from './db.ts';
+import { createDuelLive, type LiveOptions } from './duelLive.ts';
 import { duelRoutes } from './duels.ts';
 
 const COOKIE = 'forma_sid';
@@ -37,6 +38,8 @@ export interface AppOptions {
   /** Ставить Secure на cookie (прод за https). */
   secureCookies?: boolean;
   now?: () => number;
+  /** E-26: длительности онлайн-дуэли (в тестах — короткие). */
+  duel?: Omit<LiveOptions, 'now'>;
 }
 
 interface User {
@@ -300,7 +303,10 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     }),
   );
 
-  return async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  // E-26: онлайн-дуэль по WebSocket — index.ts вешает live.upgrade на 'upgrade' сервера.
+  const live = createDuelLive(currentUser, { now, ...opts.duel });
+
+  const handle = async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const route = routes[`${req.method} ${url.pathname}`];
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -317,6 +323,7 @@ export function createApp(db: Db, opts: AppOptions = {}) {
       res.end(JSON.stringify({ error: e instanceof HttpError ? e.message : 'Ошибка сервера' }));
     }
   };
+  return Object.assign(handle, { upgrade: live.upgrade, close: live.close });
 }
 
 function ip(req: IncomingMessage): string {
