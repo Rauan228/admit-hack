@@ -188,6 +188,22 @@ describe('онлайн-дуэль по WebSocket', () => {
     expect((await a.next('error')).message).toMatch(/упражнение/);
   });
 
+  it('время боя (E-30): 15 с, 30 с, 1 мин, 3 мин — на выбор при создании, в приглашении видно', async () => {
+    const a = await player(await cookieOf('Arslan'));
+    const b = await player(await cookieOf('Rauan'));
+    a.send({ t: 'create', exercise: 'jumping_jack', durationMs: 30_000 });
+    const { room } = await a.next('room');
+    expect(room.durationMs).toBe(30_000);
+    a.send({ t: 'invite', nick: 'Rauan' });
+    expect(await b.next('invited')).toMatchObject({ exercise: 'jumping_jack', durationMs: 30_000 });
+    for (const ms of [15_000, 60_000, 180_000]) {
+      a.send({ t: 'create', durationMs: ms });
+      expect((await a.next('room', (m) => m.room.durationMs === ms)).room.durationMs).toBe(ms);
+    }
+    a.send({ t: 'create', durationMs: 12_345 });
+    expect((await a.next('error')).message).toMatch(/врем/);
+  });
+
   it('проверки: создать — только после входа; неизвестная комната; мусор', async () => {
     const guest = await player();
     guest.send({ t: 'create' });
