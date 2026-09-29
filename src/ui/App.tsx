@@ -13,6 +13,7 @@ import { clearFormError, setScene } from './engine/overlay';
 import { DemoGuide } from './components/DemoGuide';
 import type { Board } from '../shared/rating';
 import { CHALLENGE_PLAN, DEMO_PLAN, QUICK_PLAN, singlePlan, type Plan } from './lib/exercises';
+import { currentRoute, markCalibrated, routeOf, syncUrl, wasCalibrated } from './lib/route';
 import { refreshMe, useAuth } from './store/api';
 import type { SetResult } from './lib/results';
 import { Auth } from './screens/Auth';
@@ -68,14 +69,32 @@ const SCENE: Record<Screen['name'], [dim: number, skeleton: number]> = {
   leaderboard: [0.84, 0.1],
 };
 
+/** Экран по адресу при загрузке: обновление страницы оставляет на той же странице платформы. */
+function initialScreen(): Screen {
+  switch (currentRoute()) {
+    case 'demo':
+      return { name: 'demo' };
+    case 'app':
+      return { name: 'loading' };
+    case 'rating':
+      return { name: 'leaderboard' };
+    case 'progress':
+      return { name: 'profile' };
+    case 'login':
+      return { name: 'auth', reason: 'account', back: { name: 'menu' }, next: { name: 'menu' } };
+    default:
+      return { name: 'landing' };
+  }
+}
+
 export function App() {
-  const [screen, setScreen] = useState<Screen>({ name: 'landing' });
+  const [screen, setScreen] = useState<Screen>(initialScreen);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [mock, setMock] = useState(() => isMockRequested());
   /** Демо-тур (кнопка «Смотреть демо»): после калибровки сразу идёт короткий план с подсказками. ?mock=1 — просто мок для разработки. */
   const [tour, setTour] = useState(false);
   const starting = useRef(false);
-  const { user } = useAuth();
+  const { user, known } = useAuth();
 
   // Вошёл ли пользователь раньше (cookie-сессия) — узнаём один раз при старте.
   useEffect(() => {
@@ -96,34 +115,83 @@ export function App() {
     if (screen.name !== 'workout') stopVoice();
   }, [screen.name]);
 
+  /**
+   * Запуск камеры и движка. background — не трогать текущий экран (после обновления на /app/rating);
+   * skipCalibration — калибровку в этой вкладке уже прошли, сразу в меню.
+   */
   const start = useCallback(
-    async (forceMock?: boolean) => {
+    async (forceMock?: boolean, opts: { background?: boolean; skipCalibration?: boolean } = {}) => {
       if (starting.current || !video) return;
       starting.current = true;
       unlockAudio();
       unlockVoice();
       const useMock = forceMock ?? isMockRequested();
       setMock(useMock);
-      go({ name: 'loading' });
+      if (!opts.background) go({ name: 'loading' });
       try {
         getEngine()?.stop();
         const engine = await createEngine({ mock: useMock });
         attachEngine(engine);
         await engine.start(video);
-        go({ name: 'calibration' });
+        if (!opts.background) go(opts.skipCalibration ? { name: 'menu' } : { name: 'calibration' });
       } catch (err) {
         const e = err as { message?: string; code?: string };
-        go({
-          name: 'error',
-          message: e.message || 'Не получилось запустить камеру',
-          code: e.code ?? 'unknown',
-        });
+        if (!opts.background)
+          go({
+            name: 'error',
+            message: e.message || 'Не получилось запустить камеру',
+            code: e.code ?? 'unknown',
+          });
       } finally {
         starting.current = false;
       }
     },
     [video, go],
   );
+
+  // Открыли (или обновили) страницу платформы — камера включается сама. Звук и голос браузер разрешит
+  // после первого касания, поэтому разблокируем их по первому нажатию.
+  const booted = useRef(false);
+  useEffect(() => {
+    if (!video || booted.current) return;
+    booted.current = true;
+    const route = currentRoute();
+    // Запуск — вне тела эффекта: start сразу меняет экран.
+    const boot = setTimeout(() => {
+      if (route === 'app') void start(undefined, { skipCalibration: wasCalibrated() });
+      else if (route === 'rating' || route === 'progress' || route === 'login')
+        void start(undefined, { background: true });
+    }, 0);
+    const unlock = () => {
+      unlockAudio();
+      unlockVoice();
+    };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    return () => {
+      clearTimeout(boot);
+      window.removeEventListener('pointerdown', unlock);
+    };
+  }, [video, start]);
+
+  // Адрес следует за экраном; «Назад» в браузере — по адресу обратно.
+  useEffect(() => {
+    syncUrl(routeOf(screen.name, tour));
+  }, [screen.name, tour]);
+  useEffect(() => {
+    const onPop = () => {
+      const route = currentRoute();
+      if (route === 'landing') go({ name: 'landing' });
+      else if (route === 'demo') go({ name: 'demo' });
+      else if (route === 'rating') go({ name: 'leaderboard' });
+      else if (route === 'progress') go({ name: 'profile' });
+      else if (route === 'login')
+        go({ name: 'auth', reason: 'account', back: { name: 'menu' }, next: { name: 'menu' } });
+      else if (getEngine()) go({ name: 'menu' });
+      else void start(undefined, { skipCalibration: wasCalibrated() });
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [go, start]);
 
   /** Выход из демо: останавливаем мок, убираем ?mock из адреса, возвращаемся на лендинг. */
   const exitDemo = useCallback(() => {
@@ -214,7 +282,13 @@ export function App() {
         />
       )}
       {screen.name === 'calibration' && (
-        <Calibration onDone={() => (tour ? startPlan(DEMO_PLAN) : go({ name: 'menu' }))} />
+        <Calibration
+          onDone={() => {
+            if (tour) return startPlan(DEMO_PLAN);
+            markCalibrated();
+            go({ name: 'menu' });
+          }}
+        />
       )}
       {screen.name === 'menu' && (
         <Menu
@@ -277,7 +351,11 @@ export function App() {
           onBack={() => go(screen.back)}
         />
       )}
-      {screen.name === 'profile' && (
+      {/* «Мой прогресс» по прямой ссылке без входа — сначала вход. */}
+      {screen.name === 'profile' && known && !user && (
+        <Auth reason="progress" onDone={() => go({ name: 'profile' })} onBack={() => go({ name: 'menu' })} />
+      )}
+      {screen.name === 'profile' && (!known || user) && (
         <Profile
           onBack={() => go({ name: 'menu' })}
           onPlay={(board) => startPlan(planFor(board))}
