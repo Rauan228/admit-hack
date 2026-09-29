@@ -3,7 +3,7 @@
 
 import type { PoseFrame } from '../geometry';
 import type { RuleDef } from '../rules';
-import type { ExerciseId, Phase } from '../types';
+import type { ExerciseId, Phase, Side } from '../types';
 import type { FsmThresholds } from './fsm';
 
 export interface BaseMetrics {
@@ -30,4 +30,9 @@ export interface ExerciseDef<M extends BaseMetrics = BaseMetrics> {
   createMeter(): ExerciseMeter<M>;
   /** Правила ошибок: код из каталога hints.ts + проверка. Текст, суставы, фазы, важность — из каталога. */
   rules: readonly RuleDef<M>[];
+  /**
+   * Упражнение на две стороны: какая сторона работала в этом движении (по метрикам нижней точки).
+   * Если задано, повтор засчитывается парой — левая + правая сторона; одна сторона — событие half_rep.
+   */
+  sideOf?(bottom: M): Side | null;
 }

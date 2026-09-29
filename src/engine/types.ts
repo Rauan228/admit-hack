@@ -15,6 +15,7 @@ export type CalibrationStatus = 'no_person' | 'partial' | 'too_close' | 'too_far
 export type Phase = 'start' | 'down' | 'bottom' | 'up';
 export type Arrow = 'up' | 'down' | 'left' | 'right' | 'out' | 'in';
 export type Severity = 'warn' | 'bad';
+export type Side = 'left' | 'right';
 
 export type EngineEvent =
   | { type: 'frame'; landmarks: Landmark[]; fps: number }
@@ -24,6 +25,11 @@ export type EngineEvent =
   | { type: 'gesture'; name: 'both_hands_up' }
   | { type: 'phase'; exercise: ExerciseId; phase: Phase }
   | { type: 'rep'; exercise: ExerciseId; count: number; score: number; errors: string[] }
+  /**
+   * Упражнения на две стороны (выпады): одна сторона сделана. Повтор (rep) — только когда сделаны обе:
+   * правая нога вперёд + левая нога вперёд = 1 повтор. errors — ошибки этой половины.
+   */
+  | { type: 'half_rep'; exercise: ExerciseId; side: Side; errors: string[] }
   | {
       type: 'form_error';
       exercise: ExerciseId;

@@ -13,7 +13,11 @@ import { formErrorsFor } from './hints';
 import { PoseGate } from './person';
 import { RuleEngine, type RepContext } from './rules';
 import { SetTracker } from './scoring';
-import type { EngineEvent } from './types';
+import type { EngineEvent, Side } from './types';
+
+const OTHER: Record<Side, Side> = { left: 'right', right: 'left' };
+const SIDE_WORD: Record<Side, string> = { left: 'левой', right: 'правой' };
+const KNEE: Record<Side, number> = { left: 25, right: 26 };
 
 export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
   private readonly meter: ExerciseMeter<M>;
@@ -25,6 +29,8 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
   private atBottom: M | null = null;
   private recent: { t: number; m: M }[] = [];
   private count = 0;
+  /** Упражнения на две стороны: первая сделанная сторона пары, ждём вторую. */
+  private pending: { side: Side; errors: string[]; startT: number } | null = null;
   private finished = false;
   /** Когда последний раз удалось измерить позу для этого упражнения. */
   private lastMeasuredAt: number;
@@ -134,6 +140,47 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
     return out;
   }
 
+  /**
+   * Одна сторона упражнения на две стороны. Первая — half_rep и ждём вторую; та же сторона ещё раз —
+   * подсказка «теперь другой ногой» (засчитываем последнюю попытку этой стороны); другая сторона —
+   * повтор с общими ошибками обеих половин.
+   */
+  private completeSide(ctx: RepContext<M>, errors: string[], _t: number): EngineEvent[] {
+    const exercise = this.def.id;
+    const out: EngineEvent[] = [];
+    const guess = this.pending ? OTHER[this.pending.side] : 'right';
+    const side = this.def.sideOf?.(ctx.atBottom) ?? guess;
+    out.push({ type: 'half_rep', exercise, side, errors });
+    if (errors.length === 0) out.push({ type: 'form_ok', exercise });
+
+    if (!this.pending || this.pending.side === side) {
+      if (this.pending) {
+        const next = OTHER[side];
+        out.push({
+          type: 'form_error',
+          exercise,
+          code: 'switch_side',
+          message: `Теперь шагни ${SIDE_WORD[next]} ногой`,
+          joints: [KNEE[next]],
+          severity: 'warn',
+        });
+      }
+      this.pending = { side, errors, startT: ctx.summary.startT };
+      return out;
+    }
+
+    const all = [...new Set([...this.pending.errors, ...errors])];
+    const score = this.set.addRep(all, this.pending.startT, ctx.summary.endT);
+    this.pending = null;
+    this.count += 1;
+    out.push({ type: 'rep', exercise, count: this.count, score, errors: all });
+    if (this.count >= this.targetReps) {
+      this.finished = true;
+      out.push({ type: 'set_complete', exercise, stats: this.set.stats() });
+    }
+    return out;
+  }
+
   private context(summary: RepContext<M>['summary']): RepContext<M> {
     return { summary, frames: this.repFrames, atBottom: this.atBottom as M };
   }
@@ -144,6 +191,7 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
     const hint = this.rules.onRepMoment('rep', ctx, t);
     if (hint) out.push(hint);
     const errors = this.rules.repErrors;
+    if (this.def.sideOf) return [...out, ...this.completeSide(ctx, [...errors], t)];
     const score = this.set.addRep(errors, ctx.summary.startT, ctx.summary.endT);
     this.count += 1;
     if (errors.length === 0) out.push({ type: 'form_ok', exercise });

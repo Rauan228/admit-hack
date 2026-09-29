@@ -325,6 +325,13 @@ class MockEngine implements Engine {
           }),
         );
       }
+      if (exercise === 'lunge') {
+        // Выпады считаются парой ног: правая половина посередине цикла, левая — вместе с повтором.
+        this.at(base + 1300, () =>
+          this.emit({ type: 'half_rep', exercise, side: 'right', errors: err ? [err.code] : [] }),
+        );
+        this.at(base + 2040, () => this.emit({ type: 'half_rep', exercise, side: 'left', errors: [] }));
+      }
       this.at(base + 2050, () => {
         const score = err
           ? Math.max(20, Math.round(100 - err.penalty - this.rng() * 8))

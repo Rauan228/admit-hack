@@ -53,8 +53,10 @@ describe('«призрак»: эталонные позы', () => {
       const pose = ghostPoseAt(ex, t < 1500 ? 0 : t - 1500);
       events.push(...session.update({ t, aspect: 1, image: pose, world: null }, t));
     }
+    // Выпады считаются парой ног: 4 выпада призрака (правой, левой, правой, левой) = 2 повтора.
     const got = events.filter((e) => e.type === 'rep');
-    expect(got).toHaveLength(reps);
+    expect(got).toHaveLength(ex === 'lunge' ? reps / 2 : reps);
+    if (ex === 'lunge') expect(events.filter((e) => e.type === 'half_rep')).toHaveLength(reps);
     expect(got.flatMap((e) => (e.type === 'rep' ? e.errors : []))).toEqual([]);
   });
 });

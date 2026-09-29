@@ -52,14 +52,20 @@ describe('записи поз из tests/fixtures', () => {
       });
 
       it('боевой путь (ExerciseSession с фильтром правдоподобия): тот же счёт и те же ошибки', () => {
-        const session = new ExerciseSession(createExercise(meta.exercise)!, 1000, 0);
+        const def = createExercise(meta.exercise)!;
+        const session = new ExerciseSession(def, 1000, 0);
+        // Упражнения на две стороны (выпады) засчитывают повтор парой ног; в записях размечено каждое
+        // движение, поэтому сверяем одиночные движения — события half_rep.
+        const unit = def.sideOf ? 'half_rep' : 'rep';
         const reps = fixtureFrames(file)
           .flatMap((f, i) => session.update(f, f?.t ?? i * 33))
-          .filter((e) => e.type === 'rep');
+          .filter((e) => e.type === unit);
         expect(reps.length).toBeGreaterThanOrEqual(meta.expected.reps - tol);
         expect(reps.length).toBeLessThanOrEqual(meta.expected.reps + tol);
         if (meta.expected.noErrors)
-          expect(reps.flatMap((e) => (e.type === 'rep' ? e.errors : []))).toEqual([]);
+          expect(reps.flatMap((e) => (e.type === 'rep' || e.type === 'half_rep' ? e.errors : []))).toEqual(
+            [],
+          );
       });
     });
   }
