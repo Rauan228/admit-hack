@@ -1,5 +1,6 @@
-// Бокс, отжимания, планка, бёрпи (E-22). Правильная техника — ровно N повторов без ошибок (и на 15 FPS),
-// каждая ошибка ловится; планка считает секунды; бёрпи — на реальной записи человека.
+// Бокс, отжимания, планка, бёрпи (E-22; отжимания и планка лицом к камере — E-28). Правильная техника —
+// ровно N повторов без ошибок (и на 15 FPS), каждая ошибка ловится; планка считает секунды; отжимания и
+// бёрпи — на реальных записях людей.
 
 import { createExercise } from '../src/engine/exercises';
 import type { BaseMetrics, ExerciseDef } from '../src/engine/exercises/types';
@@ -73,57 +74,70 @@ describe('бокс: прямые удары', () => {
   });
 });
 
-/** Подход в упоре лёжа сбоку: 1,5 с в упоре, reps циклов, 1 с в упоре. */
-function floorSet(reps: number, pose: (k: number) => Partial<FloorParams>, fps = 30): PoseFrame[] {
+/** Подход в упоре лёжа лицом к камере: 1,5 с в упоре на прямых руках, reps циклов, 1 с в упоре. */
+function floorSet(
+  reps: number,
+  pose: (k: number) => Partial<FloorParams>,
+  fps = 30,
+  base: Partial<FloorParams> = {},
+): PoseFrame[] {
   const noise = gaussian(0.003, 31);
   const frames: PoseFrame[] = [];
   const period = 2000;
   for (let t = 0; t <= 1500 + reps * period + 1000; t += 1000 / fps) {
     const u = t - 1500;
     const extra = u >= 0 && u < reps * period ? pose((u % period) / period) : {};
-    frames.push(floorFrame({ elbow: 180, ...extra }, t, noise));
+    frames.push(floorFrame({ down: 0, ...base, ...extra }, t, noise));
   }
   return frames;
 }
 
-describe('отжимания (боком к камере)', () => {
-  it('8 отжиманий до 90° — 8, без ошибок; на 15 FPS тоже', () => {
+describe('отжимания (лицом к камере, камера на полу)', () => {
+  it('8 отжиманий грудью к полу — 8, без ошибок; на 15 FPS тоже', () => {
     clean(
-      floorSet(8, (k) => ({ elbow: 180 - 92 * wave(k) })),
+      floorSet(8, (k) => ({ down: wave(k) })),
       'push_up',
       8,
     );
     clean(
-      floorSet(8, (k) => ({ elbow: 180 - 92 * wave(k) }), 15),
+      floorSet(8, (k) => ({ down: wave(k) }), 15),
       'push_up',
       8,
     );
   });
-  it('неглубоко (локти до 125°) — «опускайся ниже»', () => {
+  it('телефон ближе или дальше (человек в кадре крупнее или мельче) — счёт тот же', () => {
+    for (const height of [0.5, 1])
+      clean(
+        floorSet(6, (k) => ({ down: wave(k) }), 30, { height }),
+        'push_up',
+        6,
+      );
+  });
+  it('неглубоко (на полпути) — «опускайся ниже»', () => {
     const res = runSession(
-      floorSet(8, (k) => ({ elbow: 180 - 55 * wave(k) })),
+      floorSet(8, (k) => ({ down: 0.55 * wave(k) })),
       def('push_up'),
     );
     expect(res.reps.length + res.attempts.length).toBe(8);
     expect([...res.reps, ...res.attempts].every((r) => r.errors.includes('shallow_pushup'))).toBe(true);
   });
-  it('таз провис — «не проваливай таз»; поднят — «опусти таз»', () => {
+  it('заваливается на одну руку — «не заваливайся»; локти «буквой Т» — «локти не в стороны»', () => {
     expect(
       shown(
         runSession(
-          floorSet(6, (k) => ({ elbow: 180 - 92 * wave(k), sag: 0.12 })),
+          floorSet(6, (k) => ({ down: wave(k), tilt: 0.5 * wave(k) })),
           def('push_up'),
         ),
       ),
-    ).toContain('hips_sag');
+    ).toContain('shoulders_uneven');
     expect(
       shown(
         runSession(
-          floorSet(6, (k) => ({ elbow: 180 - 92 * wave(k), sag: -0.15 })),
+          floorSet(6, (k) => ({ down: wave(k), elbowsOut: 0.8 * wave(k) })),
           def('push_up'),
         ),
       ),
-    ).toContain('hips_high');
+    ).toContain('elbows_wide');
   });
   it('стоя (не в упоре) сгибает руки — не отжимания', () => {
     const noise = gaussian(0.003, 4);
@@ -134,6 +148,36 @@ describe('отжимания (боком к камере)', () => {
     expect(res.reps).toHaveLength(0);
     expect(res.shown).toEqual([]);
   });
+  it('приседает лицом к камере — плечи ходят вниз, но это не отжимания', () => {
+    const noise = gaussian(0.003, 5);
+    const frames = Array.from({ length: 400 }, (_, i) =>
+      synthFrame({ ...squatPose(100 * wave((i * 33) / 2000)), arms: 10 }, i * 33, noise),
+    );
+    const res = runSession(frames, def('push_up'));
+    expect(res.reps).toHaveLength(0);
+    expect(res.shown).toEqual([]);
+  });
+  it('реальная запись (RepChamp «Push Up Battle», лицом к камере): 31 отжимание, как насчитало приложение', () => {
+    const res = runSession(fixtureFrames(loadFixture('push-up-front.json')), def('push_up'));
+    expect(res.reps).toHaveLength(31);
+    // Запись начинается внизу первого отжимания — верхней точки ещё не было, первое чуть «неглубокое».
+    expect(res.reps.slice(1).flatMap((r) => r.errors)).toEqual([]);
+    // Техника правильная — ни перекоса, ни локтей в стороны.
+    expect(res.shown.map((e) => e.code).filter((c) => c !== 'shallow_pushup')).toEqual([]);
+  });
+  it('записи стоя (присед, «звёздочка», выпады) — ни одного отжимания', () => {
+    for (const name of [
+      'squat-front-goblet.json',
+      'squat-rear-barbell.json',
+      'squat-side-goblet.json',
+      'squat-side-backlit.json',
+      'squat-press-kettlebell.json',
+      'jumping-jack-front.json',
+      'lunge-front-hold.json',
+      'lunge-front-backlit.json',
+    ])
+      expect(runSession(fixtureFrames(loadFixture(name)), def('push_up')).reps).toHaveLength(0);
+  });
 });
 
 describe('планка — на время', () => {
@@ -142,28 +186,35 @@ describe('планка — на время', () => {
     const noise = gaussian(0.003, 8);
     const events: EngineEvent[] = [];
     for (let t = 0; t <= seconds * 1000; t += 33) {
-      events.push(...session.update(floorFrame({ elbow: 90, forearms: true, ...extra }, t, noise), t));
+      events.push(...session.update(floorFrame({ down: 0, forearms: true, ...extra }, t, noise), t));
     }
     return events;
   };
-  it('10 с в планке — 10 повторов-секунд без ошибок', () => {
-    const events = plankEvents(10.05);
-    const reps = events.filter((e) => e.type === 'rep');
-    expect(reps.length).toBeGreaterThanOrEqual(9);
-    expect(reps.length).toBeLessThanOrEqual(10);
-    expect(reps.flatMap((e) => (e.type === 'rep' ? e.errors : []))).toEqual([]);
+  it('10 с в планке на локтях — 10 повторов-секунд без ошибок; на прямых руках тоже', () => {
+    for (const forearms of [true, false]) {
+      const events = plankEvents(10.05, { forearms });
+      const reps = events.filter((e) => e.type === 'rep');
+      expect(reps.length).toBeGreaterThanOrEqual(9);
+      expect(reps.length).toBeLessThanOrEqual(10);
+      expect(reps.flatMap((e) => (e.type === 'rep' ? e.errors : []))).toEqual([]);
+    }
+  });
+  it('завалился на бок или локти далеко от плеч — подсказка и сниженная оценка секунд', () => {
+    for (const [extra, code] of [
+      [{ tilt: 0.5 }, 'shoulders_uneven'],
+      [{ elbowsOut: 0.8 }, 'elbows_wide'],
+    ] as const) {
+      const events = plankEvents(6, extra);
+      expect(events.some((e) => e.type === 'form_error' && e.code === code)).toBe(true);
+      const scores = events.flatMap((e) => (e.type === 'rep' ? [e.score] : []));
+      expect(scores.length).toBeGreaterThanOrEqual(4);
+      expect(Math.max(...scores)).toBeLessThan(100);
+    }
   });
   it('цель в секундах: 5 с — подход закрыт', () => {
     const events = plankEvents(8, {}, 5);
     expect(events.filter((e) => e.type === 'set_complete')).toHaveLength(1);
     expect(events.filter((e) => e.type === 'rep')).toHaveLength(5);
-  });
-  it('таз провис — подсказка и сниженная оценка секунд', () => {
-    const events = plankEvents(6, { sag: 0.12 });
-    expect(events.some((e) => e.type === 'form_error' && e.code === 'hips_sag')).toBe(true);
-    const scores = events.flatMap((e) => (e.type === 'rep' ? [e.score] : []));
-    expect(scores.length).toBeGreaterThanOrEqual(4);
-    expect(Math.max(...scores)).toBeLessThan(100);
   });
   it('стоит — секунды не идут', () => {
     const session = new ExerciseSession(def('plank'), 100, 0);

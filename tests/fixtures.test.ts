@@ -16,6 +16,11 @@ interface Expected {
   repsTolerance?: number;
   /** Хорошая техника: ни одной ошибки ни в одном повторе. */
   noErrors?: boolean;
+  /**
+   * Запись ускорена (время кадров восстановлено по таймеру на экране): прореживание до 15 FPS оставило бы
+   * ~3 кадра на повтор — такой частоты у камеры не бывает, этот прогон не проверяем.
+   */
+  sped?: boolean;
 }
 
 const dir = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -43,6 +48,7 @@ describe('записи поз из tests/fixtures', () => {
         [30, 1],
         [15, 2],
       ])('%i FPS: повторов %s', (_fps, every) => {
+        if (every > 1 && meta.expected.sped) return;
         const def = createExercise(meta.exercise);
         expect(def).not.toBeNull();
         const res = runSession(fixtureFrames(file, every), def!);
