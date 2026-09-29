@@ -142,27 +142,40 @@ function medialPenalty(p: Vector3, b: BoneDef): number {
   return inward * 4 + below * 1.2 + back;
 }
 
-/** Веса вершин: две ближайшие кости (по поверхности капсулы), мягкий переход у суставов. */
-function skinGeometry(geo: BufferGeometry): void {
+/** Сколько раз усредняем веса с соседями по рёбрам сетки и насколько сильно. */
+const SMOOTH_ITERS = 10;
+const SMOOTH_K = 0.6;
+
+/**
+ * Веса вершин. Сначала — по расстоянию до сегментов костей (две ближайшие кости, ~1/d⁴). Потом веса
+ * сглаживаются по поверхности: несколько раз усредняем с соседями по рёбрам, внутри каждой мышцы.
+ * Переход между костями растягивается вдоль мышцы на несколько сантиметров — широчайшая или грудная
+ * тянется плавно, как у живого человека, а не складывается острой «перепонкой».
+ */
+function skinGeometry(geo: BufferGeometry, part: string): void {
+  // Дельта целиком едет с плечом: штрафы «торса» (подмышка, лопатка) к ней не относятся — иначе задний
+  // пучок остаётся на лопатке и свисает лоскутом при поднятых руках.
+  const delt = part.startsWith('delts');
   const pos = geo.getAttribute('position');
   const n = pos.count;
-  const idx = new Uint16Array(n * 4);
-  const wts = new Float32Array(n * 4);
+  const B = BONES.length;
   const segs = BONES.map(restSegment);
   const p = new Vector3();
-  const d = new Float32Array(BONES.length);
+  const d = new Float32Array(B);
+  let W = new Float32Array(n * B);
   for (let v = 0; v < n; v += 1) {
     p.fromBufferAttribute(pos, v);
-    for (let i = 0; i < BONES.length; i += 1) {
+    for (let i = 0; i < B; i += 1) {
       const [a, b] = segs[i]!;
-      d[i] = armExcluded(p, BONES[i]!)
-        ? 1e3
-        : Math.max(0.004, distToSegment(p, a, b) - BONES[i]!.r * 0.6 + medialPenalty(p, BONES[i]!));
+      d[i] = delt
+        ? Math.max(0.004, distToSegment(p, a, b) - BONES[i]!.r * 0.6)
+        : armExcluded(p, BONES[i]!)
+          ? 1e3
+          : Math.max(0.004, distToSegment(p, a, b) - BONES[i]!.r * 0.6 + medialPenalty(p, BONES[i]!));
     }
-    // Две ближайшие кости, вес ~ 1/d⁴.
     let b1 = 0;
     let b2 = 1;
-    for (let i = 0; i < BONES.length; i += 1) {
+    for (let i = 0; i < B; i += 1) {
       if (d[i]! < d[b1]!) {
         b2 = b1;
         b1 = i;
@@ -170,10 +183,60 @@ function skinGeometry(geo: BufferGeometry): void {
     }
     const w1 = 1 / d[b1]! ** 4;
     const w2 = 1 / d[b2]! ** 4;
-    idx[v * 4] = b1;
-    idx[v * 4 + 1] = b2;
-    wts[v * 4] = w1 / (w1 + w2);
-    wts[v * 4 + 1] = w2 / (w1 + w2);
+    W[v * B + b1] = w1 / (w1 + w2);
+    W[v * B + b2] = w2 / (w1 + w2);
+  }
+
+  // Соседи по рёбрам; вершины в одной точке (швы нормалей) склеиваем — иначе сглаживание рвётся по шву.
+  const key = new Map<string, number>();
+  const rep = new Int32Array(n);
+  for (let v = 0; v < n; v += 1) {
+    const k = `${Math.round(pos.getX(v) * 2000)},${Math.round(pos.getY(v) * 2000)},${Math.round(pos.getZ(v) * 2000)}`;
+    const r = key.get(k);
+    if (r === undefined) {
+      key.set(k, v);
+      rep[v] = v;
+    } else rep[v] = r;
+  }
+  const index = geo.getIndex();
+  const nb: number[][] = Array.from({ length: n }, () => []);
+  const tri = index ? index.count : n;
+  for (let i = 0; i < tri; i += 3) {
+    const a = rep[index ? index.getX(i) : i]!;
+    const b = rep[index ? index.getX(i + 1) : i + 1]!;
+    const c = rep[index ? index.getX(i + 2) : i + 2]!;
+    nb[a]!.push(b, c);
+    nb[b]!.push(a, c);
+    nb[c]!.push(a, b);
+  }
+  for (let it = 0; it < SMOOTH_ITERS; it += 1) {
+    const next = new Float32Array(W);
+    for (let v = 0; v < n; v += 1) {
+      if (rep[v] !== v) continue;
+      const list = nb[v]!;
+      if (!list.length) continue;
+      for (let bi = 0; bi < B; bi += 1) {
+        let s = 0;
+        for (const u of list) s += W[u * B + bi]!;
+        next[v * B + bi] = W[v * B + bi]! * (1 - SMOOTH_K) + (s / list.length) * SMOOTH_K;
+      }
+    }
+    W = next;
+  }
+
+  // Четыре самые сильные кости на вершину (дубликаты на швах берут веса своей «главной» копии).
+  const idx = new Uint16Array(n * 4);
+  const wts = new Float32Array(n * 4);
+  const order = new Int32Array(B);
+  for (let v = 0; v < n; v += 1) {
+    const src = rep[v]! * B;
+    for (let i = 0; i < B; i += 1) order[i] = i;
+    const sorted = [...order].sort((x, y) => W[src + y]! - W[src + x]!).slice(0, 4);
+    const sum = sorted.reduce((s0, bi) => s0 + W[src + bi]!, 0) || 1;
+    sorted.forEach((bi, k) => {
+      idx[v * 4 + k] = bi;
+      wts[v * 4 + k] = W[src + bi]! / sum;
+    });
   }
   geo.setAttribute('skinIndex', new BufferAttribute(idx, 4));
   geo.setAttribute('skinWeight', new BufferAttribute(wts, 4));
@@ -196,7 +259,7 @@ export function loadModel(): Promise<Model> {
       const geo = m.geometry.clone();
       geo.applyMatrix4(m.matrixWorld);
       geo.deleteAttribute('uv');
-      skinGeometry(geo);
+      skinGeometry(geo, m.name);
       parts.push({ name: m.name, geo });
     });
     return { parts };
