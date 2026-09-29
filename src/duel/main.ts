@@ -14,6 +14,7 @@ import { coverView, drawSkeleton } from '../ui/lib/skeleton';
 import { COLORS } from '../ui/theme';
 import { BOTS, botTimeline, findBot, repsAt, type Bot } from './bot';
 import { DuelMatch, formatClock, type DuelPhase, type DuelSnapshot } from './match';
+import { initSocial, openInvite, sendAnswer, type RecordedOpponent } from './social';
 
 type Screen = 'intro' | 'setup' | DuelPhase | 'result';
 
@@ -55,6 +56,8 @@ const ui = {
 $<HTMLAnchorElement>('home').href = import.meta.env.BASE_URL;
 
 let bot: Bot = findBot(params.get('bot'));
+/** E-25: соперник — запись друга из вызова; null — бот. */
+let opponent: RecordedOpponent | null = null;
 let engine: Engine | null = null;
 let engineReady = false;
 let match: DuelMatch | null = null;
@@ -87,6 +90,19 @@ for (const b of BOTS) {
 }
 ui.bots.addEventListener('change', (e) => {
   bot = findBot((e.target as HTMLInputElement).value);
+  opponent = null;
+});
+
+// ——— Вызовы друзьям (E-25) ———
+void initSocial({
+  accept(opp) {
+    opponent = opp;
+    unlockAudio();
+    unlockVoice();
+    void keepScreenOn();
+    if (engine) toSetup();
+    else void startEngine();
+  },
 });
 
 // ——— Экраны ———
@@ -181,15 +197,18 @@ function onEvent(e: EngineEvent): void {
 
 // ——— Бой ———
 function startMatch(): void {
-  const total = Math.round((bot.total * durationMs) / 60_000);
-  const timeline = botTimeline(total, durationMs, (Math.random() * 2 ** 31) | 0);
+  // Вызов друга — бой против его записи и той же длины, что была у него.
+  const dur = opponent?.durationMs ?? durationMs;
+  const timeline =
+    opponent?.timeline ??
+    botTimeline(Math.round((bot.total * dur) / 60_000), dur, (Math.random() * 2 ** 31) | 0);
   match = new DuelMatch(
-    { opponentReps: (t) => repsAt(timeline, t), countdownMs: COUNTDOWN_MS, durationMs },
+    { opponentReps: (t) => repsAt(timeline, t), countdownMs: COUNTDOWN_MS, durationMs: dur },
     performance.now(),
   );
   shown = { me: -1, opp: -1, second: -1, lastTen: false };
-  ui.oppAvatar.textContent = bot.avatar;
-  ui.oppName.textContent = bot.name;
+  ui.oppAvatar.textContent = opponent ? opponent.name.slice(0, 1).toUpperCase() : bot.avatar;
+  ui.oppName.textContent = opponent?.name ?? bot.name;
   ui.hint.textContent = '';
   errorJoints = new Set();
   show('countdown');
@@ -202,8 +221,12 @@ ui.start.addEventListener('click', () => {
 });
 ui.giveUp.addEventListener('click', () => match?.giveUp(performance.now()));
 $<HTMLButtonElement>('again').addEventListener('click', startMatch);
+$<HTMLButtonElement>('invite-open').addEventListener('click', () => {
+  if (match) openInvite(match.myTimeline(), opponent?.durationMs ?? durationMs, opponent?.name);
+});
 $<HTMLButtonElement>('change').addEventListener('click', () => {
   match = null;
+  opponent = null;
   engine?.setMode('menu');
   ui.cameraOn.textContent = 'Продолжить';
   show('intro');
@@ -236,10 +259,20 @@ function showResult(s: DuelSnapshot): void {
         : 'Ничья';
   ui.resultMe.textContent = String(s.me);
   ui.resultOpp.textContent = String(s.opp);
-  ui.resultOppName.textContent = bot.name.toLowerCase();
+  ui.resultOppName.textContent = opponent?.name ?? bot.name.toLowerCase();
   ui.resultNote.textContent =
     s.outcome === 'draw' ? 'Одинаково — реванш?' : `Разница — ${diff} ${plural(diff)}.`;
   app.dataset.outcome = s.outcome ?? '';
+  // Звать друга есть смысл с настоящим результатом.
+  $<HTMLButtonElement>('invite-open').hidden = s.gaveUp || s.me === 0;
+  if (opponent && match) {
+    const opp = opponent;
+    const note = ui.resultNote.textContent;
+    ui.resultNote.textContent = `${note} Отправляю ответ…`;
+    void sendAnswer(opp, match.myTimeline()).then((msg) => {
+      if (screen === 'result') ui.resultNote.textContent = `${note} ${msg}`;
+    });
+  }
   show('result');
   if (s.outcome === 'win') sfx.fanfare();
   say(ui.resultTitle.textContent);

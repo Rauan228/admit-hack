@@ -28,6 +28,8 @@
         <a class="intro__back" id="home">FORMA</a>
         <h1 class="intro__title">Дуэль на отжиманиях</h1>
         <p class="intro__lead">Минута на двоих. Считает камера — побеждает тот, кто сделал больше.</p>
+        <div class="challenge" id="challenge-card" aria-live="polite" hidden></div>
+        <div class="inbox" id="inbox"></div>
         <fieldset class="bots" id="bots">
           <legend class="bots__legend">Соперник</legend>
         </fieldset>
@@ -37,6 +39,7 @@
         </p>
         <button class="btn btn--primary" id="camera-on" type="button">Включить камеру</button>
         <p class="intro__error" id="intro-error" role="alert" hidden></p>
+        <div class="account" id="account"></div>
       </section>
 
       <div class="big" data-for="battle" aria-live="off">
@@ -92,11 +95,45 @@
         <p class="result__note" id="result-note"></p>
         <div class="result__actions">
           <button class="btn btn--primary" id="again" type="button">Ещё раз</button>
+          <button class="btn" id="invite-open" type="button">Вызвать друга</button>
           <button class="btn" id="change" type="button">Сменить соперника</button>
         </div>
         <p class="result__gesture">Или подними обе руки — начнём заново.</p>
       </section>
     </main>
+
+    <dialog class="invite" id="invite" aria-labelledby="invite-title">
+      <form method="dialog" class="invite__close">
+        <button class="btn btn--link" type="submit">Закрыть</button>
+      </form>
+      <h2 class="invite__title" id="invite-title">Вызвать друга</h2>
+      <p class="invite__lead">
+        Твой результат — <b id="inv-reps">0</b>. Друг увидит, как рос твой счёт, и попробует побить.
+      </p>
+      <div class="invite__login" id="inv-login" hidden></div>
+      <div class="invite__body" id="inv-body">
+        <button class="btn btn--primary" id="inv-share" type="button">Поделиться ссылкой</button>
+        <input class="invite__link" id="inv-link" type="text" readonly hidden aria-label="Ссылка на вызов" />
+        <div class="tabs" role="tablist" aria-label="Кого позвать">
+          <button class="tabs__tab" id="tab-friends" type="button" role="tab" aria-selected="true">
+            Друзья
+          </button>
+          <button class="tabs__tab" id="tab-all" type="button" role="tab" aria-selected="false">
+            Все игроки
+          </button>
+        </div>
+        <input
+          class="invite__search"
+          id="inv-search"
+          type="search"
+          placeholder="Ник игрока"
+          aria-label="Поиск по нику"
+          hidden
+        />
+        <ul class="people" id="inv-list"></ul>
+      </div>
+      <p class="invite__status" id="inv-status" role="status"></p>
+    </dialog>
     <script type="module" src="/src/duel/main.ts"></script>
   </body>
 </html>

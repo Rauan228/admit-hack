@@ -1,5 +1,6 @@
 import { BOTS, botTimeline, findBot, repsAt } from '../src/duel/bot';
 import { DuelMatch, formatClock, outcome, tugShare } from '../src/duel/match';
+import { checkTimeline } from '../src/shared/duel';
 
 const MIN = 60_000;
 
@@ -40,6 +41,34 @@ describe('дуэль: соперник-бот', () => {
     expect(totals).toEqual([...totals].sort((a, b) => a - b));
     expect(findBot('machine').total).toBe(117);
     expect(findBot('нет такого').id).toBe(BOTS[1]!.id);
+  });
+});
+
+describe('дуэль: проверка записи повторов (общая для сервера и страницы)', () => {
+  it('правдоподобная запись проходит', () => {
+    expect(checkTimeline([800, 1700, 2300], MIN)).toBeNull();
+    expect(checkTimeline([], MIN)).toBeNull(); // ноль повторов — тоже результат
+  });
+
+  it('отсекает мусор и невозможное', () => {
+    expect(checkTimeline('x', MIN)).not.toBeNull();
+    expect(checkTimeline([800, 'a'], MIN)).not.toBeNull();
+    expect(checkTimeline([1700, 800], MIN)).not.toBeNull(); // не по порядку
+    expect(checkTimeline([800, 900], MIN)).not.toBeNull(); // 0,1 с между повторами — так не отжимаются
+    expect(checkTimeline([-5], MIN)).not.toBeNull();
+    expect(checkTimeline([MIN + 2000], MIN)).not.toBeNull(); // после конца боя
+    expect(
+      checkTimeline(
+        Array.from({ length: 201 }, (_, i) => i * 300),
+        MIN,
+      ),
+    ).not.toBeNull();
+  });
+
+  it('длительность боя — от 10 до 120 с', () => {
+    expect(checkTimeline([], 5000)).not.toBeNull();
+    expect(checkTimeline([], 121_000)).not.toBeNull();
+    expect(checkTimeline([], 10_000)).toBeNull();
   });
 });
 
@@ -96,6 +125,23 @@ describe('дуэль: счёт боя', () => {
     expect(tugShare(0, 0)).toBe(0.5);
     expect(tugShare(1, 3)).toBe(0.25);
     expect(tugShare(3, 0)).toBe(1);
+  });
+
+  it('запоминает моменты моих повторов от начала боя — из них делается вызов другу', () => {
+    const m = make();
+    m.addRep(4000); // ещё отсчёт — не в счёт
+    m.addRep(5000 + 800);
+    m.addRep(5000 + 1700);
+    expect(m.myTimeline()).toEqual([800, 1700]);
+  });
+
+  it('повтор чаще 0,3 с засчитан, но в записи сдвинут — вызов пройдёт проверку сервера', () => {
+    const m = make();
+    m.addRep(5000 + 1000);
+    m.addRep(5000 + 1100);
+    expect(m.snapshot(5000 + 1200).me).toBe(2);
+    expect(m.myTimeline()).toEqual([1000, 1300]);
+    expect(checkTimeline(m.myTimeline(), 60_000)).toBeNull();
   });
 
   it('часы: остаток округляем вверх до секунды', () => {

@@ -22,6 +22,7 @@ import {
   verifyPassword,
 } from './auth.ts';
 import type { Db } from './db.ts';
+import { duelRoutes } from './duels.ts';
 
 const COOKIE = 'forma_sid';
 const SESSION_DAYS = 30;
@@ -283,6 +284,21 @@ export function createApp(db: Db, opts: AppOptions = {}) {
       return { boards };
     },
   };
+
+  // E-25: вызовы на дуэль — свой модуль и свои таблицы (server/duels.ts).
+  Object.assign(
+    routes,
+    duelRoutes({
+      db,
+      now,
+      currentUser,
+      readJson,
+      ip,
+      fail: (status, message) => {
+        throw new HttpError(status, message);
+      },
+    }),
+  );
 
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost');
