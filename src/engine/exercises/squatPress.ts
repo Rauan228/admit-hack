@@ -132,14 +132,17 @@ export function squatPressRules(
       kind: 'rep',
       on: ['rep', 'attempt'],
       check: (c) => {
-        // Верхняя точка жима: руки должны дойти до конца и быть прямыми.
-        let top: SquatPressMetrics | null = null;
-        for (const m of c.frames) if (m.press !== null && (!top || m.press > (top.press as number))) top = m;
         // Руки ни разу не попали в кадр — судить не о чем.
-        if (!top) return null;
-        if ((top.press as number) < cfg.goodPress) return { joints: [LM.leftWrist, LM.rightWrist] };
-        const bentL = top.elbowL !== null && top.elbowL < cfg.minElbowDeg;
-        const bentR = top.elbowR !== null && top.elbowR < cfg.minElbowDeg;
+        const top = maxOf(c.frames, (m) => m.press);
+        if (top === -Infinity) return null;
+        if (top < cfg.goodPress) return { joints: [LM.leftWrist, LM.rightWrist] };
+        // Прямые ли руки — по самому прямому локтю, пока руки наверху, а не по одному кадру максимальной высоты:
+        // 3D-угол дальнего от камеры локтя MediaPipe занижает (на прямых руках 138–145° в отдельных кадрах).
+        const high = c.frames.filter((m) => (m.press ?? -Infinity) >= cfg.goodPress);
+        const straightL = maxOf(high, (m) => m.elbowL);
+        const straightR = maxOf(high, (m) => m.elbowR);
+        const bentL = straightL !== -Infinity && straightL < cfg.minElbowDeg;
+        const bentR = straightR !== -Infinity && straightR < cfg.minElbowDeg;
         if (!bentL && !bentR) return null;
         return {
           joints:
