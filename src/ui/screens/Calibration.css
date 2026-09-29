@@ -122,12 +122,6 @@
   font-size: var(--text-xs);
 }
 
-.badge--good {
-  color: var(--good);
-  border-color: rgba(34, 197, 94, 0.45);
-  background: var(--good-soft);
-}
-
 @media (max-width: 640px) {
   .calib__skip {
     position: static;
@@ -135,5 +129,45 @@
 
   .calib__frame {
     bottom: 38%;
+  }
+}
+
+/* Сканирующая линия бежит по рамке, пока человека ищут. */
+.calib__scan {
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  top: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--c), transparent);
+  box-shadow: 0 0 24px var(--c);
+  animation: scan 2.4s var(--ease) infinite alternate;
+}
+
+.calib__frame.is-ok .calib__scan {
+  opacity: 0;
+  transition: opacity var(--t-med) var(--ease);
+}
+
+@keyframes scan {
+  to {
+    top: 100%;
+  }
+}
+
+.calib__frame.is-ok .calib__corner {
+  animation: corner-ok 700ms var(--ease-out);
+}
+
+@keyframes corner-ok {
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calib__scan,
+  .calib__corner {
+    animation: none !important;
   }
 }

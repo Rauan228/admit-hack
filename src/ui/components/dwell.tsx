@@ -2,7 +2,15 @@
 // провайдер двигает курсор и ищет кнопку под ним; удержание DWELL_MS над одной кнопкой = нажатие.
 // Прогресс пишется прямо в стиль элемента (--p), без ре-рендеров React на каждом кадре.
 
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { live, useEngineEvents } from '../engine/bus';
 import { sfx } from '../audio/sfx';
 import './dwell.css';
@@ -12,6 +20,7 @@ export const DWELL_MS = 1200;
 const DWELL_DISABLED = new URLSearchParams(globalThis.location?.search ?? '').has('nodwell');
 /** После выбора — пауза, чтобы та же рука не нажала следующую кнопку на месте старой. */
 const COOLDOWN_MS = 700;
+const TRAIL = 5;
 
 interface Target {
   el: HTMLElement;
@@ -28,6 +37,7 @@ const DwellContext = createContext<Registry | null>(null);
 export function DwellProvider({ children }: { children: ReactNode }) {
   const targets = useRef(new Set<Target>());
   const cursorRef = useRef<HTMLDivElement>(null);
+  const trailRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const state = useRef({ hovered: null as Target | null, since: 0, cooldownUntil: 0 });
 
   const registry = useRef<Registry>({
@@ -55,6 +65,9 @@ export function DwellProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let raf = 0;
+    // Шлейф: каждая точка догоняет предыдущую — курсор ощущается живым и видно направление руки.
+    const trail = Array.from({ length: TRAIL }, () => ({ x: 0, y: 0 }));
+    let trailReady = false;
     const loop = () => {
       raf = requestAnimationFrame(loop);
       const cursor = cursorRef.current;
@@ -63,6 +76,8 @@ export function DwellProvider({ children }: { children: ReactNode }) {
       if (!cursor) return;
       if (!p) {
         cursor.classList.remove('is-visible');
+        trailRefs.current.forEach((el) => el?.classList.remove('is-visible'));
+        trailReady = false;
         resetHover();
         return;
       }
@@ -70,6 +85,19 @@ export function DwellProvider({ children }: { children: ReactNode }) {
       const y = p.y * window.innerHeight;
       cursor.classList.add('is-visible');
       cursor.style.transform = `translate(${x}px, ${y}px)`;
+      let lead = { x, y };
+      trail.forEach((pt, i) => {
+        if (!trailReady) Object.assign(pt, lead);
+        pt.x += (lead.x - pt.x) * 0.45;
+        pt.y += (lead.y - pt.y) * 0.45;
+        const el = trailRefs.current[i];
+        if (el) {
+          el.classList.add('is-visible');
+          el.style.transform = `translate(${pt.x}px, ${pt.y}px) scale(${1 - (i + 1) / (TRAIL + 2)})`;
+        }
+        lead = pt;
+      });
+      trailReady = true;
 
       let hit: Target | null = null;
       for (const t of targets.current) {
@@ -113,6 +141,17 @@ export function DwellProvider({ children }: { children: ReactNode }) {
   return (
     <DwellContext.Provider value={registry.current}>
       {children}
+      {Array.from({ length: TRAIL }, (_, i) => (
+        <span
+          key={i}
+          ref={(el) => {
+            trailRefs.current[i] = el;
+          }}
+          className="hand-trail"
+          style={{ opacity: 0.5 - i * 0.08 }}
+          aria-hidden="true"
+        />
+      ))}
       <div ref={cursorRef} className="hand-cursor" aria-hidden="true">
         <svg viewBox="0 0 64 64">
           <circle className="hand-cursor__track" cx="32" cy="32" r="26" />
@@ -132,6 +171,7 @@ export interface DwellButtonProps {
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
   ariaLabel?: string;
+  style?: CSSProperties;
 }
 
 /** Кнопка, которую можно нажать рукой (удержание) или, запасным путём, мышью / пальцем. */
@@ -143,6 +183,7 @@ export function DwellButton({
   size = 'md',
   disabled = false,
   ariaLabel,
+  style,
 }: DwellButtonProps) {
   const registry = useContext(DwellContext);
   const ref = useRef<HTMLButtonElement>(null);
@@ -174,6 +215,7 @@ export function DwellButton({
       className={cls}
       disabled={disabled}
       aria-label={ariaLabel}
+      style={style}
       onClick={() => {
         sfx.select();
         onSelect();

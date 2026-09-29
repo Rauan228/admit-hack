@@ -22,6 +22,8 @@ export function QualityChart({ scores }: { scores: number[] }) {
               height={h}
               rx={Math.min(1.6, w * 0.2)}
               fill={scoreColor(s)}
+              className="qchart__bar"
+              style={{ animationDelay: `${500 + i * 60}ms` }}
             />
           );
         })}

@@ -2,6 +2,7 @@
 
 import { DwellButton } from '../components/dwell';
 import { Icon } from '../components/Icon';
+import { order } from '../lib/motion';
 import { formatDuration } from '../lib/results';
 import { loadRecords, loadTotals } from '../store/progress';
 import './Leaderboard.css';
@@ -40,7 +41,11 @@ export function Leaderboard({ highlight, onBack }: { highlight?: string; onBack:
       ) : (
         <ol className="board__list">
           {records.map((r, i) => (
-            <li key={r.id} className={`board__row ${r.id === highlight ? 'is-me' : ''}`}>
+            <li
+              key={r.id}
+              className={`board__row rise ${r.id === highlight ? 'is-me' : ''}`}
+              style={order(i + 1)}
+            >
               <span className="board__place">{i + 1}</span>
               <span className="board__name">
                 <b>{r.name}</b>

@@ -11,6 +11,8 @@ import { QualityChart } from '../components/QualityChart';
 import { EXERCISE_META, type Plan } from '../lib/exercises';
 import { formatDuration, totalsOf, type SetResult } from '../lib/results';
 import { addToTotals, qualifies, type RecordEntry } from '../store/progress';
+import { order } from '../lib/motion';
+import { useCountUp } from '../lib/useCountUp';
 import { scoreColor } from '../theme';
 import './Summary.css';
 
@@ -67,25 +69,33 @@ export function Summary({
     <main className="screen summary">
       {isRecord && t.reps > 0 && <Confetti />}
       <header className="summary__head">
-        <span className="badge badge--primary">{plan.label}</span>
-        <h1 className="summary__title">{t.reps ? 'Тренировка завершена' : 'Подход завершён'}</h1>
+        <span className="eyebrow">{plan.label}</span>
+        <h1 className="summary__title rise" style={order(0)}>
+          {t.reps ? 'Тренировка завершена' : 'Подход завершён'}
+        </h1>
         {isRecord && t.reps > 0 && (
-          <span className="badge badge--good summary__record">
+          <span className="eyebrow eyebrow--good summary__record">
             <Icon name="trophy" size={18} /> Результат для таблицы рекордов
           </span>
         )}
       </header>
 
       <section className="summary__stats" aria-label="Итоги">
-        <Stat big label="Очки" value={t.points} />
-        <Stat label="Повторений" value={t.reps} />
-        <Stat label="Чистая техника" value={`${t.cleanPct}%`} color={scoreColor(t.cleanPct)} />
-        <Stat label="Средняя оценка" value={t.avgScore} color={scoreColor(t.avgScore)} />
-        <Stat label="Время" value={formatDuration(t.durationSec)} />
+        <Stat i={1} big label="Очки" value={t.points} />
+        <Stat i={2} label="Повторений" value={t.reps} />
+        <Stat
+          i={3}
+          label="Чистая техника"
+          value={t.cleanPct}
+          format={(n) => `${n}%`}
+          color={scoreColor(t.cleanPct)}
+        />
+        <Stat i={4} label="Средняя оценка" value={t.avgScore} color={scoreColor(t.avgScore)} />
+        <Stat i={5} label="Время" value={t.durationSec} format={formatDuration} />
       </section>
 
       <section className="summary__body">
-        <div className="card summary__card">
+        <div className="card summary__card rise" style={order(6)}>
           <h3>Каждое повторение</h3>
           <QualityChart scores={t.perRep.map((r) => r.score)} />
           {results.length > 1 && (
@@ -102,7 +112,7 @@ export function Summary({
           )}
         </div>
 
-        <div className="card summary__card">
+        <div className="card summary__card rise" style={order(7)}>
           <h3>Над чем поработать</h3>
           {t.topErrors.length === 0 ? (
             <p className="summary__clean">
@@ -110,8 +120,8 @@ export function Summary({
             </p>
           ) : (
             <ol className="summary__errors">
-              {t.topErrors.map((e) => (
-                <li key={`${e.exercise}:${e.code}`}>
+              {t.topErrors.map((e, i) => (
+                <li key={`${e.exercise}:${e.code}`} className="rise" style={order(8 + i)}>
                   <span className="summary__err-count">×{e.count}</span>
                   <div>
                     <b>{e.message}</b>
@@ -142,20 +152,25 @@ export function Summary({
 }
 
 function Stat({
+  i,
   label,
   value,
   big,
   color,
+  format = String,
 }: {
+  i: number;
   label: string;
-  value: string | number;
+  value: number;
   big?: boolean;
   color?: string;
+  format?: (n: number) => string;
 }) {
+  const n = useCountUp(value, 1000, 150 + i * 90);
   return (
-    <div className={`stat ${big ? 'stat--big' : ''}`}>
+    <div className={`stat rise ${big ? 'stat--big' : ''}`} style={order(i)}>
       <span className="stat__value" style={color ? { color } : undefined}>
-        {value}
+        {format(n)}
       </span>
       <span className="stat__label">{label}</span>
     </div>

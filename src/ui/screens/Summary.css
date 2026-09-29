@@ -205,3 +205,27 @@
     flex: 1 1 200px;
   }
 }
+
+/* Столбики вырастают по очереди. */
+.qchart__bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: bar-grow 600ms var(--ease-out) both;
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.stat--big {
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  box-shadow: 0 18px 50px rgba(249, 115, 22, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qchart__bar {
+    animation: none;
+  }
+}

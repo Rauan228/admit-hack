@@ -8,6 +8,7 @@ import { DwellButton } from '../components/dwell';
 import { Ghost } from '../components/Ghost';
 import { Icon } from '../components/Icon';
 import { EXERCISE_META, type Plan } from '../lib/exercises';
+import { order } from '../lib/motion';
 import './Intro.css';
 
 const DEMO_MS = 3600;
@@ -56,20 +57,24 @@ export function Intro({
     <main className="screen intro">
       <section className="intro__ghost card">
         <Ghost exercise={item.exercise} className="intro__canvas" />
-        <span className="badge intro__ghost-label">Смотри и повторяй</span>
+        <span className="eyebrow eyebrow--muted intro__ghost-label">Смотри и повторяй</span>
       </section>
 
       <section className="intro__copy">
         {plan.items.length > 1 && (
-          <span className="badge badge--primary">
+          <span className="eyebrow">
             Упражнение {index + 1} из {plan.items.length}
           </span>
         )}
-        <h1 className="intro__title">{meta.title}</h1>
-        <p className="intro__goal">{goal}</p>
+        <h1 className="intro__title rise" style={order(0)}>
+          {meta.title}
+        </h1>
+        <p className="intro__goal rise" style={order(1)}>
+          {goal}
+        </p>
         <ul className="intro__cues">
-          {meta.cues.map((c) => (
-            <li key={c}>
+          {meta.cues.map((c, i) => (
+            <li key={c} className="rise" style={order(i + 2)}>
               <Icon name="check" size={26} className="primary" /> {c}
             </li>
           ))}
@@ -84,7 +89,10 @@ export function Intro({
 
       {count !== null && (
         <div className="intro__count" key={count} aria-live="assertive">
-          {count}
+          <svg viewBox="0 0 100 100" className="intro__count-ring" aria-hidden="true">
+            <circle cx="50" cy="50" r="46" pathLength="1" />
+          </svg>
+          <span>{count}</span>
         </div>
       )}
     </main>
