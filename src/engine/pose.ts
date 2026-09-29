@@ -10,6 +10,7 @@ import type {
 import { ENGINE_CONFIG, type PoseModel } from './config';
 import { isMobileDevice } from './perf';
 import { PersonSelector } from './person';
+import { ShadowLift } from './shadow';
 import type { Vec3 } from './geometry';
 import type { Landmark } from './types';
 
@@ -37,6 +38,8 @@ export interface PoseDetectorOptions {
   delegate?: PoseDelegate;
   /** Сколько людей искать в кадре (по умолчанию из конфига). */
   numPoses?: number;
+  /** Подсветка теней перед моделью (по умолчанию из конфига). */
+  shadowLift?: boolean;
 }
 
 /** Приводит точки MediaPipe к формату контракта (visibility → v). */
@@ -114,15 +117,19 @@ export async function createPoseDetector(options: PoseDetectorOptions = {}): Pro
 
   let lastTs = -1;
   const selector = new PersonSelector();
+  const shadow = (options.shadowLift ?? cfg.shadowLift.enabled) ? new ShadowLift() : null;
+  let last: Landmark[] | null = null;
   return {
     delegate,
     model: modelFor(delegate),
     detect(video, timestampMs) {
       lastTs = nextTimestamp(lastTs, timestampMs);
-      const result = landmarker.detectForVideo(video, lastTs);
+      const input = shadow ? shadow.prepare(video, last, lastTs) : video;
+      const result = landmarker.detectForVideo(input, lastTs);
       const people = result.landmarks.filter((p) => p.length > 0).map(toLandmarks);
       const i = selector.pick(people);
       const image = people[i];
+      last = image ?? null;
       if (!image) return null;
       return { image, world: toWorld(result.worldLandmarks[i]) };
     },
