@@ -29,7 +29,8 @@ export function attachEngine(next: Engine): void {
   detach = next.on((e) => {
     if (e.type === 'frame') {
       live.landmarks = e.landmarks;
-      live.image = typeof HTMLCanvasElement !== 'undefined' && e.image instanceof HTMLCanvasElement ? e.image : null;
+      live.image =
+        typeof HTMLCanvasElement !== 'undefined' && e.image instanceof HTMLCanvasElement ? e.image : null;
       live.fps = e.fps;
       live.lastFrameAt = performance.now();
     } else if (e.type === 'pointer') {

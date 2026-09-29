@@ -182,10 +182,13 @@ class RealEngine implements Engine {
     const frame = detection ? smoothPose(this.smoother, detection.image, detection.world, now, aspect) : null;
     // Пустой массив = в кадре никого: UI стирает скелет. image — кадр, на котором модель считала точки.
     const image = detector.frame;
-    const scale = detection ? torsoLength({ t: now, aspect, image: detection.image, world: null }) || 0.25 : 0;
+    const scale = detection
+      ? torsoLength({ t: now, aspect, image: detection.image, world: null }) || 0.25
+      : 0;
     this.emit({
       type: 'frame',
-      landmarks: detection && frame ? this.render.apply(detection.image, frame.image, now, aspect, scale) : [],
+      landmarks:
+        detection && frame ? this.render.apply(detection.image, frame.image, now, aspect, scale) : [],
       fps: this.fps.tick(now),
       ...(image ? { image } : {}),
     });
