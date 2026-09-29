@@ -169,6 +169,8 @@ async function startEngine(): Promise<void> {
     ui.start.disabled = false;
     ui.setupStatus.textContent = 'Камера включена. Отойди, чтобы было видно тебя целиком.';
   } catch (err) {
+    // Причину — в консоль: без неё «не удалось запустить» не разобрать (E-27).
+    console.error('[duel] движок не запустился', err);
     engine?.stop();
     engine = null;
     show('intro');
