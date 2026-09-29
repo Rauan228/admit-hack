@@ -4,7 +4,6 @@
 // (mode: calibration | menu | squat | jumping_jack | lunge | arm_raise). Все события движка
 // складываются в window.__events — по ним dev-скрипты проверяют движок на видео вместо камеры.
 
-import { createRealEngine } from '../src/engine/Engine';
 import { createPoseDetector, type PoseDetector } from '../src/engine/pose';
 import { PoseRecorder } from '../src/engine/recorder';
 import {
@@ -206,6 +205,9 @@ async function start(): Promise<void> {
     (await createPoseDetector()).close();
   }
   hud.textContent = 'Загружаю модель…';
+  // Только динамически, как в createEngine: Engine.ts и статически, и динамически — Rolldown строит ему
+  // namespace служебным кодом из main-*.js, и дуэль со стендом падают на main.tsx (E-27, scripts/check-chunks.mjs).
+  const { createRealEngine } = await import('../src/engine/Engine');
   engine = createRealEngine({
     createPoseDetector: async () => (detector = recording(await createPoseDetector())),
   });

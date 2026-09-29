@@ -19,3 +19,5 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # Дуэль и стенд движка не должны тянуть точку входа платформы (main-*.js) — E-27.
+      - run: node scripts/check-chunks.mjs
