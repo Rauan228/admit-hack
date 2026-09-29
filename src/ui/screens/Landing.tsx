@@ -1,7 +1,7 @@
-// U-04: лендинг «Технологичный атлас» — FORMA выглядит как система анализа тела, а не фитнес-приложение.
-// Первый экран: слева оффер, в центре анатомический атлет на технической сетке с выносками мышц, справа HUD,
-// синхронный с движением атлета (оценка, счёт, «чистое повторение» / ошибка). Ниже: Встань → Двигайся →
-// Исправляй → Анализируй, 18 упражнений, режим «ошибка», режимы и рейтинг, призыв. 3D-атлет на странице один.
+// U-04: лендинг в стиле платформы — «тёмный премиум»: ровный чёрный, сплошные мягкие карточки, крупный шрифт.
+// Первый экран: слева оффер, справа карточка-сцена с анатомическим атлетом на тёплом свете, подписями мышц
+// и плавающей карточкой анализа, синхронной с движением атлета (оценка, счёт, «чисто» / ошибка).
+// Ниже: Встань → Двигайся → Исправляй → Анализируй, 18 упражнений, режим «ошибка», режимы и рейтинг, призыв.
 // Единственный клик в приложении — «Начать»: браузеру нужен жест, чтобы дать камеру и звук.
 
 import { useEffect, useRef, useState } from 'react';
@@ -59,10 +59,10 @@ const SHOWCASE: Show[] = [
     rep: durationOf('squat'),
     hl: new Set([23, 24, 25, 26]),
     calls: [
-      { name: 'Deltoid', ru: 'дельты', value: 'стабилизация', side: 'r', top: 38, dim: true },
-      { name: 'Gluteus', ru: 'ягодичные', value: 'активны', side: 'r', top: 58 },
-      { name: 'Quadriceps', ru: 'квадрицепсы', value: 'нагрузка %', side: 'l', top: 70, err: true },
-      { name: 'Calf', ru: 'икры', value: 'опора', side: 'l', top: 85, dim: true },
+      { name: 'Deltoid', ru: 'Дельты', value: 'стабилизация', side: 'r', top: 38, dim: true },
+      { name: 'Gluteus', ru: 'Ягодичные', value: 'активны', side: 'r', top: 58 },
+      { name: 'Quadriceps', ru: 'Квадрицепсы', value: 'нагрузка %', side: 'l', top: 70, err: true },
+      { name: 'Calf', ru: 'Икры', value: 'опора', side: 'l', top: 85, dim: true },
     ],
   },
   {
@@ -72,10 +72,10 @@ const SHOWCASE: Show[] = [
     rep: durationOf('jumping_jack'),
     hl: new Set([...ARMS]),
     calls: [
-      { name: 'Deltoid', ru: 'дельты', value: 'нагрузка %', side: 'r', top: 36, err: true },
-      { name: 'Abductors', ru: 'отводящие', value: 'активны', side: 'r', top: 53 },
-      { name: 'Quadriceps', ru: 'квадрицепсы', value: 'амортизация', side: 'l', top: 64, dim: true },
-      { name: 'Calf', ru: 'икры', value: 'толчок', side: 'l', top: 80 },
+      { name: 'Deltoid', ru: 'Дельты', value: 'нагрузка %', side: 'r', top: 36, err: true },
+      { name: 'Abductors', ru: 'Отводящие', value: 'активны', side: 'r', top: 53 },
+      { name: 'Quadriceps', ru: 'Квадрицепсы', value: 'амортизация', side: 'l', top: 64, dim: true },
+      { name: 'Calf', ru: 'Икры', value: 'толчок', side: 'l', top: 80 },
     ],
   },
   {
@@ -85,10 +85,10 @@ const SHOWCASE: Show[] = [
     rep: durationOf('lunge') / 2,
     hl: new Set(LEGS),
     calls: [
-      { name: 'Deltoid', ru: 'дельты', value: 'баланс', side: 'r', top: 36, dim: true },
-      { name: 'Gluteus', ru: 'ягодичные', value: 'активны', side: 'r', top: 55 },
-      { name: 'Quadriceps', ru: 'квадрицепсы', value: 'нагрузка %', side: 'l', top: 66, err: true },
-      { name: 'Hamstrings', ru: 'бицепс бедра', value: 'активны', side: 'l', top: 80 },
+      { name: 'Deltoid', ru: 'Дельты', value: 'баланс', side: 'r', top: 36, dim: true },
+      { name: 'Gluteus', ru: 'Ягодичные', value: 'активны', side: 'r', top: 55 },
+      { name: 'Quadriceps', ru: 'Квадрицепсы', value: 'нагрузка %', side: 'l', top: 66, err: true },
+      { name: 'Hamstrings', ru: 'Бицепс бедра', value: 'активны', side: 'l', top: 80 },
     ],
   },
   {
@@ -98,10 +98,10 @@ const SHOWCASE: Show[] = [
     rep: durationOf('arm_raise'),
     hl: new Set(ARMS),
     calls: [
-      { name: 'Trapezius', ru: 'трапеция', value: 'активна', side: 'r', top: 24 },
-      { name: 'Deltoid', ru: 'дельты', value: 'нагрузка %', side: 'l', top: 30, err: true },
-      { name: 'Core', ru: 'корпус', value: 'стабилизация', side: 'r', top: 54, dim: true },
-      { name: 'Calf', ru: 'икры', value: 'опора', side: 'l', top: 80, dim: true },
+      { name: 'Trapezius', ru: 'Трапеция', value: 'активна', side: 'r', top: 24 },
+      { name: 'Deltoid', ru: 'Дельты', value: 'нагрузка %', side: 'l', top: 30, err: true },
+      { name: 'Core', ru: 'Корпус', value: 'стабилизация', side: 'r', top: 54, dim: true },
+      { name: 'Calf', ru: 'Икры', value: 'опора', side: 'l', top: 80, dim: true },
     ],
   },
 ];
@@ -139,8 +139,8 @@ const ERRORS = [
 const MODES = [
   { title: 'Быстрая тренировка', meta: '3 мин · 3 упражнения' },
   { title: 'Одно упражнение', meta: `${EXERCISES.length} на выбор` },
-  { title: 'Челлендж 60 секунд', meta: 'максимум чистых приседаний' },
-  { title: 'Дуэль отжиманий', meta: 'соревнуйся с соперником' },
+  { title: 'Челлендж 60 секунд', meta: 'Максимум чистых приседаний' },
+  { title: 'Дуэль отжиманий', meta: 'Соревнуйся с соперником' },
 ];
 
 /** Пример таблицы — в приложении она настоящая (сервер, «сегодня / неделя / всё время»). */
@@ -196,9 +196,6 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
 
       <section className="hero">
         <div className="hero__copy">
-          <p className="tag rise" style={order(0)}>
-            AI · computer vision · real-time
-          </p>
           <h1 className="hero__title rise" style={order(1)}>
             Тренер, который видит технику
           </h1>
@@ -225,15 +222,9 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
           style={order(2)}
           aria-hidden="true"
         >
-          <span className="atlas__corner atlas__corner--tl" />
-          <span className="atlas__corner atlas__corner--tr" />
-          <span className="atlas__corner atlas__corner--bl" />
-          <span className="atlas__corner atlas__corner--br" />
-          <span className="atlas__axis atlas__axis--x" />
-          <span className="atlas__axis atlas__axis--y" />
           <div className="atlas__boot">
-            <span className="atlas__scan" />
-            <span className="tag">loading anatomy model</span>
+            <span className="atlas__spinner" />
+            <span>Загружаем 3D-модель…</span>
           </div>
           <Ghost
             exercise={cur.ex}
@@ -255,21 +246,14 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
               />
             ))}
           </div>
-          <figcaption className="atlas__meta">
-            <span>pose · 33 kp</span>
-            <span>
-              {cur.ex.replace('_', ' ')} · rep {String(show.n).padStart(2, '0')}/
-              {String(SET).padStart(2, '0')}
-            </span>
-          </figcaption>
         </figure>
 
         <aside className="hud rise" style={order(3)} aria-label="Пример анализа повтора">
           <header className="hud__head" key={cur.ex}>
-            <span className="tag">
-              упражнение {String(show.i + 1).padStart(2, '0')} / {String(SHOWCASE.length).padStart(2, '0')}
-            </span>
             <b>{EXERCISE_META[cur.ex].short}</b>
+            <span>
+              {show.i + 1} из {SHOWCASE.length}
+            </span>
           </header>
           <div className={`hud__ring ${show.lastBad ? 'is-bad' : 'is-good'}`}>
             <svg viewBox="0 0 100 100">
@@ -284,10 +268,10 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
               />
             </svg>
             <b>{show.score ? show.score : '—'}</b>
-            <small>{show.done ? 'средняя оценка' : 'оценка техники'}</small>
+            <small>{show.done ? 'средняя' : 'оценка'}</small>
           </div>
           <div className="hud__row">
-            <span className="tag">повторы</span>
+            <span>Повторы</span>
             <b>
               {show.n} <small>/ {SET}</small>
             </b>
@@ -323,19 +307,18 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
                     ? 'Исправил — так держать'
                     : 'Чистое повторение'}
           </div>
-          <p className="tag hud__foot">real-time analysis</p>
         </aside>
       </section>
 
       <section id="how" className="lsec">
         <header className="lsec__head" data-reveal>
-          <span className="tag">01 / механика</span>
-          <h2>Как это работает</h2>
+          <span className="lsec__eyebrow">Как это работает</span>
+          <h2>Четыре шага — и ты тренируешься с тренером</h2>
         </header>
         <ol className="steps">
           {STEPS.map((s, i) => (
             <li key={s.n} className="step" data-reveal style={order(i)}>
-              <span className="step__n">{s.n}</span>
+              <span className="step__n">{i + 1}</span>
               <StepFigure i={i} />
               <h3>{s.title}</h3>
               <p>{s.text}</p>
@@ -346,16 +329,18 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
 
       <section id="exercises" className="lsec">
         <header className="lsec__head" data-reveal>
-          <span className="tag">02 / каталог</span>
+          <span className="lsec__eyebrow">Упражнения</span>
           <h2>{EXERCISES.length} упражнений в 4 категориях</h2>
         </header>
         <div className="cats">
           {CATEGORIES.map((c, i) => (
             <article key={c.id} className="panel cat" data-reveal style={order(i)}>
               <header>
-                <Icon name={c.icon} size={20} className="primary" />
+                <span className="cat__icon">
+                  <Icon name={c.icon} size={20} />
+                </span>
                 <h3>{c.title}</h3>
-                <span className="tag">{c.items.length}</span>
+                <span className="cat__count">{c.items.length}</span>
               </header>
               <ul>
                 {c.items.map((ex) => (
@@ -370,7 +355,7 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
       <section id="modes" className="lsec lsec--split">
         <div>
           <header className="lsec__head" data-reveal>
-            <span className="tag">03 / режим «ошибка»</span>
+            <span className="lsec__eyebrow">Режим «ошибка»</span>
             <h2>Не «движение не распознано», а что исправить</h2>
           </header>
           <ul className="errs">
@@ -384,10 +369,12 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
                   data-reveal
                   style={order(i)}
                 >
-                  <span className="err__dot" />
+                  <span className="err__icon">
+                    <Icon name="alert" size={18} />
+                  </span>
                   <div>
                     <b>{def.message}</b>
-                    <span className="tag">{EXERCISE_META[s.exercise].title}</span>
+                    <small>{EXERCISE_META[s.exercise].title}</small>
                   </div>
                 </li>
               );
@@ -397,7 +384,7 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
 
         <div>
           <header className="lsec__head" data-reveal>
-            <span className="tag">04 / соревнование</span>
+            <span className="lsec__eyebrow">Соревнование</span>
             <h2>Режимы и рейтинг</h2>
           </header>
           <div className="modes">
@@ -405,32 +392,34 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
               {MODES.map((m, i) => (
                 <li key={m.title} className="panel" data-reveal style={order(i)}>
                   <b>{m.title}</b>
-                  <span className="tag">{m.meta}</span>
+                  <small>{m.meta}</small>
                 </li>
               ))}
             </ul>
             <div className="panel top" data-reveal>
               <div className="top__head">
                 <b>Рейтинг</b>
-                <span className="tag">сегодня · неделя · всё время</span>
+                <small>Сегодня · неделя · всё время</small>
               </div>
               <ol>
                 {SAMPLE_TOP.map((r, i) => (
                   <li key={r.name} className={r.me ? 'is-me' : ''}>
                     <span>{i + 1}</span>
-                    <span>{r.name}</span>
+                    <span className="top__who">
+                      <i>{r.name.slice(0, 1)}</i>
+                      {r.name}
+                    </span>
                     <b>{r.score.toLocaleString('ru-RU')}</b>
                   </li>
                 ))}
               </ol>
-              <p className="tag">в зачёт — только чистые повторения</p>
+              <small>В зачёт — только чистые повторения</small>
             </div>
           </div>
         </div>
       </section>
 
       <section className="final" data-reveal>
-        <span className="tag">ready · step back 2–3 m</span>
         <h2>Готов? Отойди на пару шагов</h2>
         <button type="button" className="lbtn" onClick={onStart}>
           Начать тренировку <Icon name="back" size={18} className="lbtn__arrow" />
@@ -520,10 +509,8 @@ function Callout({ call, i, value, bad }: { call: Call; i: number; value: string
   return (
     <span className={cls.join(' ')} style={{ top: `${call.top}%`, animationDelay: `${120 + i * 70}ms` }}>
       <i />
-      <b>{call.name}</b>
-      <small>
-        {call.ru} · {value}
-      </small>
+      <b>{call.ru}</b>
+      <small>{value}</small>
     </span>
   );
 }
