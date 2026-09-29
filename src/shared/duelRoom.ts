@@ -71,13 +71,13 @@ export class DuelRoom {
   /** Последняя активность — для уборки брошенных комнат. */
   touched = 0;
   private endedBy: 'time' | 'giveup' | null = null;
+  readonly id: string;
   readonly durationMs: number;
   readonly countdownMs: number;
 
-  constructor(
-    readonly id: string,
-    opts: { durationMs?: number; countdownMs?: number } = {},
-  ) {
+  // Без параметров-свойств: на VPS Node только стирает типы (см. tests/server-strip.test.ts).
+  constructor(id: string, opts: { durationMs?: number; countdownMs?: number } = {}) {
+    this.id = id;
     this.durationMs = opts.durationMs ?? 60_000;
     this.countdownMs = opts.countdownMs ?? 5000;
   }
