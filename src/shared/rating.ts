@@ -3,7 +3,26 @@
 // Файл без импортов: сервер запускает его прямо в Node (--experimental-strip-types).
 
 /** Упражнения, у которых есть своя доска «Одно упражнение». Совпадает с ExerciseId (проверяет тест). */
-export const RATED_EXERCISES = ['squat', 'jumping_jack', 'lunge', 'arm_raise'] as const;
+export const RATED_EXERCISES = [
+  'squat',
+  'jumping_jack',
+  'lunge',
+  'arm_raise',
+  'high_knees',
+  'knee_to_elbow',
+  'squat_press',
+  'side_bend',
+  'side_leg_raise',
+  'side_lunge',
+  'jump_squat',
+  'calf_raise',
+  'cross_jack',
+  'arm_circles',
+  'boxing',
+  'push_up',
+  'plank',
+  'burpee',
+] as const;
 export type RatedExercise = (typeof RATED_EXERCISES)[number];
 
 export type Board = 'quick' | 'challenge' | `single:${RatedExercise}`;
@@ -14,6 +33,20 @@ export const SINGLE_TARGET: Record<RatedExercise, number> = {
   jumping_jack: 15,
   lunge: 6,
   arm_raise: 10,
+  high_knees: 20,
+  knee_to_elbow: 12,
+  squat_press: 8,
+  side_bend: 12,
+  side_leg_raise: 12,
+  side_lunge: 10,
+  jump_squat: 8,
+  calf_raise: 15,
+  cross_jack: 15,
+  arm_circles: 15,
+  boxing: 20,
+  push_up: 10,
+  plank: 30, // секунды
+  burpee: 6,
 };
 /** Длительность челленджа, секунды. */
 export const CHALLENGE_SEC = 60;

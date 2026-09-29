@@ -3,7 +3,8 @@
 // 3D-рендер: поворот вокруг вертикали, части тела по глубине (дальние — первыми и темнее),
 // конечности — сужающиеся капсулы, под ногами — тень.
 
-import type { ExerciseId } from '../../engine/types';
+import { GHOST_DURATION_MS, ghostPoseAt } from '../../engine/ghostPoses';
+import { EXERCISES, type ExerciseId } from '../../engine/types';
 
 /** Что умеет показывать атлет: упражнения движка + эталоны, для которых распознавание ещё впереди (бёрпи). */
 export type GhostId = ExerciseId | 'burpee';
@@ -18,7 +19,36 @@ interface Motion {
   frames: number[][];
 }
 
-const MOTION = motionData as unknown as Record<GhostId, Motion>;
+const RECORDED = motionData as unknown as Partial<Record<GhostId, Motion>>;
+
+/**
+ * Упражнения без эталона в athleteMotion.json (новые из E-22) — движение кинематического призрака движка:
+ * координаты кадра → метры (рост как у записанного приседа), стопы на полу (y = 0), центр кадра — x = 0.
+ */
+function ghostMotion(exercise: ExerciseId): Motion {
+  const squat = RECORDED.squat!;
+  const keep = squat.keep;
+  const FRAMES = 60;
+  const cycle = (ex: ExerciseId) =>
+    Array.from({ length: FRAMES }, (_, i) => ghostPoseAt(ex, (i / FRAMES) * GHOST_DURATION_MS[ex]));
+  const noseM = -squat.frames[0]![keep.indexOf(0) * 3 + 1]!;
+  const noseToFeet = Math.max(...cycle('squat').map((p) => Math.max(p[31]!.y, p[32]!.y) - p[0]!.y));
+  const scale = noseM / noseToFeet;
+  const poses = cycle(exercise);
+  const floor = Math.max(...poses.flatMap((p) => keep.map((j) => p[j]!.y)));
+  return {
+    durationMs: GHOST_DURATION_MS[exercise],
+    keep,
+    frames: poses.map((p) =>
+      keep.flatMap((j) => [(p[j]!.x - 0.5) * scale, (p[j]!.y - floor) * scale, p[j]!.z * scale]),
+    ),
+  };
+}
+
+const MOTION = Object.fromEntries(EXERCISES.map((ex) => [ex, RECORDED[ex] ?? ghostMotion(ex)])) as Record<
+  GhostId,
+  Motion
+>;
 
 /** Кадры упражнения как массивы 33 точек (незаписанные — null). */
 const cache = new Map<GhostId, (V3 | null)[][]>();
@@ -45,6 +75,19 @@ export const PREFERRED_YAW: Record<GhostId, number> = {
   arm_raise: 0.15,
   // Бёрпи — сбоку: иначе планку и прыжок назад не видно.
   burpee: 1.15,
+  high_knees: 0.35,
+  knee_to_elbow: 0.18,
+  squat_press: 0.35,
+  side_bend: 0.15,
+  side_leg_raise: 0.15,
+  side_lunge: 0.15,
+  jump_squat: 0.35,
+  calf_raise: 0.5,
+  cross_jack: 0.18,
+  arm_circles: 0.15,
+  boxing: 0.5,
+  push_up: 0,
+  plank: 0,
 };
 
 export function durationOf(exercise: GhostId): number {
@@ -125,6 +168,19 @@ export const MUSCLES: Record<GhostId, Muscle[]> = {
   jumping_jack: ['delts', 'abductors', 'calves'],
   arm_raise: ['delts', 'traps'],
   burpee: ['quads', 'glutes', 'pecs', 'delts'],
+  high_knees: ['quads', 'glutes', 'calves'],
+  knee_to_elbow: ['quads', 'glutes'],
+  squat_press: ['quads', 'glutes', 'delts', 'traps'],
+  side_bend: ['traps'],
+  side_leg_raise: ['abductors', 'glutes'],
+  side_lunge: ['adductors', 'quads', 'glutes'],
+  jump_squat: ['quads', 'glutes', 'calves'],
+  calf_raise: ['calves'],
+  cross_jack: ['delts', 'abductors', 'adductors', 'calves'],
+  arm_circles: ['delts', 'traps'],
+  boxing: ['delts', 'traps'],
+  push_up: ['pecs', 'delts'],
+  plank: ['pecs', 'delts', 'glutes'],
 };
 
 /** Названия для подписей в интерфейсе. */
@@ -134,6 +190,19 @@ export const MUSCLE_NAMES: Record<GhostId, string[]> = {
   jumping_jack: ['дельты', 'отводящие бедра', 'икры'],
   arm_raise: ['дельты', 'трапеции'],
   burpee: ['квадрицепсы', 'ягодичные', 'грудные', 'дельты'],
+  high_knees: ['квадрицепсы', 'сгибатели бедра', 'икры'],
+  knee_to_elbow: ['косые мышцы живота', 'пресс'],
+  squat_press: ['квадрицепсы', 'ягодичные', 'дельты'],
+  side_bend: ['косые мышцы живота'],
+  side_leg_raise: ['отводящие бедра', 'ягодичные'],
+  side_lunge: ['приводящие', 'квадрицепсы', 'ягодичные'],
+  jump_squat: ['квадрицепсы', 'ягодичные', 'икры'],
+  calf_raise: ['икры'],
+  cross_jack: ['дельты', 'отводящие и приводящие бедра', 'икры'],
+  arm_circles: ['дельты', 'трапеции'],
+  boxing: ['дельты', 'трицепсы', 'косые мышцы живота'],
+  push_up: ['грудные', 'трицепсы', 'дельты'],
+  plank: ['пресс', 'дельты', 'ягодичные'],
 };
 
 /** Радиусы частей тела в метрах: [сустав A, сустав B, r у A, r у B]. */

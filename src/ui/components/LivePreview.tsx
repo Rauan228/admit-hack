@@ -16,7 +16,7 @@ const REPS_PER_EXERCISE = 3;
 const TARGET = 10;
 
 /** Короткие пункты чек-листа: код ошибки → что держать. */
-const CHECK: Record<ExerciseId, [string, string][]> = {
+const CHECK: Partial<Record<ExerciseId, [string, string][]>> = {
   squat: [
     ['shallow_depth', 'Глубже'],
     ['torso_lean', 'Спина прямо'],
@@ -133,7 +133,7 @@ export function LivePreview() {
             <li className={!activeCode && done > 0 ? 'is-ok' : ''}>
               <Icon name="check" size={16} /> Правильно
             </li>
-            {CHECK[exercise].map(([code, label]) => (
+            {(CHECK[exercise] ?? []).map(([code, label]) => (
               <li key={code} className={code === activeCode ? 'is-bad' : ''}>
                 <Icon name={code === activeCode ? 'alert' : 'user'} size={16} /> {label}
               </li>
