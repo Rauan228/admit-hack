@@ -10,6 +10,13 @@ describe('engine contract', () => {
       'high_knees',
       'knee_to_elbow',
       'squat_press',
+      'side_bend',
+      'side_leg_raise',
+      'side_lunge',
+      'jump_squat',
+      'calf_raise',
+      'cross_jack',
+      'arm_circles',
     ]);
   });
 
