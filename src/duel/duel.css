@@ -618,7 +618,6 @@ body {
 }
 
 .person__star:focus-visible,
-.tabs__tab:focus-visible,
 .field input:focus-visible,
 .invite__search:focus-visible {
   outline: 3px solid var(--info);
@@ -745,31 +744,6 @@ body {
   font-size: var(--text-sm);
 }
 
-.tabs {
-  display: flex;
-  gap: var(--s-1);
-  margin-top: var(--s-3);
-  padding: var(--s-1);
-  border-radius: var(--r-full);
-  background: var(--bg-deep);
-}
-
-.tabs__tab {
-  flex: 1;
-  min-height: 40px;
-  border: 0;
-  border-radius: var(--r-full);
-  background: none;
-  color: var(--muted);
-  font: 700 var(--text-sm) / 1 var(--font-body);
-  cursor: pointer;
-}
-
-.tabs__tab[aria-selected='true'] {
-  background: var(--surface-3);
-  color: var(--fg);
-}
-
 .invite__status {
   margin: var(--s-3) 0 0;
   color: var(--muted);
@@ -806,6 +780,15 @@ body {
 
 .person__nick + .btn {
   margin-left: auto;
+}
+
+.person__online--off {
+  background: var(--faint);
+  box-shadow: none;
+}
+
+.online .invite__search {
+  width: 100%;
 }
 
 .lobby {

@@ -37,8 +37,6 @@ const el = {
   invShare: $<HTMLButtonElement>('inv-share'),
   invLink: $<HTMLInputElement>('inv-link'),
   invStatus: $<HTMLParagraphElement>('inv-status'),
-  tabFriends: $<HTMLButtonElement>('tab-friends'),
-  tabAll: $<HTMLButtonElement>('tab-all'),
   search: $<HTMLInputElement>('inv-search'),
   list: $<HTMLUListElement>('inv-list'),
 };
@@ -48,8 +46,9 @@ let me: Me | null = null;
 /** API доступен (на зеркалах без сервера — нет). */
 let online = true;
 let guestName = '';
-let invite: { timeline: number[]; durationMs: number; linkId: string | null; tab: 'friends' | 'all' } | null =
-  null;
+let invite: { timeline: number[]; durationMs: number; linkId: string | null } | null = null;
+/** Номер последнего запроса списка — ответ на устаревший поиск не рисуем. */
+let listSeq = 0;
 
 export async function initSocial(h: Hooks): Promise<void> {
   hooks = h;
@@ -68,12 +67,10 @@ export async function initSocial(h: Hooks): Promise<void> {
   }, INBOX_EVERY_MS);
 
   el.invShare.addEventListener('click', () => void shareLink());
-  el.tabFriends.addEventListener('click', () => void showTab('friends'));
-  el.tabAll.addEventListener('click', () => void showTab('all'));
   let debounce = 0;
   el.search.addEventListener('input', () => {
     clearTimeout(debounce);
-    debounce = window.setTimeout(() => void showTab('all'), 250);
+    debounce = window.setTimeout(() => void showPeople(), 250);
   });
 }
 
@@ -281,7 +278,7 @@ export async function sendAnswer(opp: RecordedOpponent, timeline: number[]): Pro
 
 // ——— Окно «Вызвать друга» ———
 export function openInvite(timeline: number[], durationMs: number, suggest?: string): void {
-  invite = { timeline, durationMs, linkId: null, tab: 'friends' };
+  invite = { timeline, durationMs, linkId: null };
   el.invReps.textContent = String(timeline.length);
   el.invStatus.textContent = '';
   el.invLink.hidden = true;
@@ -309,7 +306,7 @@ function renderInvite(suggest?: string): void {
     );
     return;
   }
-  void showTab(suggest ? 'all' : 'friends');
+  void showPeople();
 }
 
 async function shareLink(): Promise<void> {
@@ -335,32 +332,27 @@ async function shareLink(): Promise<void> {
   }
 }
 
-async function showTab(tab: 'friends' | 'all'): Promise<void> {
+/** Все игроки приложения с поиском по нику; друзья (★) — первыми. */
+async function showPeople(): Promise<void> {
   if (!invite) return;
-  invite.tab = tab;
-  el.tabFriends.setAttribute('aria-selected', String(tab === 'friends'));
-  el.tabAll.setAttribute('aria-selected', String(tab === 'all'));
-  el.search.hidden = tab !== 'all';
+  const seq = ++listSeq;
   let people: Player[];
   try {
-    people =
-      tab === 'friends'
-        ? (await api.friends()).map((f) => ({ nick: f.nick, friend: true }))
-        : await api.players(el.search.value.trim());
+    people = await api.players(el.search.value.trim());
   } catch (err) {
     el.list.replaceChildren(text('li', 'people__empty', (err as Error).message));
     return;
   }
-  if (invite.tab !== tab) return; // пока ждали ответ, переключили вкладку
+  if (seq !== listSeq) return; // пока ждали ответ, поиск уже поменялся
   el.list.replaceChildren();
   if (!people.length) {
     el.list.append(
       text(
         'li',
         'people__empty',
-        tab === 'friends'
-          ? 'Друзей пока нет — найди игрока во вкладке «Все игроки» и отметь звёздочкой.'
-          : 'Никого не нашли.',
+        el.search.value.trim()
+          ? 'Никого не нашли — проверь ник или поделись ссылкой.'
+          : 'Пока в приложении больше никого — поделись ссылкой.',
       ),
     );
     return;

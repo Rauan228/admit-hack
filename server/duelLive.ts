@@ -33,6 +33,10 @@ const HEARTBEAT_MS = 25_000;
 /** Брошенная комната (никого в сети) живёт 10 минут, любая — не дольше часа без дела. */
 const IDLE_EMPTY_MS = 10 * 60_000;
 const IDLE_ANY_MS = 60 * 60_000;
+/** Приглашение тому, кто не в сети, ждёт его 15 минут (и пока комната жива и в ней есть место). */
+const INVITE_TTL_MS = 15 * 60_000;
+const MAX_WAITING_PER_NICK = 5;
+const MAX_WAITING_NICKS = 1000;
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 export function createDuelLive(
@@ -44,6 +48,8 @@ export function createDuelLive(
   const rooms = new Map<string, DuelRoom>();
   const timers = new Map<DuelRoom, ReturnType<typeof setTimeout>>();
   const createLimit = new RateLimiter(10, 60_000);
+  /** Отложенные приглашения: ник (в нижнем регистре) → кто и в какую комнату позвал. */
+  const waiting = new Map<string, { room: DuelRoom; from: string; at: number }[]>();
   let presenceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const heartbeat = setInterval(() => {
@@ -80,7 +86,10 @@ export function createDuelLive(
     ws.onmessage = (text) => onMessage(c, text);
     ws.onclose = () => onClose(c);
     send(c, { t: 'hello', me: c.user?.nick ?? null, online: onlineNicks() });
-    if (c.user) presenceChanged();
+    if (c.user) {
+      presenceChanged();
+      deliverWaiting(c);
+    }
   }
 
   function onMessage(c: Client, text: string): void {
@@ -158,9 +167,33 @@ export function createDuelLive(
   function invite(c: Client, nick: unknown): void {
     if (!c.user) return fail(c, 'Войди, чтобы звать игроков');
     if (!c.room) return fail(c, 'Сначала создай дуэль');
-    const targets = byNick(nick).filter((x) => x.user?.id !== c.user!.id);
-    if (!targets.length) return fail(c, 'Игрок сейчас не в сети');
+    if (typeof nick !== 'string' || checkNick(nick)) return fail(c, 'Нет такого игрока');
+    if (nick.trim().toLowerCase() === c.user.nick.toLowerCase()) return fail(c, 'Нельзя позвать самого себя');
+    const targets = byNick(nick);
     for (const x of targets) send(x, { t: 'invited', room: c.room.id, from: c.user.nick });
+    if (!targets.length) {
+      // Не в сети — приглашение дождётся, когда игрок откроет дуэль (deliverWaiting).
+      const key = nick.trim().toLowerCase();
+      if (!waiting.has(key) && waiting.size >= MAX_WAITING_NICKS)
+        return fail(c, 'Сервер занят — отправь ссылку');
+      const room = c.room;
+      const list = (waiting.get(key) ?? []).filter((w) => w.room !== room);
+      list.push({ room, from: c.user.nick, at: now() });
+      waiting.set(key, list.slice(-MAX_WAITING_PER_NICK));
+    }
+    send(c, { t: 'invite_sent', nick, online: targets.length > 0 });
+  }
+
+  /** Вошёл тот, кого звали, пока его не было: отдать живые приглашения. */
+  function deliverWaiting(c: Client): void {
+    const key = c.user!.nick.toLowerCase();
+    const list = waiting.get(key);
+    if (!list) return;
+    waiting.delete(key);
+    const t = now();
+    for (const w of list)
+      if (rooms.get(w.room.id) === w.room && w.room.players.length < 2 && t - w.at < INVITE_TTL_MS)
+        send(c, { t: 'invited', room: w.room.id, from: w.from });
   }
 
   function leaveRoom(c: Client): void {
@@ -215,6 +248,11 @@ export function createDuelLive(
 
   function sweep(): void {
     const t = now();
+    for (const [key, list] of waiting) {
+      const alive = list.filter((w) => rooms.get(w.room.id) === w.room && t - w.at < INVITE_TTL_MS);
+      if (alive.length) waiting.set(key, alive);
+      else waiting.delete(key);
+    }
     for (const room of rooms.values()) {
       const anyone = [...clients].some((c) => c.room === room);
       if ((!anyone && t - room.touched > IDLE_EMPTY_MS) || t - room.touched > IDLE_ANY_MS) {

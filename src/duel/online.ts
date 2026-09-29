@@ -4,6 +4,7 @@
 // Все имена — через textContent: ники и имена гостей приходят от других людей.
 
 import type { RoomView, ServerMsg } from '../shared/duelRoom';
+import { api, type Player } from './api';
 import { Live } from './live';
 
 export interface OnlineHooks {
@@ -22,6 +23,7 @@ const el = {
   app: $<HTMLElement>('app'),
   section: $<HTMLElement>('online'),
   list: $<HTMLUListElement>('online-list'),
+  search: $<HTMLInputElement>('online-search'),
   create: $<HTMLButtonElement>('online-create'),
   note: $<HTMLParagraphElement>('online-note'),
   card: $<HTMLDivElement>('room-card'),
@@ -29,6 +31,7 @@ const el = {
   lobbyOpp: $<HTMLParagraphElement>('lobby-opp'),
   lobbyShare: $<HTMLButtonElement>('lobby-share'),
   lobbyLink: $<HTMLInputElement>('lobby-link'),
+  lobbyLeave: $<HTMLButtonElement>('lobby-leave'),
   toast: $<HTMLDivElement>('invite-toast'),
   toastFrom: $<HTMLElement>('toast-from'),
   toastAccept: $<HTMLButtonElement>('toast-accept'),
@@ -46,6 +49,11 @@ let countdownRound = 0;
 let pendingInvite: string | null = null;
 let toastRoom: { room: string; from: string } | null = null;
 let guestName = '';
+/** Все игроки приложения (поиск по нику) — звать можно любого, не только тех, кто в сети. */
+let players: Player[] = [];
+/** Кого уже позвали в эту комнату: ник (нижний регистр) → пришло сразу / ждёт, когда он откроет дуэль. */
+const called = new Map<string, 'online' | 'waiting'>();
+let sending: string | null = null;
 
 export function initOnline(h: OnlineHooks): void {
   hooks = h;
@@ -56,6 +64,12 @@ export function initOnline(h: OnlineHooks): void {
     live.create();
   });
   el.lobbyShare.addEventListener('click', () => void shareRoom());
+  el.lobbyLeave.addEventListener('click', () => live.send({ t: 'leave' }));
+  let debounce = 0;
+  el.search.addEventListener('input', () => {
+    clearTimeout(debounce);
+    debounce = window.setTimeout(() => void loadPlayers(), 250);
+  });
   el.toastAccept.addEventListener('click', () => {
     if (toastRoom) live.join(toastRoom.room);
     hideToast();
@@ -89,13 +103,25 @@ function onMessage(m: ServerMsg): void {
     case 'hello':
       me = m.me;
       online = m.online;
-      return renderList();
-    case 'presence':
+      return void loadPlayers();
+    case 'presence': {
       online = m.online;
+      // В сети появился тот, кого нет в списке (новый игрок) — перечитать список, иначе его не позвать.
+      const known = new Set(players.map((p) => p.nick));
+      if (me && online.some((n) => n !== me && !known.has(n)) && !el.search.value.trim())
+        return void loadPlayers();
       return renderList();
+    }
     case 'room':
       return onRoom(m.room);
+    case 'invite_sent':
+      sending = null;
+      called.set(m.nick.toLowerCase(), m.online ? 'online' : 'waiting');
+      if (!m.online && view)
+        el.lobbyOpp.textContent = `${m.nick} сейчас не в сети — приглашение придёт, как только он откроет дуэль (15 минут). Можно ещё отправить ссылку.`;
+      return renderList();
     case 'left':
+      called.clear();
       view = entered = null;
       countdownRound = 0;
       renderLobby();
@@ -130,37 +156,69 @@ function onRoom(r: RoomView): void {
   renderLobby();
 }
 
-// ——— Онлайн сейчас ———
+// ——— Позвать на дуэль: все игроки, поиск, кто в сети — первыми ———
+async function loadPlayers(): Promise<void> {
+  if (me) {
+    try {
+      players = await api.players(el.search.value.trim());
+    } catch (err) {
+      players = [];
+      el.note.textContent = (err as Error).message;
+    }
+  }
+  renderList();
+}
+
 function renderList(): void {
   el.list.replaceChildren();
-  el.note.textContent = '';
+  el.section.hidden = false;
+  el.search.hidden = !me;
+  el.create.hidden = !me;
   if (!me) {
-    el.section.hidden = false;
-    el.create.hidden = true;
-    el.note.textContent = 'Войди, чтобы звать игроков онлайн. По ссылке от друга можно и без входа.';
+    el.note.textContent =
+      'Войди вверху страницы, чтобы звать игроков. По ссылке от друга можно играть и без входа.';
     return;
   }
-  el.section.hidden = false;
-  el.create.hidden = false;
-  const others = online.filter((n) => n !== me);
-  if (!others.length) el.note.textContent = 'Сейчас больше никого нет — создай дуэль и отправь ссылку.';
-  for (const nick of others) {
-    const li = document.createElement('li');
-    li.className = 'person';
-    const dot = text('span', 'person__online', '');
-    dot.setAttribute('aria-hidden', 'true');
-    const call = text('button', 'btn btn--small btn--primary', 'Позвать');
-    (call as HTMLButtonElement).type = 'button';
+  const inNet = new Set(online.map((n) => n.toLowerCase()));
+  const rows = players
+    .filter((p) => p.nick !== me)
+    .sort((a, b) => Number(inNet.has(b.nick.toLowerCase())) - Number(inNet.has(a.nick.toLowerCase())));
+  el.note.textContent = rows.length
+    ? ''
+    : el.search.value.trim()
+      ? 'Никого не нашли — проверь ник или отправь ссылку.'
+      : 'Пока в приложении больше никого — отправь другу ссылку.';
+  for (const p of rows) {
+    const key = p.nick.toLowerCase();
+    const on = inNet.has(key);
+    const li = text('li', 'person', '');
+    const dot = text('span', on ? 'person__online' : 'person__online person__online--off', '');
+    dot.setAttribute('role', 'img');
+    dot.setAttribute('aria-label', on ? 'в сети' : 'не в сети');
+    const state = called.get(key);
+    const call = text(
+      'button',
+      'btn btn--small btn--primary',
+      sending === key
+        ? 'Зовём…'
+        : state === 'online'
+          ? 'Позвали'
+          : state === 'waiting'
+            ? 'Ждёт входа'
+            : 'Позвать',
+    ) as HTMLButtonElement;
+    call.type = 'button';
+    call.disabled = !!state || sending === key;
     call.addEventListener('click', () => {
-      (call as HTMLButtonElement).disabled = true;
-      call.textContent = 'Зовём…';
-      if (view && view.you === 0 && view.players.length < 2) live.send({ t: 'invite', nick });
+      sending = key;
+      renderList();
+      if (view && view.you === 0 && view.players.length < 2) live.send({ t: 'invite', nick: p.nick });
       else {
-        pendingInvite = nick;
+        pendingInvite = p.nick;
         live.create();
       }
     });
-    li.append(dot, text('span', 'person__nick', nick), call);
+    li.append(dot, text('span', 'person__nick', p.nick), call);
     el.list.append(li);
   }
 }
@@ -239,17 +297,10 @@ function hideToast(): void {
 }
 
 function showError(message: string): void {
+  sending = null;
+  renderList();
   if (view) el.lobbyOpp.textContent = message;
   else el.note.textContent = message;
-  renderListButtons();
-}
-
-/** После ошибки «Позвать» снова доступна. */
-function renderListButtons(): void {
-  for (const b of el.list.querySelectorAll<HTMLButtonElement>('button')) {
-    b.disabled = false;
-    b.textContent = 'Позвать';
-  }
 }
 
 function text<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, value: string) {
