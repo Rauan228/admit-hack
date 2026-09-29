@@ -54,7 +54,9 @@ export function Intro({
     ? `${plan.timeLimitSec} секунд — максимум чистых повторов`
     : item.exercise === 'lunge'
       ? `Цель: ${item.target} × обе ноги`
-      : `Цель: ${item.target} повторений`;
+      : meta.unit === 'sec'
+        ? `Цель: ${item.target} секунд`
+        : `Цель: ${item.target} повторений`;
 
   return (
     <main className="screen intro">
@@ -78,6 +80,11 @@ export function Intro({
         <p className="muscles rise" style={order(2)}>
           <i aria-hidden="true" /> Работают: {MUSCLE_NAMES[item.exercise].join(' · ')}
         </p>
+        {meta.setup && (
+          <p className="intro__setup rise" style={order(2)}>
+            <Icon name="camera" size={26} /> {meta.setup}
+          </p>
+        )}
         <ul className="intro__cues">
           {meta.cues.map((c, i) => (
             <li key={c} className="rise" style={order(i + 2)}>

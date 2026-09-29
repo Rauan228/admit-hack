@@ -92,12 +92,15 @@ export function drawTrace(ctx: CanvasRenderingContext2D, v: View, lms: Landmark[
   const rs = P(12);
   const lh = P(23);
   const rh = P(24);
-  const sw =
-    ls && rs
-      ? Math.hypot(ls.x - rs.x, ls.y - rs.y)
-      : lh && rh
-        ? Math.hypot(lh.x - rh.x, lh.y - rh.y) * 1.35
-        : 0;
+  // Масштаб линий: ширина плеч на экране; боком к камере (отжимания, планка) плечи сливаются —
+  // тогда берём долю длины корпуса.
+  const shoulders = ls && rs ? Math.hypot(ls.x - rs.x, ls.y - rs.y) : 0;
+  const hips = lh && rh ? Math.hypot(lh.x - rh.x, lh.y - rh.y) * 1.35 : 0;
+  const torsoLen =
+    (ls ?? rs) && (lh ?? rh)
+      ? Math.hypot((ls ?? rs)!.x - (lh ?? rh)!.x, (ls ?? rs)!.y - (lh ?? rh)!.y) * 0.75
+      : 0;
+  const sw = Math.max(shoulders, hips, torsoLen);
   if (sw < 6) return;
 
   const errors = s.errorJoints ?? new Set<number>();

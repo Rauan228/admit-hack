@@ -2,7 +2,6 @@
 // Единственный клик — «Начать»: браузеру нужен жест, чтобы дать камеру и звук. Дальше всё управляется телом.
 
 import { useEffect, useState } from 'react';
-import { EXERCISES } from '../../engine/types';
 import { Ghost } from '../components/Ghost';
 import { Icon } from '../components/Icon';
 import { MUSCLE_NAMES, type GhostId } from '../lib/athlete';
@@ -12,8 +11,8 @@ import './Landing.css';
 
 /** Сколько атлет показывает одно упражнение, прежде чем перейти к следующему. */
 const SHOW_MS = 7000;
-/** Что показывает атлет: упражнения платформы и бёрпи — эталон уже готов, распознавание на подходе. */
-const SHOWCASE: GhostId[] = [...EXERCISES, 'burpee'];
+/** Что показывает атлет: упражнения с настоящей 3D-анимацией (остальные пока стикменом — не для витрины). */
+const SHOWCASE: GhostId[] = ['squat', 'jumping_jack', 'lunge', 'arm_raise', 'burpee'];
 const TITLE = (ex: GhostId) => (ex === 'burpee' ? 'Бёрпи' : EXERCISE_META[ex].title);
 
 const STEPS = [

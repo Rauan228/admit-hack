@@ -1,14 +1,39 @@
+.picker {
+  gap: var(--s-4);
+  overflow-y: auto;
+}
+
+.picker__tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+.picker__tab {
+  min-height: 64px;
+  font-size: var(--text-md);
+}
+
+.picker__count {
+  margin-left: var(--s-1);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font: 700 13px / 1.2 var(--font-body);
+}
+
 .picker__grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--s-5);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: var(--s-4);
   min-height: 0;
 }
 
 .picker__tile {
   height: 100%;
-  min-height: 220px;
+  min-height: 140px;
   padding: var(--s-5);
   align-items: stretch;
 }
@@ -16,26 +41,61 @@
 .picker__tile .dwell__label {
   flex-direction: column;
   align-items: stretch;
+  justify-content: space-between;
   width: 100%;
   height: 100%;
   gap: var(--s-3);
   text-align: left;
 }
 
-.picker__ghost {
-  flex: 1;
-  width: 100%;
-  min-height: 120px;
+.picker__tile-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
 }
 
-@media (max-width: 860px) {
-  .picker__grid {
-    flex: none;
-    grid-template-columns: 1fr 1fr;
-  }
+.picker__target {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-2);
+  font: 700 14px / 1.2 var(--font-body);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .picker__tile .menu__tile-text b {
   font-size: var(--text-lg);
   overflow-wrap: anywhere;
+}
+
+.picker__setup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--warn);
+  font: 600 13px / 1.2 var(--font-body);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+@media (max-width: 860px) {
+  .picker__tabs {
+    grid-template-columns: 1fr 1fr;
+  }
+  .picker__grid {
+    flex: none;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .picker__grid {
+    grid-template-columns: 1fr;
+  }
+  .picker__tile {
+    min-height: 110px;
+  }
 }

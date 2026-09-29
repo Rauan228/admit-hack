@@ -129,13 +129,15 @@ export function Workout({
         setCount(e.count);
         setLastScore(e.score);
         setHalf(null);
-        flashRep(clean);
+        // Планка: «повтор» — каждая секунда удержания; вспышка и голос — раз в 5 секунд, а не каждую.
+        const quiet = meta.unit === 'sec' && e.count % 5 !== 0;
+        if (!quiet || !clean) flashRep(clean);
         setStreak((s) => (clean ? s + 1 : 0));
-        if (clean) flashEdge('good');
-        if (clean) {
+        if (clean && !quiet) flashEdge('good');
+        if (clean && !quiet) {
           sfx.repClean();
           say(numberWord(e.count), 'count');
-        } else sfx.repFlawed();
+        } else if (!clean) sfx.repFlawed();
         break;
       }
       case 'half_rep': {
@@ -214,7 +216,9 @@ export function Workout({
           <span key={count} className="workout__num">
             {count}
           </span>
-          <span className="workout__target">{timeLimit ? 'повторов' : `из ${item.target}`}</span>
+          <span className="workout__target">
+            {timeLimit ? 'повторов' : meta.unit === 'sec' ? `из ${item.target} сек` : `из ${item.target}`}
+          </span>
           {item.exercise === 'lunge' && (
             <span key={half ?? 'none'} className="workout__half">
               {half === 'right'

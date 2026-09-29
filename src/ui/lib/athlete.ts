@@ -90,6 +90,11 @@ export const PREFERRED_YAW: Record<GhostId, number> = {
   plank: 0,
 };
 
+/** Есть ли у упражнения настоящий эталон (запись или кинематика в athleteMotion.json). Нет — рисуем стикмен призрака движка. */
+export function hasRecordedMotion(exercise: GhostId): boolean {
+  return !!RECORDED[exercise];
+}
+
 export function durationOf(exercise: GhostId): number {
   return MOTION[exercise].durationMs;
 }

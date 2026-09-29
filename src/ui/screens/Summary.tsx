@@ -117,7 +117,11 @@ export function Summary({
 
       <section className="summary__stats" aria-label="Итоги">
         <Stat i={1} big label={`Рейтинг · ${unit}`} value={rating} />
-        <Stat i={2} label="Повторений" value={t.reps} />
+        <Stat
+          i={2}
+          label={results.every((r) => EXERCISE_META[r.exercise].unit === 'sec') ? 'Секунд' : 'Повторений'}
+          value={t.reps}
+        />
         <Stat
           i={3}
           label="Чистая техника"

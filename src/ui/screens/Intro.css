@@ -152,3 +152,17 @@
     animation: none;
   }
 }
+
+.intro__setup {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--warn-soft);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  color: var(--warn);
+  font-size: var(--text-md);
+  font-weight: 700;
+}

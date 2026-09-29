@@ -1,6 +1,7 @@
 // U-07: главное меню — только крупные кнопки с выбором удержанием.
 
 import { useEffect } from 'react';
+import { EXERCISES } from '../../engine/types';
 import { say } from '../audio/voice';
 import { DwellButton } from '../components/dwell';
 import { Icon } from '../components/Icon';
@@ -55,7 +56,7 @@ export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate, o
           <Icon name="list" size={36} />
           <span className="menu__tile-text">
             <b>Одно упражнение</b>
-            <small>4 на выбор</small>
+            <small>{EXERCISES.length} на выбор · 4 категории</small>
           </span>
         </DwellButton>
         <DwellButton size="lg" style={order(3)} className="rise menu__tile" onSelect={onChallenge}>

@@ -16,7 +16,34 @@ export interface ExerciseMeta {
   cues: [string, string, string];
   /** «Обе руки вверх» завершает подход досрочно; в «звёздочке» и подъёме рук руки вверху — само движение. */
   handsUpToFinish: boolean;
+  /** Чем меряем подход: повторения (по умолчанию) или секунды удержания (планка). */
+  unit?: 'sec';
+  /** Особая установка камеры — крупная плашка в интро. */
+  setup?: string;
 }
+
+/** Категории для экрана выбора: по 2–6 крупных плиток, чтобы рукой попадать с 2–3 метров. */
+export const CATEGORIES: { id: string; title: string; icon: IconName; items: ExerciseId[] }[] = [
+  {
+    id: 'legs',
+    title: 'Ноги',
+    icon: 'zap',
+    items: ['squat', 'lunge', 'side_lunge', 'jump_squat', 'calf_raise', 'side_leg_raise'],
+  },
+  {
+    id: 'cardio',
+    title: 'Кардио',
+    icon: 'timer',
+    items: ['jumping_jack', 'cross_jack', 'high_knees', 'burpee', 'boxing'],
+  },
+  {
+    id: 'upper',
+    title: 'Руки и кор',
+    icon: 'arms',
+    items: ['arm_raise', 'arm_circles', 'squat_press', 'side_bend', 'knee_to_elbow'],
+  },
+  { id: 'floor', title: 'На полу', icon: 'flag', items: ['push_up', 'plank'] },
+];
 
 export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
   squat: {
@@ -133,15 +160,18 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
     title: 'Отжимания',
     short: 'Отжим.',
     icon: 'arms',
-    cues: ['Камера у пола, встань боком', 'Тело — прямая линия', 'Грудь к полу'],
+    cues: ['Руки чуть шире плеч', 'Тело — прямая линия', 'Грудь к полу, локти назад'],
     handsUpToFinish: true,
+    setup: 'Поставь телефон или ноутбук на пол в 2 метрах и встань к нему боком',
   },
   plank: {
     title: 'Планка',
     short: 'Планка',
     icon: 'timer',
-    cues: ['Камера у пола, встань боком', 'Тело — прямая линия', 'Счёт — в секундах'],
+    cues: ['Локти под плечами', 'Тело — прямая линия', 'Таз не проваливается'],
     handsUpToFinish: true,
+    unit: 'sec',
+    setup: 'Поставь телефон или ноутбук на пол в 2 метрах и встань к нему боком',
   },
   burpee: {
     title: 'Бёрпи',
