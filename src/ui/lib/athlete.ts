@@ -85,7 +85,8 @@ export const PREFERRED_YAW: Record<GhostId, number> = {
   calf_raise: 0.9,
   cross_jack: 0.18,
   arm_circles: 0.15,
-  boxing: 0.5,
+  // Удар идёт вперёд — анфас его не видно, атлет развёрнут почти боком.
+  boxing: 1.0,
   // Упор лёжа — сбоку, как бёрпи: иначе линию тела не видно.
   push_up: 1.15,
   plank: 1.15,
