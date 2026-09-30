@@ -4,6 +4,7 @@
 // Импорты — только из src/shared/ и с расширением .ts: на VPS копируются лишь server/ и src/shared/,
 // а Node там только стирает типы.
 
+import { ARENA_DURATIONS, type AwardView } from './arena.ts';
 import { DEFAULT_DUEL_EXERCISE, minGapMs, paceAllows, type DuelExercise } from './duel.ts';
 
 export type RoomPhase = 'lobby' | 'countdown' | 'battle' | 'over';
@@ -38,12 +39,21 @@ export interface RoomView {
   endsAt: number;
   now: number;
   you: number;
-  players: { name: string; ready: boolean; reps: number; online: boolean; gaveUp: boolean }[];
+  players: {
+    name: string;
+    ready: boolean;
+    reps: number;
+    online: boolean;
+    gaveUp: boolean;
+    /** Титул по сумме кубков. null — ещё без титула, рамки нет. */
+    title: string | null;
+    frame: string | null;
+  }[];
   result: { winner: number | null; reason: RoomResult['reason'] } | null;
 }
 
-/** E-30: время боя на выбор — 15 с, 30 с, 1 мин, 3 мин. */
-export const ROOM_DURATIONS: readonly number[] = [15_000, 30_000, 60_000, 180_000];
+/** Время соревновательного боя: пуля 30 с, блиц 1 мин, рапид 3 мин. У каждого свой рейтинг. */
+export const ROOM_DURATIONS: readonly number[] = ARENA_DURATIONS;
 
 /** Клиент → сервер. */
 export type ClientMsg =
@@ -66,6 +76,7 @@ export type ServerMsg =
   /** Приглашение ушло: online — сразу, иначе дождётся, когда игрок откроет дуэль. */
   | { t: 'invite_sent'; nick: string; online: boolean }
   | { t: 'declined'; by: string }
+  | ({ t: 'award'; room: string; round: number } & AwardView)
   | { t: 'error'; message: string };
 
 /** Повтор, досчитанный движком чуть позже финиша (задержка сети и распознавания), ещё засчитываем. */
@@ -196,6 +207,8 @@ export class DuelRoom {
         reps: p.reps.length,
         online: p.online,
         gaveUp: p.gaveUp,
+        title: null,
+        frame: null,
       })),
       result: r && {
         winner: r.winner === null ? null : this.players.findIndex((p) => p.key === r.winner),

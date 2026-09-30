@@ -4,12 +4,15 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomInt } from 'node:crypto';
+import { formatByMs, isArenaFormat, titleFor, type ArenaFormatId } from '../src/shared/arena.ts';
 import {
   DEFAULT_DUEL_EXERCISE,
   checkTimeline,
   duelExerciseOf,
+  isDuelExercise,
   type DuelExercise,
 } from '../src/shared/duel.ts';
+import { awardView, type ArenaStore } from './arena.ts';
 import { RateLimiter, checkNick } from './auth.ts';
 import type { Db } from './db.ts';
 
@@ -21,6 +24,7 @@ export interface DuelContext {
   ip: (req: IncomingMessage) => string;
   /** Ответить ошибкой с кодом: бросает HttpError приложения. */
   fail: (status: number, message: string) => never;
+  arena: ArenaStore;
 }
 
 type Handler = (req: IncomingMessage, res: ServerResponse, url: URL) => unknown;
@@ -121,7 +125,8 @@ export function duelRoutes(ctx: DuelContext): Record<string, Handler> {
     players: db.prepare(
       `SELECT u.nick,
          EXISTS (SELECT 1 FROM duel_friends f WHERE f.user_id = ? AND f.friend_id = u.id) AS friend,
-         (SELECT MAX(r.created_at) FROM results r WHERE r.user_id = u.id) AS active
+         (SELECT MAX(r.created_at) FROM results r WHERE r.user_id = u.id) AS active,
+         (SELECT COALESCE(SUM(ar.cups), 0) FROM arena_ratings ar WHERE ar.user_id = u.id) AS cups
        FROM users u WHERE u.id <> ? AND u.nick LIKE ? ESCAPE '\\'
        ORDER BY friend DESC, active DESC, u.nick COLLATE NOCASE LIMIT 50`,
     ),
@@ -208,7 +213,27 @@ export function duelRoutes(ctx: DuelContext): Record<string, Handler> {
         typeof b.name === 'string' && !checkNick(b.name) ? b.name.trim().replace(/\s+/g, ' ') : null;
       const reps = (b.timeline as number[]).length;
       q.insertAnswer.run(c.id, u?.id ?? null, u?.nick ?? guestName ?? 'Гость', reps, now());
-      return { ok: true, reps, outcome: reps > c.reps ? 'win' : reps < c.reps ? 'lose' : 'draw' };
+      const outcome = reps > c.reps ? 'win' : reps < c.reps ? 'lose' : 'draw';
+      // Гость и старый бой не на 30 с / 1 мин / 3 мин в рейтинг не идут.
+      const format = formatByMs(c.duration_ms);
+      if (!u || !format) return { ok: true, reps, outcome, award: null, rival: null };
+      const pair = ctx.arena.settleMatch(now(), {
+        id: `async:${c.id}:${u.id}`,
+        exercise: c.exercise,
+        format: format.id,
+        a: { userId: c.from_user, reps: c.reps },
+        b: { userId: u.id, reps },
+        winnerUserId: outcome === 'draw' ? null : outcome === 'win' ? u.id : c.from_user,
+      });
+      const mine = pair ? (pair.a.userId === u.id ? pair.a : pair.b) : null;
+      const other = pair && mine ? (mine === pair.a ? pair.b : pair.a) : null;
+      return {
+        ok: true,
+        reps,
+        outcome,
+        award: mine ? awardView(mine) : null,
+        rival: other ? { title: other.title, frame: other.frame } : null,
+      };
     },
 
     'GET /api/duel/inbox': (req) => {
@@ -231,13 +256,46 @@ export function duelRoutes(ctx: DuelContext): Record<string, Handler> {
         .trim()
         .slice(0, 20)
         .replace(/[\\%_]/g, '\\$&');
-      const rows = q.players.all(u.id, u.id, `${prefix}%`) as { nick: string; friend: number }[];
-      return { players: rows.map((r) => ({ nick: r.nick, friend: r.friend === 1 })) };
+      const rows = q.players.all(u.id, u.id, `${prefix}%`) as {
+        nick: string;
+        friend: number;
+        cups: number;
+      }[];
+      return {
+        players: rows.map((r) => {
+          const title = titleFor(r.cups);
+          return {
+            nick: r.nick,
+            friend: r.friend === 1,
+            cups: r.cups,
+            title: title?.name ?? null,
+            frame: title?.id ?? null,
+          };
+        }),
+      };
     },
 
     'GET /api/duel/friends': (req) => {
       const u = signedIn(req, 'Войди, чтобы видеть друзей');
       return { friends: (q.friends.all(u.id) as { nick: string }[]).map((r) => ({ nick: r.nick })) };
+    },
+
+    'GET /api/duel/standing': (req) => {
+      const u = signedIn(req, 'Войди, чтобы видеть кубки');
+      return ctx.arena.standing(u.id);
+    },
+
+    'GET /api/duel/ladder': (req, _res, url) => {
+      const rawFormat = url.searchParams.get('format');
+      const rawExercise = url.searchParams.get('exercise');
+      if (rawFormat && !isArenaFormat(rawFormat)) fail(400, 'Неизвестный разряд');
+      if (rawExercise && !isDuelExercise(rawExercise)) fail(400, 'Неизвестное упражнение');
+      const u = ctx.currentUser(req);
+      return ctx.arena.ladder(
+        (rawFormat || null) as ArenaFormatId | null,
+        rawExercise || null,
+        u?.id ?? null,
+      );
     },
 
     'POST /api/duel/friends': async (req) => {

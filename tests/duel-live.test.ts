@@ -112,33 +112,38 @@ describe('онлайн-дуэль по WebSocket', () => {
     expect(over.room.result).toEqual({ winner: 0, reason: 'reps' });
   });
 
-  it('гость входит по ссылке с именем; третьему места нет', async () => {
+  it('по ссылке входит только аккаунт; третьему места нет', async () => {
     const a = await player(await cookieOf('Arslan'));
     a.send({ t: 'create' });
     const { room } = await a.next('room');
     const guest = await player();
+    await guest.next('hello');
     guest.send({ t: 'join', room: room.id, name: 'Вася' });
-    expect((await guest.next('room')).room.players.map((p) => p.name)).toEqual(['Arslan', 'Вася']);
-    const third = await player();
+    expect((await guest.next('error')).message).toMatch(/Войди/);
+    const b = await player(await cookieOf('Rauan'));
+    b.send({ t: 'join', room: room.id });
+    expect((await b.next('room')).room.players.map((p) => p.name)).toEqual(['Arslan', 'Rauan']);
+    const third = await player(await cookieOf('Other'));
     third.send({ t: 'join', room: room.id });
     expect(await third.next('error')).toMatchObject({ message: 'В дуэли уже двое' });
   });
 
-  it('обрыв: соперник видит «не в сети», гость возвращается по ключу на своё место', async () => {
+  it('обрыв: соперник видит «не в сети», игрок возвращается по ключу на своё место', async () => {
     const a = await player(await cookieOf('Arslan'));
+    const rauan = await cookieOf('Rauan');
     a.send({ t: 'create' });
     const { room } = await a.next('room');
-    const guest = await player();
-    guest.send({ t: 'join', room: room.id, name: 'Вася' });
-    const { key } = await guest.next('room');
-    guest.ws.close();
+    const b = await player(rauan);
+    b.send({ t: 'join', room: room.id });
+    const { key } = await b.next('room');
+    b.ws.close();
     await a.next('room', (m) => m.room.players[1]?.online === false);
-    const back = await player();
-    back.send({ t: 'join', room: room.id, name: 'Вася', key });
+    const back = await player(rauan);
+    back.send({ t: 'join', room: room.id, key });
     const again = await back.next('room');
     expect(again.room).toMatchObject({
       you: 1,
-      players: [{ name: 'Arslan' }, { name: 'Вася', online: true }],
+      players: [{ name: 'Arslan' }, { name: 'Rauan', online: true }],
     });
   });
 
@@ -194,11 +199,11 @@ describe('онлайн-дуэль по WebSocket', () => {
     expect((await a.next('room')).room.exercise).toBe('push_up');
     a.send({ t: 'create', exercise: 'plank' });
     expect((await a.next('error')).message).toMatch(/упражнение/);
-    a.send({ t: 'create', exercise: 'squat', durationMs: 15_000 });
-    expect((await a.next('room', (m) => m.room.exercise === 'squat')).room.durationMs).toBe(15_000);
+    a.send({ t: 'create', exercise: 'squat', durationMs: 30_000 });
+    expect((await a.next('room', (m) => m.room.exercise === 'squat')).room.durationMs).toBe(30_000);
   });
 
-  it('время боя (E-30): 15 с, 30 с, 1 мин, 3 мин — на выбор при создании, в приглашении видно', async () => {
+  it('время боя: пуля 30 с, блиц 1 мин, рапид 3 мин — у каждого свой разряд', async () => {
     const a = await player(await cookieOf('Arslan'));
     const b = await player(await cookieOf('Rauan'));
     a.send({ t: 'create', exercise: 'jumping_jack', durationMs: 30_000 });
@@ -206,12 +211,24 @@ describe('онлайн-дуэль по WebSocket', () => {
     expect(room.durationMs).toBe(30_000);
     a.send({ t: 'invite', nick: 'Rauan' });
     expect(await b.next('invited')).toMatchObject({ exercise: 'jumping_jack', durationMs: 30_000 });
-    for (const ms of [15_000, 60_000, 180_000]) {
+    for (const ms of [60_000, 180_000]) {
       a.send({ t: 'create', durationMs: ms });
       expect((await a.next('room', (m) => m.room.durationMs === ms)).room.durationMs).toBe(ms);
     }
+    a.send({ t: 'create', durationMs: 15_000 });
+    expect((await a.next('error')).message).toMatch(/врем/);
     a.send({ t: 'create', durationMs: 12_345 });
     expect((await a.next('error')).message).toMatch(/врем/);
+  });
+
+  it('гость не входит в соревновательную дуэль', async () => {
+    const a = await player(await cookieOf('Arslan'));
+    a.send({ t: 'create' });
+    const { room } = await a.next('room');
+    const guest = await player();
+    await guest.next('hello');
+    guest.send({ t: 'join', room: room.id, name: 'Вася' });
+    expect((await guest.next('error')).message).toMatch(/Войди/);
   });
 
   it('проверки: создать — только после входа; неизвестная комната; мусор', async () => {

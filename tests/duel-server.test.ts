@@ -265,6 +265,45 @@ describe('API дуэлей', () => {
     expect(r.challenge).toMatchObject({ exercise: 'push_up', reps: 1 });
   });
 
+  it('кубки: победа начисляет, поражение не уходит ниже нуля, гость в таблицу не попадает', async () => {
+    const arslan = await user('Arslan');
+    const rauan = await user('Rauan');
+    const made = await arslan('POST', '/api/duel/challenge', {
+      timeline: TIMELINE,
+      durationMs: MIN,
+      exercise: 'push_up',
+    });
+    const guest = await client()('POST', '/api/duel/answer', {
+      id: made.data.id,
+      timeline: TIMELINE.slice(0, 5),
+      name: 'Вася',
+    });
+    expect(guest.data.award).toBeNull();
+
+    const beat = await rauan('POST', '/api/duel/answer', {
+      id: made.data.id,
+      timeline: TIMELINE.slice(0, 12),
+    });
+    expect(beat.status).toBe(200);
+    expect(beat.data.outcome).toBe('lose');
+    expect(beat.data.award.cupsDelta).toBe(0);
+    expect(beat.data.award.totalCups).toBe(0);
+
+    const board = await arslan('GET', '/api/duel/ladder?format=blitz&exercise=push_up');
+    expect(board.data.rows[0]).toMatchObject({ nick: 'Arslan', me: true });
+    expect(board.data.rows[0].cups).toBeGreaterThanOrEqual(15);
+    expect(board.data.rows.map((r: { nick: string }) => r.nick)).not.toContain('Вася');
+
+    const bullet = await arslan('GET', '/api/duel/ladder?format=bullet&exercise=push_up');
+    expect(bullet.data.rows).toEqual([]);
+
+    const standing = await arslan('GET', '/api/duel/standing');
+    expect(standing.data.title.name).toBe('Искра');
+    expect(standing.data.frame).toBe('spark');
+    expect((await client()('GET', '/api/duel/standing')).status).toBe(401);
+    expect((await arslan('GET', '/api/duel/ladder?format=classic')).status).toBe(400);
+  });
+
   it('частые вызовы упираются в лимит', async () => {
     const arslan = await user('Arslan');
     let last = 0;

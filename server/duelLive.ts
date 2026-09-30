@@ -6,8 +6,16 @@
 import { randomInt } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
+import { formatByMs } from '../src/shared/arena.ts';
 import { duelExerciseOf } from '../src/shared/duel.ts';
-import { DuelRoom, ROOM_DURATIONS, type ClientMsg, type ServerMsg } from '../src/shared/duelRoom.ts';
+import {
+  DuelRoom,
+  ROOM_DURATIONS,
+  type ClientMsg,
+  type RoomView,
+  type ServerMsg,
+} from '../src/shared/duelRoom.ts';
+import { awardView, type ArenaStore } from './arena.ts';
 import { RateLimiter, checkNick } from './auth.ts';
 import { acceptWebSocket, reject, type WsConn } from './ws.ts';
 
@@ -15,6 +23,8 @@ export interface LiveOptions {
   now?: () => number;
   countdownMs?: number;
   durationMs?: number;
+  /** Кубки за бой. Без него комната работает, но в рейтинг не идёт (короткие тесты). */
+  arena?: ArenaStore;
 }
 
 interface Client {
@@ -49,6 +59,8 @@ export function createDuelLive(
   const rooms = new Map<string, DuelRoom>();
   const timers = new Map<DuelRoom, ReturnType<typeof setTimeout>>();
   const createLimit = new RateLimiter(10, 60_000);
+  /** Бой уже поставлен на зачёт: комната + раунд. Повторный финиш кубки не двигает. */
+  const settling = new Set<string>();
   /** Отложенные приглашения: ник (в нижнем регистре) → кто и в какую комнату позвал. */
   const waiting = new Map<string, { room: DuelRoom; from: string; at: number }[]>();
   let presenceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -136,7 +148,7 @@ export function createDuelLive(
     if (!exercise) return fail(c, 'Неизвестное упражнение');
     // Время боя — из списка на выбор (E-30); без него — как задано серверу (в тестах короткий бой) или минута.
     if (duration !== undefined && !(typeof duration === 'number' && ROOM_DURATIONS.includes(duration)))
-      return fail(c, 'Такого времени боя нет — выбери 15 с, 30 с, 1 или 3 минуты');
+      return fail(c, 'Такого времени боя нет — выбери пулю (30 с), блиц (1 мин) или рапид (3 мин)');
     if (!createLimit.allow(String(c.user.id), now())) return fail(c, 'Слишком часто — подожди минуту');
     if (rooms.size >= MAX_ROOMS) return fail(c, 'Сервер занят — попробуй через минуту');
     leaveRoom(c);
@@ -150,13 +162,13 @@ export function createDuelLive(
   }
 
   function join(c: Client, m: Extract<ClientMsg, { t: 'join' }>): void {
+    // Соревнование — только со своим аккаунтом. Бой с ботом на странице гостю по-прежнему открыт.
+    if (!c.user) return fail(c, 'Войди, чтобы выйти на дуэль');
     const room = typeof m.room === 'string' ? rooms.get(m.room) : undefined;
     if (!room) return fail(c, 'Дуэль не найдена — попроси новую ссылку');
     if (c.room && c.room !== room) leaveRoom(c);
     const key = typeof m.key === 'string' && /^[A-Za-z0-9]{24}$/.test(m.key) ? m.key : newId(24);
-    const guest =
-      typeof m.name === 'string' && !checkNick(m.name) ? m.name.trim().replace(/\s+/g, ' ') : 'Гость';
-    enter(c, room, key, c.user?.nick ?? guest);
+    enter(c, room, key, c.user.nick);
   }
 
   function enter(c: Client, room: DuelRoom, key: string, name: string): void {
@@ -258,10 +270,72 @@ export function createDuelLive(
     timers.set(room, timer);
   }
 
+  function decorate(room: DuelRoom, key: string): RoomView {
+    const view = room.view(key, now());
+    if (!opts.arena) return view;
+    view.players.forEach((p, i) => {
+      const id = room.players[i]?.userId;
+      if (id == null) return;
+      const b = opts.arena!.badge(id);
+      p.title = b.title;
+      p.frame = b.frame;
+    });
+    return view;
+  }
+
   function broadcast(room: DuelRoom): void {
-    const t = now();
     for (const c of clients)
-      if (c.room === room && c.key) send(c, { t: 'room', room: room.view(c.key, t), key: c.key });
+      if (c.room === room && c.key) send(c, { t: 'room', room: decorate(room, c.key), key: c.key });
+    armSettle(room);
+  }
+
+  /** Зачёт после окна поздних повторов (0,5 с) — иначе кубки уедут до последнего жима. */
+  function armSettle(room: DuelRoom): void {
+    if (room.phase !== 'over' || !opts.arena) return;
+    const key = `${room.id}:${room.round}`;
+    if (settling.has(key)) return;
+    settling.add(key);
+    const reason = room.result()?.reason;
+    const wait = reason === 'giveup' ? 50 : Math.max(0, room.endsAt + 700 - now());
+    const timer = setTimeout(() => {
+      try {
+        finishRated(room);
+      } catch (e) {
+        console.error(e);
+      }
+    }, wait);
+    timer.unref();
+  }
+
+  function finishRated(room: DuelRoom): void {
+    const arena = opts.arena;
+    if (!arena) return;
+    const format = formatByMs(room.durationMs);
+    const [a, b] = room.players;
+    if (!format || !a?.userId || !b?.userId || a.userId === b.userId) return;
+    const result = room.result();
+    if (!result) return;
+    const winnerUserId =
+      result.winner === null ? null : (room.players.find((p) => p.key === result.winner)?.userId ?? null);
+    if (result.winner !== null && winnerUserId === null) return;
+    const pair = arena.settleMatch(now(), {
+      id: `live:${room.id}:${room.round}`,
+      exercise: room.exercise,
+      format: format.id,
+      a: { userId: a.userId, reps: a.reps.length },
+      b: { userId: b.userId, reps: b.reps.length },
+      winnerUserId,
+    });
+    if (!pair) return;
+    // Рамки могли смениться — разослать комнату ещё раз, затем личный итог кубков.
+    for (const c of clients)
+      if (c.room === room && c.key) send(c, { t: 'room', room: decorate(room, c.key), key: c.key });
+    for (const c of clients) {
+      if (c.room !== room || !c.user) continue;
+      const mine = c.user.id === pair.a.userId ? pair.a : c.user.id === pair.b.userId ? pair.b : null;
+      if (!mine) continue;
+      send(c, { t: 'award', room: room.id, round: room.round, ...awardView(mine) });
+    }
   }
 
   function drop(room: DuelRoom): void {

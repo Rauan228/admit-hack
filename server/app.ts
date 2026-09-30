@@ -21,6 +21,7 @@ import {
   newToken,
   verifyPassword,
 } from './auth.ts';
+import { createArena } from './arena.ts';
 import type { Db } from './db.ts';
 import { createDuelLive, type LiveOptions } from './duelLive.ts';
 import { duelRoutes } from './duels.ts';
@@ -288,6 +289,9 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     },
   };
 
+  // Кубки арены — те же таблицы видят и вызовы, и онлайн-бой.
+  const arena = createArena(db);
+
   // E-25: вызовы на дуэль — свой модуль и свои таблицы (server/duels.ts).
   Object.assign(
     routes,
@@ -297,6 +301,7 @@ export function createApp(db: Db, opts: AppOptions = {}) {
       currentUser,
       readJson,
       ip,
+      arena,
       fail: (status, message) => {
         throw new HttpError(status, message);
       },
@@ -304,7 +309,7 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   );
 
   // E-26: онлайн-дуэль по WebSocket — index.ts вешает live.upgrade на 'upgrade' сервера.
-  const live = createDuelLive(currentUser, { now, ...opts.duel });
+  const live = createDuelLive(currentUser, { now, ...opts.duel, arena });
 
   const handle = async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost');
