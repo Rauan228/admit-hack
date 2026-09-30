@@ -65,6 +65,9 @@ const LEGS = {
 /** Голень короче этой доли высоты кадра — точки слиплись, делить на неё нельзя. */
 const MIN_SHIN = 0.02;
 
+/** Соседние кадры для эталона — не дальше друг от друга (на 15 FPS шаг 67 мс, пропуски кадров бывают). */
+const PAIR_GAP_MS = 250;
+
 /** Прогресс по отношению бедра: 0 стоя, 1 — у параллели, больше — глубже. */
 export function squatProgress(thighRatio: number, cfg: SquatConfig = ENGINE_CONFIG.exercises.squat): number {
   return (1 - thighRatio) / (1 - cfg.parallelRatio);
@@ -74,6 +77,8 @@ class SquatMeter implements ExerciseMeter<SquatMetrics> {
   private readonly base: Record<Side, SlidingMax>;
   /** Корпус по вертикали / ширина плеч стоя — для наклона анфас. */
   private readonly torsoBase: SlidingMax;
+  /** Прошлый кадр по каждому эталону: в эталон идёт минимум пары соседних кадров. */
+  private readonly prevBase = new Map<SlidingMax, { v: number; t: number }>();
 
   constructor(private readonly cfg: SquatConfig) {
     // В конструкторе, а не инициализатором поля: при target ES2022 поля создаются раньше, чем cfg.
@@ -84,8 +89,17 @@ class SquatMeter implements ExerciseMeter<SquatMetrics> {
   measure(frame: PoseFrame, phase: Phase): SquatMetrics | null {
     const seen = (i: number) => isVisible(frame.image[i], 0.5, 0.05);
     const updateBase = (base: SlidingMax, v: number) => {
-      // Эталон обновляем, только пока человек стоит (или эталона ещё нет вовсе).
-      if (phase === 'start' || base.value === null) base.push(v, frame.t);
+      // Эталон обновляем, только пока человек стоит (или эталона ещё нет вовсе), и не отдельным кадром, а
+      // минимумом двух соседних: эталон — максимум, и один завышенный кадр держал бы его, пока человек не
+      // постоит снова. Так в эталон не попадают ни сбой модели (колено «прыгнуло» на кадр — отношение
+      // 0,73 → 1,73, и 12 с приседы не считались), ни первый кадр движения, который приходит ещё с фазой
+      // 'start' (прямая нога бокового выпада — на 20 % выше, чем стоя: на 15 FPS 5 выпадов → 4).
+      const prev = this.prevBase.get(base);
+      this.prevBase.set(base, { v, t: frame.t });
+      const pair = prev && frame.t - prev.t <= PAIR_GAP_MS ? Math.min(prev.v, v) : null;
+      // Эталона нет вовсе — затравка первым кадром, чтобы мерить сразу; дальше его поправят пары.
+      if (base.value === null) base.push(pair ?? v, frame.t);
+      else if (phase === 'start' && pair !== null) base.push(pair, frame.t);
       else base.expire(frame.t);
       return base.value;
     };
@@ -125,6 +139,7 @@ class SquatMeter implements ExerciseMeter<SquatMetrics> {
     this.base.left.reset();
     this.base.right.reset();
     this.torsoBase.reset();
+    this.prevBase.clear();
   }
 
   /**

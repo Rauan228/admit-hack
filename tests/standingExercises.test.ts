@@ -168,6 +168,24 @@ describe('боковые выпады', () => {
   it('колено заваливается внутрь — «колено по линии носка»', () => {
     expect(shown(runSession(lungeTrack(6, { kneeIn: 2.5 }), def('side_lunge')))).toContain('knee_in');
   });
+  it('первый кадр движения не попадает в эталон «стоя» (прямая нога в нём «длиннее», чем стоя)', () => {
+    // Счётчик узнаёт о движении после замера, поэтому первый кадр выпада приходит в измеритель с фазой 'start'.
+    // На реальной записи на 15 FPS прямая нога в этом кадре дала отношение на 20 % выше, чем стоя, эталон
+    // вырос, и потом стоя человек читался как полувыпад — счётчик не возвращался в исходное положение.
+    const meter = def('side_lunge').createMeter();
+    const noise = gaussian(0.001, 3);
+    const stand = (t: number) => synthFrame(STAND, t, noise);
+    for (let t = 0; t < 1000; t += 67) meter.measure(stand(t), 'start');
+    const first = stand(1000);
+    const [hip, knee, ankle] = [first.image[23]!, first.image[25]!, first.image[27]!];
+    // Колено ниже: бедро по вертикали длиннее, голень короче — отношение ×1,25.
+    const r = (knee.y - hip.y) / (ankle.y - knee.y);
+    const k = 1.25 * r;
+    first.image[25] = { ...knee, y: (hip.y + k * ankle.y) / (1 + k) };
+    meter.measure(first, 'start');
+    meter.measure(stand(1067), 'down');
+    expect(meter.measure(stand(1133), 'up')!.progress).toBeLessThan(def('side_lunge').fsm.startMax);
+  });
 });
 
 describe('присед с выпрыгиванием', () => {

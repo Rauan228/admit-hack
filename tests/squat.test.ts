@@ -39,6 +39,25 @@ describe('приседания: глубина по вертикали бедр�
     expect(squatProgress(-0.2)).toBeGreaterThan(1.2);
   });
 
+  it('одиночный сбой модели стоя (колено «прыгнуло» на кадр) не портит эталон — дальше стоя прогресс ~0', () => {
+    // Вживую: человек входит в кадр, на одном кадре отношение 0,73 → 1,73 — и 12 с приседы не считались.
+    const meter = createSquat().createMeter();
+    const noise = gaussian(0.001, 5);
+    for (let t = 0; t < 500; t += 33) meter.measure(synthFrame(squatPose(0), t, noise), 'start');
+    const glitch = synthFrame(squatPose(0), 500, noise);
+    for (const [hip, knee, ankle] of [
+      [23, 25, 27],
+      [24, 26, 28],
+    ] as const) {
+      const [h, k, a] = [glitch.image[hip]!, glitch.image[knee]!, glitch.image[ankle]!];
+      const r = 2.3 * ((k.y - h.y) / (a.y - k.y));
+      glitch.image[knee] = { ...k, y: (h.y + r * a.y) / (1 + r) };
+    }
+    meter.measure(glitch, 'start');
+    for (let t = 533; t < 700; t += 33) meter.measure(synthFrame(squatPose(0), t, noise), 'start');
+    expect(meter.measure(synthFrame(squatPose(0), 700, noise), 'start')!.progress).toBeLessThan(0.1);
+  });
+
   it('анфас глубина видна, хотя 2D-угол колена почти не меняется', () => {
     const def = createSquat();
     const meter = def.createMeter();
