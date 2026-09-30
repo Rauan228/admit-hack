@@ -9,6 +9,12 @@ import type { FsmThresholds } from './fsm';
 export interface BaseMetrics {
   /** 0 — исходное положение, 1 — полная амплитуда, больше 1 — ещё глубже/выше. */
   progress: number;
+  /**
+   * Измеритель знает точнее счётчика: человек уже вернулся в исходное положение — повтор закрыть сейчас,
+   * даже если прогресс ещё не упал (бёрпи: встал и сразу пошёл вниз, не прыгнув, — иначе ожидание прыжка
+   * склеивало два бёрпи в одно).
+   */
+  returned?: boolean;
 }
 
 export interface ExerciseMeter<M extends BaseMetrics> {

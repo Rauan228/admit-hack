@@ -85,7 +85,7 @@ export class RepCounter {
     return this.state === 'start' ? 0 : this.pMax;
   }
 
-  update(p: number, t: number): FsmEvent[] {
+  update(p: number, t: number, returned = false): FsmEvent[] {
     const ev: FsmEvent[] = [];
     if (!Number.isFinite(p)) return ev;
     const th = this.th;
@@ -144,9 +144,9 @@ export class RepCounter {
         break;
 
       case 'up':
-        if (p < th.startMax) {
+        if (p < th.startMax || returned) {
           this.returnSince ??= t;
-          if (t - this.returnSince >= th.returnHoldMs) {
+          if (returned || t - this.returnSince >= th.returnHoldMs) {
             this.returnSince = null;
             if (t - this.startT >= th.minRepMs) ev.push({ kind: 'rep', summary: this.summary(t) });
             this.go('start', t, ev);

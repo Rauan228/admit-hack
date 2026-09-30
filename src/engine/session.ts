@@ -102,7 +102,7 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
     const out: EngineEvent[] = [];
     const exercise = this.def.id;
     const wasStart = this.counter.phase === 'start';
-    const fsm = this.counter.update(m.progress, t);
+    const fsm = this.counter.update(m.progress, t, m.returned);
     if (wasStart && this.counter.phase !== 'start') {
       // Движение началось: новый повтор, в его кадры — предыстория (из какого положения стартовали).
       this.rules.beginRep();

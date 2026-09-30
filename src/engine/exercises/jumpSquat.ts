@@ -61,12 +61,19 @@ class JumpSquatMeter implements ExerciseMeter<JumpSquatMetrics> {
     }
     if ((rise ?? 0) >= cfg.jumpMin) this.squatted = false;
     let floorP = 0;
+    // Простоял всё ожидание и не прыгнул — повтор закончен (без прыжка): закрываем сейчас, иначе следующий
+    // присед сразу после этого склеивался с ним (счётчик не успевал увидеть «стоит»).
+    let returned = false;
     if (this.squatted && (depth ?? 0) < cfg.standMax) {
       this.stoodAt ??= frame.t;
       if (frame.t - this.stoodAt < cfg.jumpWaitMs) floorP = cfg.pendingFloor;
-      else this.squatted = false;
+      else {
+        this.squatted = false;
+        this.stoodAt = null;
+        returned = true;
+      }
     }
-    return { progress: Math.max(depth ?? 0, floorP), depth, rise, squat };
+    return { progress: Math.max(depth ?? 0, floorP), depth, rise, squat, returned };
   }
 
   reset(): void {

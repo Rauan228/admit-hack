@@ -41,7 +41,7 @@ export function runSession<M extends BaseMetrics>(
     const m = meter.measure(frame, counter.phase);
     if (!m) continue;
     const wasStart = counter.phase === 'start';
-    const evs = counter.update(m.progress, frame.t);
+    const evs = counter.update(m.progress, frame.t, m.returned);
     res.events.push(...evs);
     if (wasStart && counter.phase !== 'start') {
       // Движение началось: новый повтор, предыстория — в его кадры.

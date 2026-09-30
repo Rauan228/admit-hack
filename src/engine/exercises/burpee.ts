@@ -39,6 +39,8 @@ class BurpeeMeter implements ExerciseMeter<BurpeeMetrics> {
   private readonly stand: SlidingQuantile;
   private down = false;
   private stoodAt: number | null = null;
+  /** Самое высокое положение (меньшая глубина) с момента, как встал, — чтобы заметить новое опускание. */
+  private stoodMin = Infinity;
 
   constructor(private readonly cfg: BurpeeConfig) {
     this.floor = new SlidingMax(cfg.baselineWindowMs);
@@ -79,10 +81,26 @@ class BurpeeMeter implements ExerciseMeter<BurpeeMetrics> {
     const m: BurpeeMetrics = { progress: depth, depth, rise, handsUp };
     if (jumped(m, cfg)) this.down = false;
     let pending = 0;
+    if (this.down && this.stoodAt !== null && depth >= this.stoodMin + cfg.reDescend) {
+      // Встал и снова пошёл вниз, не прыгнув: это уже следующее бёрпи — текущее закрываем сейчас.
+      this.down = false;
+      this.stoodAt = null;
+      return { ...m, returned: true };
+    }
     if (this.down && depth < cfg.standMax) {
-      this.stoodAt ??= frame.t;
+      if (this.stoodAt === null) {
+        this.stoodAt = frame.t;
+        this.stoodMin = depth;
+      }
+      this.stoodMin = Math.min(this.stoodMin, depth);
       if (frame.t - this.stoodAt < cfg.jumpWaitMs) pending = cfg.pendingFloor;
-      else this.down = false;
+      else {
+        // Простоял всё ожидание и не прыгнул — бёрпи закончено (без прыжка). Закрываем сейчас: человек может
+        // уже в следующем кадре пойти вниз, и счётчик не успел бы увидеть «стоит» и склеил бы два в одно.
+        this.down = false;
+        this.stoodAt = null;
+        return { ...m, returned: true };
+      }
     }
     return { ...m, progress: Math.max(depth, pending) };
   }
@@ -92,6 +110,7 @@ class BurpeeMeter implements ExerciseMeter<BurpeeMetrics> {
     this.stand.reset();
     this.down = false;
     this.stoodAt = null;
+    this.stoodMin = Infinity;
   }
 }
 

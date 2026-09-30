@@ -300,6 +300,42 @@ describe('бёрпи', () => {
     expect(res.reps).toHaveLength(5);
     expect(res.reps.every((r) => r.errors.includes('no_jump'))).toBe(true);
   });
+  it('подряд без прыжка, встал и сразу вниз — каждое бёрпи отдельно, а не два в одно', () => {
+    const noise = gaussian(0.003, 43);
+    const stand = synthFrame({ ...STAND, arms: 10 }, 0);
+    const crouch = synthFrame({ ...squatPose(90), lean: 30, arms: 10 }, 0);
+    const low = frontPlankFrame({}, 0);
+    const keys: [number, PoseFrame][] = [
+      [0, stand],
+      [0.2, crouch],
+      [0.35, low],
+      [0.5, low],
+      [0.75, crouch],
+      [0.95, stand],
+      [1, stand],
+    ];
+    const period = 2400;
+    const frames: PoseFrame[] = [];
+    for (let t = 0; t <= 1500 + 5 * period + 1500; t += 1000 / 30) {
+      const u = t - 1500;
+      let f = stand;
+      if (u >= 0 && u < 5 * period) {
+        const k = (u % period) / period;
+        for (let i = 1; i < keys.length; i++) {
+          const [k0, a] = keys[i - 1]!;
+          const [k1, b] = keys[i]!;
+          if (k <= k1) {
+            f = blendFrames(a, b, 0.5 - 0.5 * Math.cos((Math.PI * (k - k0)) / (k1 - k0)), t);
+            break;
+          }
+        }
+      }
+      frames.push({ ...f, t, image: f.image.map((p) => ({ ...p, x: p.x + noise(), y: p.y + noise() })) });
+    }
+    const res = runSession(frames, def('burpee'));
+    expect(res.reps).toHaveLength(5);
+    for (const r of res.reps) expect(r.errors).toEqual(['no_jump']);
+  });
   it('только присед вместо упора лёжа — не бёрпи, но подсказка «до упора лёжа»', () => {
     const res = runSession(burpees({ plank: false }), def('burpee'));
     expect(res.reps.every((r) => r.errors.includes('not_low'))).toBe(true);
