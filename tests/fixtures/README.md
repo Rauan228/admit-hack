@@ -6,7 +6,9 @@
 Само видео в репозитории не хранится — только координаты точек.
 
 Формат: `src/engine/recorder.ts` (`FixtureFile`). В `meta` — источник, лицензия, ракурс
-и ожидаемый результат (`expected`), который тесты сверяют с движком.
+и ожидаемый результат (`expected`), который тесты сверяют с движком: число повторов (`reps`, допуск
+`repsTolerance`), «ни одной ошибки» (`noErrors`) или ошибки, которые на записи есть на самом деле (`errors` —
+каждая должна найтись хотя бы в одном повторе).
 Ожидаемый счёт повторений размечен **вручную по раскадровке**, независимо от алгоритма.
 
 | Файл | Что внутри | Ракурс | Ожидается | Источник | Лицензия |
@@ -27,7 +29,7 @@
 | `side-bend-hold.json` | по одному наклону в каждую сторону с удержанием | анфас, наклоны с удержанием ~2 с | 2 | [Pexels 5510095](https://www.pexels.com/video/5510095/), Maksim Goncharenok | Pexels License |
 | `jumping-jack-front-2.json` | 9 «звёздочек» | анфас | 9 | [Pexels 7746545](https://www.pexels.com/video/7746545/), Polina Tankilevitch | Pexels License |
 | `jumping-jack-slow.json` | 10 «звёздочек» | анфас, пожилой человек, медленный темп | 10 | [Pexels 7299359](https://www.pexels.com/video/7299359/), Kindel Media | Pexels License |
-| `squat-sumo-front.json` | 5 приседов не до параллели (бедро ~35–40° ниже горизонтали) — «сядь глубже» по делу | анфас, широкая стойка (плие), руки вперёд | 5 | [Pexels 4764175](https://www.pexels.com/video/4764175/), Gustavo Fring | Pexels License |
+| `squat-sumo-front.json` | 5 приседов не до параллели (бедро ~35–40° ниже горизонтали) — «сядь глубже» по делу | анфас, широкая стойка (плие), руки вперёд | 5, ошибка «сядь глубже» | [Pexels 4764175](https://www.pexels.com/video/4764175/), Gustavo Fring | Pexels License |
 | `burpee-front.json` | ролик начинается в упоре лёжа (первое бёрпи обрезано); 2 полных бёрпи с отжиманием и прыжком | анфас | 2 | [Pexels 4260553](https://www.pexels.com/video/4260553/), Michelangelo Buonarroti (Pexels) | Pexels License |
 | `push-up-floor-front.json` | 3 медленных отжимания; первое — вполглубины, на границе засчёта (на 15 FPS — попытка с «опускайся ниже») | лицом к камере, телефон на полу у головы (как в дуэли) | 3 ± 1 | [Pexels 8402110](https://www.pexels.com/video/8402110/), RDNE Stock project | Pexels License |
 | `push-up-front-three-quarter.json` | 4 отжимания | спереди-вполоборота со стороны головы, тёмный кадр | 4 | [Pexels 4367576](https://www.pexels.com/video/4367576/), Pavel Danilyuk | Pexels License |
@@ -35,6 +37,9 @@
 | `plank-forearms-front.json` | удержание 26,3 с; повтор = секунда | лицом к камере, на предплечьях, в конце затемнение | 25 ± 1 | [Pexels 7801720](https://www.pexels.com/video/7801720/), Pavel Danilyuk | Pexels License |
 | `lunge-three-quarter.json` | 5 выпадов (каждое движение — half_rep) | вполоборота-анфас | 5 | [Pexels 5025833](https://www.pexels.com/video/5025833/), olia danilevich | Pexels License |
 | `arm-circles-big.json` | ~10 больших кругов; «руки ниже плеч» по делу — вариант упражнения с низом | анфас, большие круги (руки проходят низ) | 9 ± 1 | [Pexels 5510083](https://www.pexels.com/video/5510083/), Maksim Goncharenok | Pexels License |
+| `jumping-jack-antiphase.json` | «звёздочка» в противофазе: руки вверх — ноги вместе, руки вниз — ноги врозь; 7 полных циклов | анфас, на траве | 7, ошибка «руки и ноги одновременно» | [Pexels 4764220](https://www.pexels.com/video/4764220/) | Pexels License |
+| `side-lunge-toe-touch.json` | 5 боковых выпадов с касанием стопы рукой, корпус наклонён к стопе | анфас, в парке | 5, ошибка «спину ровнее» | [Pexels 5025957](https://www.pexels.com/video/5025957/) | Pexels License |
+| `squat-band-half.json` | 2 полуприседа с резинкой и удержанием внизу, третий обрезан концом ролика | анфас | 2, ошибка «сядь глубже» | [Pexels 4838220](https://www.pexels.com/video/4838220/) | Pexels License |
 
 Файлы, полученные из материалов под CC BY-SA, распространяются на тех же условиях (CC BY-SA 4.0)
 с указанием авторов выше. Ролики Pexels — Pexels License (бесплатно, атрибуция не обязательна; авторы всё

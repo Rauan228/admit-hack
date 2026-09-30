@@ -19,6 +19,8 @@ interface Expected {
   repsTolerance?: number;
   /** Хорошая техника: ни одной ошибки ни в одном повторе. */
   noErrors?: boolean;
+  /** Ошибки техники, которые на записи есть на самом деле: каждая должна найтись хотя бы в одном повторе. */
+  errors?: string[];
   /**
    * Запись ускорена (время кадров восстановлено по таймеру на экране): прореживание до 15 FPS оставило бы
    * ~3 кадра на повтор — такой частоты у камеры не бывает, этот прогон не проверяем.
@@ -74,6 +76,7 @@ describe('записи поз из tests/fixtures', () => {
         expect(reps.length).toBeGreaterThanOrEqual(meta.expected.reps - tol);
         expect(reps.length).toBeLessThanOrEqual(meta.expected.reps + tol);
         if (meta.expected.noErrors) expect(reps.flatMap((r) => r.errors)).toEqual([]);
+        for (const code of meta.expected.errors ?? []) expect(reps.flatMap((r) => r.errors)).toContain(code);
       });
 
       it('боевой путь (ExerciseSession с фильтром правдоподобия): тот же счёт и те же ошибки', () => {
@@ -82,6 +85,7 @@ describe('записи поз из tests/fixtures', () => {
         expect(reps.length).toBeGreaterThanOrEqual(meta.expected.reps - tol);
         expect(reps.length).toBeLessThanOrEqual(meta.expected.reps + tol);
         if (meta.expected.noErrors) expect(reps.flatMap((r) => r.errors)).toEqual([]);
+        for (const code of meta.expected.errors ?? []) expect(reps.flatMap((r) => r.errors)).toContain(code);
       });
 
       it('весь движок, как в приложении (присутствие, пауза, сброс): тот же счёт', async () => {
