@@ -18,6 +18,8 @@ import { totalsOf, type SetResult } from './results';
 export function boardOf(plan: Plan): Board {
   if (plan.kind === 'single') return `single:${plan.items[0]!.exercise as ExerciseId}` as Board;
   if (plan.kind === 'challenge') return challengeBoard(plan.items[0]!.exercise as ChallengeExercise);
+  // День ИИ-плана в рейтинг не идёт (Summary не предлагает сохранить) — доска только для подписей.
+  if (plan.kind === 'custom') return 'quick';
   return plan.kind;
 }
 

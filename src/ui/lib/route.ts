@@ -2,7 +2,7 @@
 // /app — меню (камера включится сама), /app/rating и /app/progress открываются сразу, /demo — объяснение демо.
 // Экраны внутри тренировки (интро, подход, итоги) своих адресов не имеют: после обновления — меню.
 
-export type Route = 'landing' | 'demo' | 'app' | 'rating' | 'progress' | 'login';
+export type Route = 'landing' | 'demo' | 'app' | 'rating' | 'progress' | 'login' | 'plan';
 
 const PATHS: Record<Route, string> = {
   landing: '/',
@@ -11,6 +11,7 @@ const PATHS: Record<Route, string> = {
   rating: '/app/rating',
   progress: '/app/progress',
   login: '/app/login',
+  plan: '/app/plan',
 };
 
 const BASE = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
@@ -29,6 +30,7 @@ export function routeOf(screen: string, tour: boolean): Route {
   if (screen === 'leaderboard') return 'rating';
   if (screen === 'profile') return 'progress';
   if (screen === 'auth') return 'login';
+  if (screen === 'coach') return 'plan';
   return 'app';
 }
 

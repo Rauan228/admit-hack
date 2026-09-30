@@ -415,3 +415,20 @@ button {
   background: #f43f5e;
   box-shadow: 0 0 10px rgba(244, 63, 94, 0.8);
 }
+
+/* Превью упражнения (ExerciseThumb): холст вписан в рамку, стоячие — крупнее, лишнее обрезается. */
+.thumb {
+  position: absolute;
+  inset: 6% 8% 4%;
+  width: 84%;
+  height: 90%;
+  display: block;
+}
+
+.thumb--zoom {
+  inset: auto;
+  top: -10%;
+  left: -12%;
+  width: 124%;
+  height: 120%;
+}

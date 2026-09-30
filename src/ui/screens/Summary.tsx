@@ -63,7 +63,7 @@ export function Summary({
   const board = boardOf(plan);
   const rating = ratingOf(plan, results);
   const unit = boardUnit(board);
-  const canSave = !demo && t.reps > 0;
+  const canSave = !demo && plan.kind !== 'custom' && t.reps > 0;
   const [save, setSave] = useState<SaveState>({ s: 'idle' });
   const spoke = useRef(false);
   const autoSaved = useRef(false);

@@ -1,7 +1,8 @@
 // U-13: рекорды и прогресс в localStorage. Любой доступ обёрнут в try/catch:
 // в приватном режиме или при запрете хранилища приложение работает, просто без памяти.
 
-export type PlanKind = 'quick' | 'single' | 'challenge';
+/** custom — день из ИИ-плана: в рейтинг не идёт. */
+export type PlanKind = 'quick' | 'single' | 'challenge' | 'custom';
 
 export interface RecordEntry {
   id: string;
