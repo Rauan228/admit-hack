@@ -3,11 +3,15 @@
 // вызова по ссылке. Бой идёт против записи повторов вызова; ответ уходит автору.
 // Все имена — только через textContent: ники и имена гостей приходят от других людей.
 
+import type { DuelExercise } from '../shared/duel';
 import { ApiError, api, challengeUrl, type Challenge, type Me, type Player } from './api';
+import { durationLabel, duelExercise, exerciseTitle, repsWord } from './labels';
 
 export interface RecordedOpponent {
   challengeId: string;
   name: string;
+  /** E-29: вызов бросают в своём упражнении — отвечаешь в нём же. */
+  exercise: DuelExercise;
   reps: number;
   durationMs: number;
   timeline: number[];
@@ -32,6 +36,7 @@ const el = {
   card: $<HTMLDivElement>('challenge-card'),
   dialog: $<HTMLDialogElement>('invite'),
   invReps: $<HTMLElement>('inv-reps'),
+  invEx: $<HTMLElement>('inv-ex'),
   invBody: $<HTMLDivElement>('inv-body'),
   invLogin: $<HTMLDivElement>('inv-login'),
   invShare: $<HTMLButtonElement>('inv-share'),
@@ -46,7 +51,12 @@ let me: Me | null = null;
 /** API доступен (на зеркалах без сервера — нет). */
 let online = true;
 let guestName = '';
-let invite: { timeline: number[]; durationMs: number; linkId: string | null } | null = null;
+let invite: {
+  timeline: number[];
+  durationMs: number;
+  exercise: DuelExercise;
+  linkId: string | null;
+} | null = null;
 /** Номер последнего запроса списка — ответ на устаревший поиск не рисуем. */
 let listSeq = 0;
 
@@ -89,7 +99,7 @@ function renderAccount(): void {
   if (me) {
     const p = text('p', 'account__note', 'Ты — ');
     p.append(text('b', '', me.nick));
-    const out = button('Выйти', 'btn btn--link');
+    const out = button('Выйти', 'btn btn--sm btn--ghost');
     out.addEventListener('click', async () => {
       await api.logout().catch(() => undefined);
       me = null;
@@ -101,8 +111,12 @@ function renderAccount(): void {
     el.account.append(p, out);
     return;
   }
-  const p = text('p', 'account__note', 'Войди, чтобы звать друзей и видеть вызовы.');
-  const open = button('Войти', 'btn btn--link');
+  const p = text(
+    'p',
+    'account__note',
+    'Войди, чтобы звать игроков и видеть вызовы. По ссылке от друга можно играть и без входа.',
+  );
+  const open = button('Войти', 'btn btn--sm');
   open.addEventListener('click', () => {
     open.remove();
     el.account.append(loginForm(onSignedIn));
@@ -130,7 +144,7 @@ function loginForm(done: (u: Me) => void): HTMLFormElement {
   email.input.required = pass.input.required = true;
   const submit = button('Войти', 'btn btn--primary');
   submit.type = 'submit';
-  const toggle = button('Нет аккаунта? Регистрация', 'btn btn--link');
+  const toggle = button('Нет аккаунта? Регистрация', 'btn btn--sm btn--ghost');
   const error = text('p', 'login__error', '');
   error.setAttribute('role', 'alert');
   toggle.addEventListener('click', () => {
@@ -172,15 +186,20 @@ async function refreshInbox(): Promise<void> {
   }
   el.inbox.replaceChildren();
   const waiting = data.incoming.filter((c) => !c.answered);
-  const answers = data.outgoing.flatMap((c) => c.answers.map((a) => ({ ...a, mine: c.reps }))).slice(-3);
+  const answers = data.outgoing
+    .flatMap((c) => c.answers.map((a) => ({ ...a, mine: c.reps, exercise: duelExercise(c.exercise) })))
+    .slice(-3);
   if (!waiting.length && !answers.length) return;
   if (waiting.length) {
-    el.inbox.append(text('h2', 'inbox__title', 'Вызовы тебе'));
+    el.inbox.append(text('h2', 'panel__title', 'Вызовы тебе'));
     const ul = document.createElement('ul');
     ul.className = 'people';
     for (const c of waiting.slice(0, 5)) {
-      const li = row(c.from, `${c.reps} за ${Math.round(c.durationMs / 1000)} с`);
-      const go = button('Принять', 'btn btn--small btn--primary');
+      const li = row(
+        c.from,
+        `${exerciseTitle(duelExercise(c.exercise))} · ${c.reps} за ${durationLabel(c.durationMs)}`,
+      );
+      const go = button('Принять', 'btn btn--sm');
       go.addEventListener('click', () => void acceptById(c.id, go));
       li.append(go);
       ul.append(li);
@@ -188,10 +207,14 @@ async function refreshInbox(): Promise<void> {
     el.inbox.append(ul);
   }
   if (answers.length) {
-    el.inbox.append(text('h2', 'inbox__title', 'Ответы на твои вызовы'));
+    el.inbox.append(text('h2', 'panel__title', 'Ответы на твои вызовы'));
     const ul = document.createElement('ul');
     ul.className = 'people';
-    for (const a of answers.reverse()) ul.append(row(a.name, `${a.reps} против твоих ${a.mine}`));
+    for (const a of answers.reverse()) {
+      const li = row(a.name, `${exerciseTitle(a.exercise)} · ${a.reps} против твоих ${a.mine}`);
+      li.dataset.outcome = a.reps > a.mine ? 'lose' : a.reps < a.mine ? 'win' : 'draw';
+      ul.append(li);
+    }
     el.inbox.append(ul);
   }
 }
@@ -210,6 +233,7 @@ function accept(c: Challenge): void {
   hooks.accept({
     challengeId: c.id,
     name: c.from,
+    exercise: duelExercise(c.exercise),
     reps: c.reps,
     durationMs: c.durationMs,
     timeline: c.timeline,
@@ -223,31 +247,36 @@ async function showLinkChallenge(): Promise<void> {
   el.card.hidden = !id;
   if (!id) return;
   if (!online) {
-    el.card.append(text('p', 'challenge__text', 'Вызовы открываются на основном сайте.'));
+    el.card.append(text('p', 'callout__text', 'Вызовы открываются на основном сайте.'));
     return;
   }
   let c: Challenge;
   try {
     c = await api.getChallenge(id);
   } catch (err) {
-    el.card.append(text('p', 'challenge__text', (err as Error).message));
+    el.card.append(text('p', 'callout__text', (err as Error).message));
     return;
   }
-  const head = text('p', 'challenge__from', '');
+  const ex = duelExercise(c.exercise);
+  const head = text('p', 'callout__title', '');
   head.append(text('b', '', c.from), c.mine ? ' — это твой вызов' : ' вызывает тебя');
-  const reps = text('p', 'challenge__reps', `${c.reps}`);
-  reps.append(text('span', '', ` за ${Math.round(c.durationMs / 1000)} с — сделаешь больше?`));
-  el.card.append(head, reps);
+  const score = text('p', 'callout__score', '');
+  score.append(
+    text('b', '', String(c.reps)),
+    text('span', '', `${repsWord(c.reps)} · ${exerciseTitle(ex)} за ${durationLabel(c.durationMs)}`),
+  );
+  el.card.append(head, score);
+  if (!c.mine) el.card.append(text('p', 'callout__text', 'Сделаешь больше?'));
 
   if (c.mine) {
     const list = c.answers.length
       ? c.answers.map((a) => `${a.name} — ${a.reps}`).join(', ')
       : 'Пока никто не ответил.';
-    el.card.append(text('p', 'challenge__text', list));
+    el.card.append(text('p', 'callout__text', list));
     return;
   }
   if (c.to && !c.forMe) {
-    el.card.append(text('p', 'challenge__text', `Этот вызов для ${c.to}. Если это ты — войди.`));
+    el.card.append(text('p', 'callout__text', `Этот вызов для ${c.to}. Если это ты — войди.`));
     if (!me) el.card.append(loginForm(onSignedIn));
     return;
   }
@@ -259,7 +288,7 @@ async function showLinkChallenge(): Promise<void> {
     name.input.addEventListener('input', () => (guestName = name.input.value.trim()));
     el.card.append(name.label);
   }
-  const go = button('Принять вызов', 'btn btn--primary');
+  const go = button('Принять вызов', 'btn btn--primary callout__go');
   go.addEventListener('click', () => accept(c));
   el.card.append(go);
 }
@@ -277,9 +306,15 @@ export async function sendAnswer(opp: RecordedOpponent, timeline: number[]): Pro
 }
 
 // ——— Окно «Вызвать друга» ———
-export function openInvite(timeline: number[], durationMs: number, suggest?: string): void {
-  invite = { timeline, durationMs, linkId: null };
+export function openInvite(
+  timeline: number[],
+  durationMs: number,
+  exercise: DuelExercise,
+  suggest?: string,
+): void {
+  invite = { timeline, durationMs, exercise, linkId: null };
   el.invReps.textContent = String(timeline.length);
+  el.invEx.textContent = `${exerciseTitle(exercise)} за ${durationLabel(durationMs)}.`;
   el.invStatus.textContent = '';
   el.invLink.hidden = true;
   el.search.value = suggest ?? '';
@@ -313,13 +348,15 @@ async function shareLink(): Promise<void> {
   if (!invite) return;
   el.invShare.disabled = true;
   try {
-    invite.linkId ??= await api.challenge(invite.timeline, invite.durationMs);
+    invite.linkId ??= await api.challenge(invite.timeline, invite.durationMs, invite.exercise);
     const url = challengeUrl(invite.linkId);
     el.invLink.value = url;
     el.invLink.hidden = false;
-    const text = `Я сделал ${invite.timeline.length} отжиманий за минуту в FORMA. Сможешь больше?`;
+    const n = invite.timeline.length;
+    const title = exerciseTitle(invite.exercise);
+    const text = `${title}: ${n} ${repsWord(n)} за ${durationLabel(invite.durationMs)} в FORMA. Сможешь больше?`;
     if (navigator.share) {
-      await navigator.share({ title: 'Дуэль на отжиманиях', text, url }).catch(() => undefined);
+      await navigator.share({ title: `Дуэль: ${title}`, text, url }).catch(() => undefined);
       el.invStatus.textContent = 'Ссылка готова.';
     } else {
       await navigator.clipboard?.writeText(url).catch(() => undefined);
@@ -376,12 +413,12 @@ function personRow(p: Player): HTMLLIElement {
       el.invStatus.textContent = (err as Error).message;
     }
   });
-  const send = button('Пригласить', 'btn btn--small btn--primary');
+  const send = button('Пригласить', 'btn btn--sm');
   send.addEventListener('click', async () => {
     if (!invite) return;
     send.disabled = true;
     try {
-      await api.challenge(invite.timeline, invite.durationMs, p.nick);
+      await api.challenge(invite.timeline, invite.durationMs, invite.exercise, p.nick);
       send.textContent = 'Отправлено';
     } catch (err) {
       send.disabled = false;
@@ -417,7 +454,9 @@ function field(label: string, type: string, autocomplete: string) {
 
 function row(name: string, note: string): HTMLLIElement {
   const li = text('li', 'person', '');
-  li.append(text('span', 'person__nick', name));
-  if (note) li.append(text('span', 'person__note', note));
+  const who = text('span', 'person__who', '');
+  who.append(text('span', 'person__nick', name));
+  if (note) who.append(text('span', 'person__note', note));
+  li.append(who);
   return li;
 }

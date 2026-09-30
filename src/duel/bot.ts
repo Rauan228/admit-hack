@@ -1,23 +1,46 @@
-// Соперник-бот для дуэли на отжиманиях (E-24): заранее расписанные моменты повторов за минуту.
-// Темп как у живого человека — к концу минуты устаёт, между повторами небольшой разброс.
-// Позже вместо бота встанет живой соперник по сети: матчу нужен только счёт соперника на момент боя.
+// Соперник-бот для дуэли (E-24): заранее расписанные моменты повторов за время боя.
+// Темп как у живого человека — к концу боя устаёт, между повторами небольшой разброс.
+// Темп у каждого упражнения свой (E-29): 50 отжиманий в минуту — это атлет, 50 ударов — новичок.
+
+import type { DuelExercise } from '../shared/duel';
 
 export type BotId = 'novice' | 'athlete' | 'machine';
 
 export interface Bot {
   id: BotId;
   name: string;
-  avatar: string;
-  /** Повторов за минуту. */
+  /** Уровень 1–3 — шкала рядом с именем. */
+  level: 1 | 2 | 3;
+  /** Отжиманий за минуту. */
   total: number;
 }
 
 export const BOTS: readonly Bot[] = [
-  { id: 'novice', name: 'Новичок', avatar: '🐢', total: 25 },
-  { id: 'athlete', name: 'Атлет', avatar: '💪', total: 50 },
+  { id: 'novice', name: 'Новичок', level: 1, total: 25 },
+  { id: 'athlete', name: 'Атлет', level: 2, total: 50 },
   // Как «Гоггинс» из ролика-референса: 117 за минуту — почти без шансов.
-  { id: 'machine', name: 'Машина', avatar: '🤖', total: 117 },
+  { id: 'machine', name: 'Машина', level: 3, total: 117 },
 ];
+
+/** Повторов за минуту у новичка, атлета и машины по упражнениям (выпады — пары ног). */
+const PACE: Record<DuelExercise, readonly [number, number, number]> = {
+  push_up: [25, 50, 117],
+  squat: [22, 40, 70],
+  jumping_jack: [40, 70, 120],
+  lunge: [10, 18, 32],
+  high_knees: [80, 140, 230],
+  burpee: [8, 15, 28],
+  squat_press: [12, 22, 36],
+  knee_to_elbow: [24, 44, 76],
+  arm_raise: [24, 44, 80],
+  boxing: [70, 130, 230],
+};
+
+/** Сколько бот сделает за бой: темп упражнения × длительность (устаёт — уже внутри botTimeline). */
+export function botTotal(bot: Bot, exercise: DuelExercise, durationMs: number): number {
+  const perMin = PACE[exercise]?.[bot.level - 1] ?? bot.total;
+  return Math.max(1, Math.round((perMin * durationMs) / 60_000));
+}
 
 /** Бот по id; неизвестный id — средний соперник. */
 export function findBot(id: string | null): Bot {

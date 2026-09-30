@@ -2,6 +2,8 @@
 // Свой маленький fetch: клиент платформы (ui/store/api.ts) тянет React, а страница дуэли — без него.
 // Cookie-сессия общая с платформой: вошёл там — вошёл и здесь.
 
+import type { DuelExercise } from '../shared/duel';
+
 export interface Me {
   nick: string;
 }
@@ -10,6 +12,8 @@ export interface Challenge {
   id: string;
   from: string;
   to: string | null;
+  /** E-29: старый сервер поля не присылает — это отжимания. */
+  exercise?: DuelExercise;
   reps: number;
   durationMs: number;
   timeline: number[];
@@ -23,11 +27,18 @@ export interface Inbox {
   incoming: {
     id: string;
     from: string;
+    exercise?: DuelExercise;
     reps: number;
     durationMs: number;
     answered: { reps: number } | null;
   }[];
-  outgoing: { id: string; to: string | null; reps: number; answers: { name: string; reps: number }[] }[];
+  outgoing: {
+    id: string;
+    to: string | null;
+    exercise?: DuelExercise;
+    reps: number;
+    answers: { name: string; reps: number }[];
+  }[];
 }
 
 export interface Player {
@@ -74,8 +85,8 @@ export const api = {
   register: (email: string, nick: string, password: string) =>
     call<{ user: Me }>('POST', '/register', { email, nick, password }).then((r) => r.user),
   logout: () => call<{ ok: true }>('POST', '/logout'),
-  challenge: (timeline: number[], durationMs: number, to?: string) =>
-    call<{ id: string }>('POST', '/duel/challenge', { timeline, durationMs, to }).then((r) => r.id),
+  challenge: (timeline: number[], durationMs: number, exercise: DuelExercise, to?: string) =>
+    call<{ id: string }>('POST', '/duel/challenge', { timeline, durationMs, exercise, to }).then((r) => r.id),
   getChallenge: (id: string) =>
     call<{ challenge: Challenge }>('GET', `/duel/challenge?id=${encodeURIComponent(id)}`).then(
       (r) => r.challenge,

@@ -1,34 +1,35 @@
-// E-24: дуэль на отжиманиях — отдельная страница /duel.html (без React и без экранов платформы).
-// Ты против бота минуту: счёт, перетягивание, «+1» у соперника — как в ролике-референсе.
+// E-24: дуэль — отдельная страница /duel.html (без React и без экранов платформы).
+// Ты против бота, записи друга (E-25) или живого соперника онлайн (E-26) — в любом упражнении дуэли (E-29).
 // Экраны: intro → setup (камера, скелет) → countdown → battle → result. Время и счёт — в DuelMatch,
-// здесь только движок, DOM и звук. Для проверок: ?mock=1 (мок-движок), ?bot=machine, ?sec=20.
+// здесь только движок, DOM и звук. Для проверок: ?mock=1 (мок-движок), ?bot=machine, ?sec=20, ?ex=squat.
 
-import '../ui/styles/tokens.css';
+import '../ui/styles/global.css';
 import './duel.css';
 import { CameraError } from '../engine/camera';
 import { createEngine } from '../engine/createEngine';
-import type { Engine, EngineEvent, ExerciseId, Landmark, Phase } from '../engine/types';
+import type { Engine, EngineEvent, Landmark, Phase } from '../engine/types';
 import { sfx, unlockAudio } from '../ui/audio/sfx';
 import { numberWord, say, unlockVoice } from '../ui/audio/voice';
 import { coverView, drawSkeleton } from '../ui/lib/skeleton';
-import { EXERCISE_META } from '../ui/lib/exercises';
 import { COLORS } from '../ui/theme';
-import { BOTS, botTimeline, findBot, repsAt, type Bot } from './bot';
-import { DuelMatch, formatClock, type DuelPhase, type DuelSnapshot } from './match';
 import type { RoomView } from '../shared/duelRoom';
-import { minGapMs } from '../shared/duel';
-import { cameraTip, exerciseTitle, initOnline, onlineDuel, reconnectOnline } from './online';
+import { minGapMs, type DuelExercise } from '../shared/duel';
+import { botTimeline, botTotal, repsAt } from './bot';
+import { cameraTip, durationLabel, exerciseTitle, isFloor, repsWord } from './labels';
+import { DuelMatch, formatClock, type DuelPhase, type DuelSnapshot } from './match';
+import { initOnline, onlineDuel, reconnectOnline } from './online';
+import { initPicker, picked } from './picker';
 import { initSocial, openInvite, sendAnswer, type RecordedOpponent } from './social';
 
 type Screen = 'intro' | 'setup' | DuelPhase | 'result';
 
 const COUNTDOWN_MS = 5000;
-/** Потолок подхода для движка: минуту бой держит таймер страницы, а не цель по повторам. */
+/** Потолок подхода для движка: бой держит таймер страницы, а не цель по повторам. */
 const ENGINE_TARGET = 300;
 const HINT_MS = 2500;
+const REP_FLASH_MS = 520;
 
 const params = new URLSearchParams(location.search);
-const durationMs = clampInt(params.get('sec'), 10, 120, 60) * 1000;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const app = $<HTMLElement>('app');
@@ -36,32 +37,41 @@ const video = $<HTMLVideoElement>('video');
 const canvas = $<HTMLCanvasElement>('overlay');
 const ctx = canvas.getContext('2d')!;
 const ui = {
-  bots: $<HTMLFieldSetElement>('bots'),
   cameraOn: $<HTMLButtonElement>('camera-on'),
   introError: $<HTMLParagraphElement>('intro-error'),
+  setupEx: $<HTMLParagraphElement>('setup-ex'),
+  setupMeta: $<HTMLParagraphElement>('setup-meta'),
   setupStatus: $<HTMLParagraphElement>('setup-status'),
+  setupHow: $<HTMLParagraphElement>('setup-how'),
   start: $<HTMLButtonElement>('start'),
   countdown: $<HTMLSpanElement>('countdown'),
+  countdownText: $<HTMLParagraphElement>('countdown-text'),
+  sideMe: $<HTMLDivElement>('side-me'),
+  sideOpp: $<HTMLDivElement>('side-opp'),
   scoreMe: $<HTMLSpanElement>('score-me'),
   scoreOpp: $<HTMLSpanElement>('score-opp'),
   oppAvatar: $<HTMLSpanElement>('opp-avatar'),
   oppName: $<HTMLSpanElement>('opp-name'),
-  clock: $<HTMLDivElement>('clock'),
+  clock: $<HTMLSpanElement>('clock'),
+  hudEx: $<HTMLSpanElement>('hud-ex'),
+  lead: $<HTMLParagraphElement>('lead'),
   tugMe: $<HTMLDivElement>('tug-me'),
-  big: $<HTMLSpanElement>('big-count'),
   hint: $<HTMLParagraphElement>('hint'),
   giveUp: $<HTMLButtonElement>('give-up'),
+  resultEx: $<HTMLParagraphElement>('result-ex'),
   resultTitle: $<HTMLHeadingElement>('result-title'),
   resultMe: $<HTMLSpanElement>('result-me'),
   resultOpp: $<HTMLSpanElement>('result-opp'),
   resultOppName: $<HTMLElement>('result-opp-name'),
   resultNote: $<HTMLParagraphElement>('result-note'),
+  inviteOpen: $<HTMLButtonElement>('invite-open'),
 };
 $<HTMLAnchorElement>('home').href = import.meta.env.BASE_URL;
+$<HTMLAnchorElement>('menu-link').href = `${import.meta.env.BASE_URL}app`;
 
-let bot: Bot = findBot(params.get('bot'));
-/** Во что идёт бой: у бота и вызова — отжимания, онлайн — упражнение комнаты (E-29). */
-let currentExercise: ExerciseId = 'push_up';
+/** Во что идёт текущий бой и сколько он длится — по режиму: бот, запись друга или онлайн-комната. */
+let currentExercise: DuelExercise = 'push_up';
+let currentDurationMs = 60_000;
 /** Потолок подхода для движка: с запасом больше, чем успеть за бой (3 мин бокса — это сотни ударов, E-30). */
 let engineTarget = ENGINE_TARGET;
 /** E-25: соперник — запись друга из вызова; null — бот. */
@@ -80,26 +90,11 @@ let lastFrameAt = 0;
 /** Человек в кадре (для статуса на экране подготовки); null — ещё не знаем. */
 let seen: boolean | null = null;
 let shown = { me: -1, opp: -1, second: -1, lastTen: false };
+let flashTimer = 0;
 let wakeLock: { release(): Promise<void> } | null = null;
 
-// ——— Выбор соперника ———
-for (const b of BOTS) {
-  const label = document.createElement('label');
-  label.className = 'bot';
-  const input = document.createElement('input');
-  input.type = 'radio';
-  input.name = 'bot';
-  input.value = b.id;
-  input.checked = b.id === bot.id;
-  const avatar = span('bot__avatar', b.avatar);
-  avatar.setAttribute('aria-hidden', 'true');
-  label.append(input, avatar, span('bot__name', b.name), span('bot__pace', `${b.total} за минуту`));
-  ui.bots.appendChild(label);
-}
-ui.bots.addEventListener('change', (e) => {
-  bot = findBot((e.target as HTMLInputElement).value);
-  opponent = null;
-});
+// ——— Выбор упражнения, времени и бота ———
+initPicker(params, () => undefined);
 
 // ——— Вызовы друзьям (E-25) ———
 void initSocial({
@@ -152,11 +147,34 @@ function show(next: Screen): void {
   }
 }
 
+/** Что за бой сейчас собираем: упражнение, время и с кем. */
+function currentMode(): { exercise: DuelExercise; durationMs: number; meta: string } {
+  if (onlineDuel.active()) {
+    const ms = onlineDuel.durationMs();
+    return { exercise: onlineDuel.exercise(), durationMs: ms, meta: `${durationLabel(ms)} · онлайн` };
+  }
+  if (opponent) {
+    const ms = opponent.durationMs;
+    return {
+      exercise: opponent.exercise,
+      durationMs: ms,
+      meta: `${durationLabel(ms)} · против записи ${opponent.name}`,
+    };
+  }
+  const p = picked();
+  return {
+    exercise: p.exercise,
+    durationMs: p.durationMs,
+    meta: `${durationLabel(p.durationMs)} · против бота «${p.bot.name}»`,
+  };
+}
+
 // ——— Камера и движок ———
 ui.cameraOn.addEventListener('click', () => {
   unlockAudio();
   unlockVoice();
   void keepScreenOn();
+  opponent = null;
   if (engine) return toSetup();
   void startEngine();
 });
@@ -165,7 +183,7 @@ async function startEngine(): Promise<void> {
   ui.cameraOn.disabled = true;
   ui.introError.hidden = true;
   toSetup();
-  ui.setupStatus.textContent = 'Загружаю модель…';
+  setStatus('Загружаю модель…', 'wait');
   try {
     engine = await createEngine();
     engine.on(onEvent);
@@ -173,7 +191,7 @@ async function startEngine(): Promise<void> {
     await engine.start(video);
     engineReady = true;
     ui.start.disabled = false;
-    ui.setupStatus.textContent = 'Камера включена. Отойди, чтобы было видно тебя целиком.';
+    setStatus('Камера включена — встань так, чтобы тебя было видно.', 'wait');
   } catch (err) {
     // Причину — в консоль: без неё «не удалось запустить» не разобрать (E-27).
     console.error('[duel] движок не запустился', err);
@@ -194,10 +212,24 @@ function toSetup(): void {
   engine?.setMode('menu');
   ui.start.disabled = !engineReady;
   ui.start.textContent = onlineDuel.active() ? 'Готов' : 'Старт';
-  const ex = onlineDuel.active() ? onlineDuel.exercise() : 'push_up';
-  $<HTMLParagraphElement>('setup-how').textContent =
-    `${exerciseTitle(ex)}. ${cameraTip(ex)} Когда будешь готов — подними обе руки или нажми кнопку ниже.`;
+  const m = currentMode();
+  ui.setupEx.textContent = exerciseTitle(m.exercise);
+  ui.setupMeta.textContent = m.meta;
+  ui.setupHow.textContent = cameraTip(m.exercise);
 }
+
+function setStatus(text: string, state: 'ok' | 'wait' | 'bad'): void {
+  ui.setupStatus.textContent = text;
+  ui.setupStatus.dataset.state = state;
+}
+
+$<HTMLButtonElement>('setup-back').addEventListener('click', () => {
+  // Онлайн — выйти из комнаты (сервер ответит «left» и вернёт на вступление).
+  if (onlineDuel.active()) return onlineDuel.leave();
+  opponent = null;
+  engine?.setMode('menu');
+  show('intro');
+});
 
 function onEvent(e: EngineEvent): void {
   switch (e.type) {
@@ -208,13 +240,15 @@ function onEvent(e: EngineEvent): void {
       // Статус подготовки — по кадрам: калибровка в меню молчит, пока человек стабильно в кадре.
       if (screen === 'setup' && engineReady && e.landmarks.length > 0 !== seen) {
         seen = e.landmarks.length > 0;
-        ui.setupStatus.textContent = seen
-          ? 'Вижу тебя.'
-          : 'Тебя не видно — отойди, чтобы в кадре был ты целиком.';
+        if (seen) setStatus('Вижу тебя', 'ok');
+        else setStatus('Тебя не видно — отойди, чтобы в кадре был ты целиком.', 'bad');
       }
       break;
     case 'calibration':
-      if (screen === 'setup') ui.setupStatus.textContent = e.status === 'ok' ? 'Вижу тебя.' : e.hint;
+      if (screen === 'setup') {
+        if (e.status === 'ok') setStatus('Вижу тебя', 'ok');
+        else setStatus(e.hint, 'bad');
+      }
       // Посреди боя пропал из кадра — повторы не считаются, скажем, как вернуться.
       else if (screen === 'battle' && e.status !== 'ok') hint(e.hint);
       break;
@@ -243,24 +277,38 @@ function onEvent(e: EngineEvent): void {
 }
 
 // ——— Бой ———
+/** Общая подготовка табло к отсчёту — для любого соперника. */
+function prepareBoard(exercise: DuelExercise, durationMs: number, oppName: string): void {
+  currentExercise = exercise;
+  currentDurationMs = durationMs;
+  engineTarget = Math.max(ENGINE_TARGET, Math.ceil(durationMs / minGapMs(exercise)) + 10);
+  shown = { me: -1, opp: -1, second: -1, lastTen: false };
+  ui.oppAvatar.textContent = oppName.slice(0, 1).toUpperCase();
+  ui.oppName.textContent = oppName;
+  ui.hudEx.textContent = exerciseTitle(exercise);
+  ui.countdownText.textContent = `${exerciseTitle(exercise)} — ${isFloor(exercise) ? 'ложись в упор' : 'встань в кадр'}`;
+  ui.hint.textContent = '';
+  ui.sideMe.classList.remove('is-rep');
+  errorJoints = new Set();
+}
+
+/** Бой с ботом или с записью друга. */
 function startMatch(): void {
-  currentExercise = 'push_up';
-  engineTarget = ENGINE_TARGET;
-  setCountdownText();
-  // Вызов друга — бой против его записи и той же длины, что была у него.
-  const dur = opponent?.durationMs ?? durationMs;
+  const m = currentMode();
+  const bot = picked().bot;
+  prepareBoard(m.exercise, m.durationMs, opponent?.name ?? bot.name);
   const timeline =
     opponent?.timeline ??
-    botTimeline(Math.round((bot.total * dur) / 60_000), dur, (Math.random() * 2 ** 31) | 0);
+    botTimeline(botTotal(bot, m.exercise, m.durationMs), m.durationMs, (Math.random() * 2 ** 31) | 0);
   match = new DuelMatch(
-    { opponentReps: (t) => repsAt(timeline, t), countdownMs: COUNTDOWN_MS, durationMs: dur },
+    {
+      opponentReps: (t) => repsAt(timeline, t),
+      countdownMs: COUNTDOWN_MS,
+      durationMs: m.durationMs,
+      exercise: m.exercise,
+    },
     performance.now(),
   );
-  shown = { me: -1, opp: -1, second: -1, lastTen: false };
-  ui.oppAvatar.textContent = opponent ? opponent.name.slice(0, 1).toUpperCase() : bot.avatar;
-  ui.oppName.textContent = opponent?.name ?? bot.name;
-  ui.hint.textContent = '';
-  errorJoints = new Set();
   show('countdown');
 }
 
@@ -280,8 +328,10 @@ function go(): void {
   if (!onlineDuel.active()) return startMatch();
   onlineDuel.ready();
   ui.start.disabled = true;
+  ui.start.textContent = 'Ждём соперника';
 }
 
+/** Реванш — то же упражнение и то же время. */
 function again(): void {
   if (!onlineDuel.active()) return startMatch();
   toSetup();
@@ -292,32 +342,13 @@ function again(): void {
 function startOnlineMatch(startLocal: number, dur: number, cd: number): void {
   opponent = null;
   announced = false;
-  currentExercise = onlineDuel.exercise();
-  engineTarget = Math.max(ENGINE_TARGET, Math.ceil(dur / minGapMs(currentExercise)) + 10);
+  const exercise = onlineDuel.exercise();
+  prepareBoard(exercise, dur, onlineDuel.oppName());
   match = new DuelMatch(
-    {
-      opponentReps: () => onlineDuel.oppReps(),
-      countdownMs: cd,
-      durationMs: dur,
-      minGapMs: minGapMs(currentExercise),
-    },
+    { opponentReps: () => onlineDuel.oppReps(), countdownMs: cd, durationMs: dur, exercise },
     startLocal,
   );
-  setCountdownText();
-  shown = { me: -1, opp: -1, second: -1, lastTen: false };
-  const name = onlineDuel.oppName();
-  ui.oppAvatar.textContent = name.slice(0, 1).toUpperCase();
-  ui.oppName.textContent = name;
-  ui.hint.textContent = '';
-  errorJoints = new Set();
   show('countdown');
-}
-
-/** Текст на отсчёте: упражнение и что делать — лечь в упор или встать в кадр. */
-function setCountdownText(): void {
-  const floor = !!EXERCISE_META[currentExercise]?.setup;
-  $<HTMLParagraphElement>('countdown-text').textContent =
-    `${exerciseTitle(currentExercise)} — ${floor ? 'ложись в упор' : 'встань в кадр'}`;
 }
 
 /** Итог онлайн-боя от сервера (может прийти и раньше своего финиша — соперник сдался). */
@@ -333,19 +364,14 @@ function onlineResult(v: RoomView): void {
     : opp?.gaveUp
       ? 'Соперник сдался'
       : outcome === 'win'
-        ? 'Победа!'
+        ? 'Победа'
         : outcome === 'lose'
           ? 'Поражение'
           : 'Ничья';
-  const diff = Math.abs((me?.reps ?? 0) - (opp?.reps ?? 0));
-  ui.resultTitle.textContent = title;
-  ui.resultMe.textContent = String(me?.reps ?? 0);
-  ui.resultOpp.textContent = String(opp?.reps ?? 0);
-  ui.resultOppName.textContent = opp?.name ?? 'соперник';
-  ui.resultNote.textContent =
-    outcome === 'draw' ? 'Одинаково — реванш?' : `Разница — ${diff} ${plural(diff)}.`;
+  fillResult(v.exercise, v.durationMs, title, me?.reps ?? 0, opp?.reps ?? 0, opp?.name ?? 'Соперник');
   app.dataset.outcome = outcome;
-  $<HTMLButtonElement>('invite-open').hidden = true;
+  ui.resultNote.textContent = noteFor(outcome, me?.reps ?? 0, opp?.reps ?? 0);
+  ui.inviteOpen.hidden = true;
   if (screen !== 'result') show('result');
   if (!announced) {
     announced = true;
@@ -353,15 +379,15 @@ function onlineResult(v: RoomView): void {
     say(title);
   }
 }
-$<HTMLButtonElement>('invite-open').addEventListener('click', () => {
-  if (match) openInvite(match.myTimeline(), opponent?.durationMs ?? durationMs, opponent?.name);
+
+ui.inviteOpen.addEventListener('click', () => {
+  if (match) openInvite(match.myTimeline(), currentDurationMs, currentExercise, opponent?.name);
 });
 $<HTMLButtonElement>('change').addEventListener('click', () => {
   if (onlineDuel.active()) onlineDuel.leave();
   match = null;
   opponent = null;
   engine?.setMode('menu');
-  ui.cameraOn.textContent = 'Продолжить';
   show('intro');
 });
 
@@ -381,35 +407,52 @@ function onPhase(next: DuelPhase, s: DuelSnapshot): void {
   show(next);
 }
 
+function fillResult(
+  exercise: DuelExercise,
+  durationMs: number,
+  title: string,
+  me: number,
+  opp: number,
+  oppName: string,
+): void {
+  ui.resultEx.textContent = `${exerciseTitle(exercise)} · ${durationLabel(durationMs)}`;
+  ui.resultTitle.textContent = title;
+  ui.resultMe.textContent = String(me);
+  ui.resultOpp.textContent = String(opp);
+  ui.resultOppName.textContent = oppName;
+}
+
+function noteFor(outcome: string, me: number, opp: number): string {
+  const diff = Math.abs(me - opp);
+  if (outcome === 'draw') return 'Одинаково — реванш?';
+  return outcome === 'win'
+    ? `Ты впереди на ${diff} ${repsWord(diff)}.`
+    : `Не хватило ${diff} ${repsWord(diff)} — реванш?`;
+}
+
 function showResult(s: DuelSnapshot): void {
+  const oppName = onlineDuel.active() ? onlineDuel.oppName() : (opponent?.name ?? picked().bot.name);
   // Онлайн: свой финиш — только «время», итог (с поздними повторами) пришлёт сервер.
   if (onlineDuel.active()) {
-    ui.resultTitle.textContent = s.gaveUp ? 'Ты сдался' : 'Время!';
-    ui.resultMe.textContent = String(s.me);
-    ui.resultOpp.textContent = String(s.opp);
-    ui.resultOppName.textContent = onlineDuel.oppName();
+    fillResult(currentExercise, currentDurationMs, s.gaveUp ? 'Ты сдался' : 'Время!', s.me, s.opp, oppName);
     ui.resultNote.textContent = 'Считаем итог на сервере…';
     app.dataset.outcome = '';
-    $<HTMLButtonElement>('invite-open').hidden = true;
+    ui.inviteOpen.hidden = true;
     show('result');
     return;
   }
-  const diff = Math.abs(s.me - s.opp);
-  ui.resultTitle.textContent = s.gaveUp
+  const title = s.gaveUp
     ? 'Ты сдался'
     : s.outcome === 'win'
-      ? 'Победа!'
+      ? 'Победа'
       : s.outcome === 'lose'
         ? 'Поражение'
         : 'Ничья';
-  ui.resultMe.textContent = String(s.me);
-  ui.resultOpp.textContent = String(s.opp);
-  ui.resultOppName.textContent = opponent?.name ?? bot.name.toLowerCase();
-  ui.resultNote.textContent =
-    s.outcome === 'draw' ? 'Одинаково — реванш?' : `Разница — ${diff} ${plural(diff)}.`;
+  fillResult(currentExercise, currentDurationMs, title, s.me, s.opp, oppName);
+  ui.resultNote.textContent = noteFor(s.outcome ?? 'draw', s.me, s.opp);
   app.dataset.outcome = s.outcome ?? '';
   // Звать друга есть смысл с настоящим результатом.
-  $<HTMLButtonElement>('invite-open').hidden = s.gaveUp || s.me === 0;
+  ui.inviteOpen.hidden = s.gaveUp || s.me === 0;
   if (opponent && match) {
     const opp = opponent;
     const note = ui.resultNote.textContent;
@@ -420,7 +463,7 @@ function showResult(s: DuelSnapshot): void {
   }
   show('result');
   if (s.outcome === 'win') sfx.fanfare();
-  say(ui.resultTitle.textContent);
+  say(title);
 }
 
 // ——— Кадр: счёт, часы, перетягивание, скелет ———
@@ -445,13 +488,14 @@ function render(s: DuelSnapshot): void {
     if (left !== shown.second) {
       shown.second = left;
       ui.countdown.textContent = String(left);
+      pop(ui.countdown);
       sfx.tick();
       if (left <= 3) say(numberWord(left), 'count');
     }
   }
   if (s.me !== shown.me) {
-    ui.scoreMe.textContent = ui.big.textContent = String(s.me);
-    if (shown.me >= 0) pop(ui.big);
+    ui.scoreMe.textContent = String(s.me);
+    if (shown.me >= 0) repFlash();
     shown.me = s.me;
   }
   if (s.opp !== shown.opp) {
@@ -463,8 +507,27 @@ function render(s: DuelSnapshot): void {
   if (lastTen && !shown.lastTen) say('Десять секунд!');
   shown.lastTen = lastTen;
   ui.clock.textContent = formatClock(s.timeLeftMs);
-  ui.clock.classList.toggle('board__clock--last', lastTen);
+  ui.clock.classList.toggle('is-last', lastTen);
   ui.tugMe.style.width = `${(s.share * 100).toFixed(1)}%`;
+  const diff = s.me - s.opp;
+  const lead = diff > 0 ? 'me' : diff < 0 ? 'opp' : 'even';
+  if (ui.lead.dataset.lead !== lead || ui.lead.dataset.diff !== String(diff)) {
+    ui.lead.dataset.lead = lead;
+    ui.lead.dataset.diff = String(diff);
+    ui.lead.textContent =
+      lead === 'even' ? 'Поровну' : lead === 'me' ? `Ты впереди на ${diff}` : `Отстаёшь на ${-diff}`;
+    app.dataset.lead = lead;
+  }
+}
+
+/** Мой повтор: число прыгает, карточка вспыхивает зелёным, «+1» улетает вверх. */
+function repFlash(): void {
+  pop(ui.scoreMe);
+  ui.sideMe.classList.remove('is-rep');
+  void ui.sideMe.offsetWidth;
+  ui.sideMe.classList.add('is-rep');
+  clearTimeout(flashTimer);
+  flashTimer = window.setTimeout(() => ui.sideMe.classList.remove('is-rep'), REP_FLASH_MS);
 }
 
 function hint(text: string): void {
@@ -527,26 +590,6 @@ async function keepScreenOn(): Promise<void> {
   } catch {
     /* экран может погаснуть — не критично */
   }
-}
-
-function span(className: string, text: string): HTMLSpanElement {
-  const el = document.createElement('span');
-  el.className = className;
-  el.textContent = text;
-  return el;
-}
-
-function plural(n: number): string {
-  const d = n % 10;
-  const dd = n % 100;
-  if (d === 1 && dd !== 11) return 'повтор';
-  if (d >= 2 && d <= 4 && (dd < 12 || dd > 14)) return 'повтора';
-  return 'повторов';
-}
-
-function clampInt(raw: string | null, min: number, max: number, fallback: number): number {
-  const n = Number(raw);
-  return Number.isFinite(n) && raw !== null ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 }
 
 window.addEventListener('pagehide', () => {

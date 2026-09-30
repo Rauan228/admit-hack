@@ -2,7 +2,7 @@
 // Соперник задан функцией «сколько у него повторов на такой-то миллисекунде боя»: сейчас это бот,
 // потом так же подключится живой соперник по сети.
 
-import { DUEL_MIN_GAP_MS } from '../shared/duel';
+import { DEFAULT_DUEL_EXERCISE, minGapMs, paceAllows, type DuelExercise } from '../shared/duel';
 
 export type DuelPhase = 'countdown' | 'battle' | 'over';
 export type Outcome = 'win' | 'lose' | 'draw';
@@ -11,8 +11,8 @@ export interface DuelOptions {
   opponentReps: (elapsedMs: number) => number;
   countdownMs: number;
   durationMs: number;
-  /** Минимальный интервал в записи моих повторов (по упражнению, E-29); по умолчанию — отжимания. */
-  minGapMs?: number;
+  /** Во что бой (E-29): от него интервал и потолок темпа в записи; по умолчанию — отжимания. */
+  exercise?: DuelExercise;
 }
 
 export interface DuelSnapshot {
@@ -49,12 +49,15 @@ export class DuelMatch {
     return now < this.battleStart ? 'countdown' : 'battle';
   }
 
-  /** Мой повтор: засчитан только в бою. */
+  /** Мой повтор: засчитан только в бою и в живом темпе (иначе запись не примет сервер). */
   addRep(now: number): boolean {
     if (this.phase(now) !== 'battle') return false;
-    // Два события движка чаще 0,3 с (дрожание таймера страницы) — сдвигаем, чтобы запись прошла проверку.
+    const exercise = this.opts.exercise ?? DEFAULT_DUEL_EXERCISE;
+    // Два события движка чаще интервала (дрожание таймера страницы) — сдвигаем, чтобы запись прошла проверку.
     const last = this.mine.at(-1) ?? -Infinity;
-    this.mine.push(Math.max(now - this.battleStart, last + (this.opts.minGapMs ?? DUEL_MIN_GAP_MS)));
+    const t = Math.max(now - this.battleStart, last + minGapMs(exercise));
+    if (!paceAllows(this.mine, t, exercise)) return false;
+    this.mine.push(t);
     return true;
   }
 
