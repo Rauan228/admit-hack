@@ -133,6 +133,13 @@ function sagArm(pts, sh, el, wr, fing, a) {
 /** Кадр позы в момент u (0..1) из функции pose(u) — n кадров цикла. */
 const cycle = (n, pose) => Array.from({ length: n }, (_, k) => pose(k / n));
 
+/** Упор лёжа строится от носков — ставим середину тела (между плечами и щиколотками) в центр кадра. */
+function centerZ(frames) {
+  const zs = frames.map((pts) => (pts[11].z + pts[12].z + pts[27].z + pts[28].z) / 4);
+  const c = zs.reduce((a, b) => a + b, 0) / zs.length;
+  return frames.map((pts) => pts.map((p) => ({ ...p, z: p.z - c })));
+}
+
 // ——— Приседания с вариациями: на основе записанного приседа ———
 
 /** Кадр приседа в доле p цикла (0 — стоя, 0.5 — внизу) с интерполяцией. */
@@ -159,7 +166,7 @@ function squatBottom(sq) {
 }
 
 /**
- * Присед с выпрыгиванием: тот же присед; внизу руки уходят назад, на выходе — мах вперёд-вверх и тройное
+ * Присед с выпрыгиванием: тот же присед (руки вперёд для баланса); на выходе — мах вверх и тройное
  * разгибание (таз, колени, голеностоп), полёт по параболе с вытянутыми носками и лёгким подбором коленей,
  * приземление с носка в амортизацию и снова стойка.
  */
@@ -177,11 +184,11 @@ export function jumpSquat(sq, n) {
     if (u < 0.42) {
       const k = ease(u / 0.42);
       pts = squatAt(sq, bot * k);
-      arm = lerp(15, -38, k);
+      arm = lerp(15, 80, k); // как в приседе: руки вперёд для баланса
     } else if (u < 0.54) {
       const k = seg(u, 0.42, 0.54, (x) => x * (2 - x));
       pts = squatAt(sq, bot + (1 - bot) * k);
-      arm = lerp(-38, 150, k);
+      arm = lerp(80, 150, k);
       point = Math.max(0, (k - 0.6) / 0.4);
     } else if (u < 0.78) {
       const t = (u - 0.54) / 0.24;
@@ -678,31 +685,40 @@ function proneFeet(K, pts, body) {
  */
 export function pushUp(body, n) {
   const reach = body.upperArm + body.forearm;
-  const top = lying(body, 0);
-  // Угол тела наверху: плечи на высоте прямых рук; внизу — плечи в ~12 см от пола.
-  const shDist = (() => {
-    const s = top.pts[11];
-    return Math.hypot(s.y - top.pivot.y, s.z - top.pivot.z);
-  })();
-  const aTop = (Math.asin(Math.min(0.99, (reach * 0.97 + 0.02) / shDist)) * 180) / Math.PI;
-  const aBot = (Math.asin(0.13 / shDist) * 180) / Math.PI;
+  // Угол тела подбираем численно по высоте плеч: наверху руки почти прямые до ладоней на полу,
+  // внизу плечи в ~13 см от пола (приближённая формула оставляла кисти висеть над полом).
+  const angleFor = (h) => {
+    let lo = 0;
+    let hi = 60;
+    for (let k = 0; k < 40; k += 1) {
+      const m = (lo + hi) / 2;
+      if (-lying(body, m).pts[11].y < h) lo = m;
+      else hi = m;
+    }
+    return (lo + hi) / 2;
+  };
+  const aTop = angleFor(reach * 0.94 + 0.03);
+  const aBot = angleFor(0.13);
   // Кисти — под плечами в верхней точке, чуть шире плеч, и дальше не двигаются.
   const up = lying(body, aTop);
   const hand = {};
   for (const L of [up.K.S.l, up.K.S.r]) hand[L.k] = V(up.pts[L.sh].x + L.s * 0.05, -0.03, up.pts[L.sh].z);
-  return cycle(n, (u) => {
-    const w = u < 0.45 ? seg(u, 0, 0.45, ease5) : u < 0.53 ? 1 : u < 0.85 ? 1 - seg(u, 0.53, 0.85, ease5) : 0;
-    const { K, pts } = lying(body, lerp(aTop, aBot, w));
-    proneFeet(K, pts, body);
-    for (const L of [K.S.l, K.S.r]) {
-      const W = hand[L.k];
-      // Локти прижаты: изгиб назад (к ногам, +z) и вверх (−y), наружу немного.
-      K.armTo(pts, L, W, V(L.s * 0.3, -0.6, 1), V(0, 0, -1));
-      // Ладонь плоско на полу, пальцы вперёд.
-      for (const j of L.fing) pts[j] = V(W.x - L.s * 0.01, -0.01, W.z - 0.09);
-    }
-    return pts;
-  });
+  return centerZ(
+    cycle(n, (u) => {
+      const w =
+        u < 0.45 ? seg(u, 0, 0.45, ease5) : u < 0.53 ? 1 : u < 0.85 ? 1 - seg(u, 0.53, 0.85, ease5) : 0;
+      const { K, pts } = lying(body, lerp(aTop, aBot, w));
+      proneFeet(K, pts, body);
+      for (const L of [K.S.l, K.S.r]) {
+        const W = hand[L.k];
+        // Локти прижаты: изгиб назад (к ногам, +z) и вверх (−y), наружу немного.
+        K.armTo(pts, L, W, V(L.s * 0.3, -0.6, 1), V(0, 0, -1));
+        // Ладонь плоско на полу, пальцы вперёд.
+        for (const j of L.fing) pts[j] = V(W.x - L.s * 0.01, -0.01, W.z - 0.09);
+      }
+      return pts;
+    }),
+  );
 }
 
 /**
@@ -714,19 +730,21 @@ export function plank(body, n) {
   const s = base.pts[11];
   const shDist = Math.hypot(s.y - base.pivot.y, s.z - base.pivot.z);
   const alpha = (Math.asin((body.upperArm + 0.04) / shDist) * 180) / Math.PI;
-  return cycle(n, (u) => {
-    const breath = 0.5 - 0.5 * Math.cos(2 * Math.PI * u);
-    const { K, pts } = lying(body, alpha + 0.35 * breath);
-    proneFeet(K, pts, body);
-    for (const L of [K.S.l, K.S.r]) {
-      const Sh = pts[L.sh];
-      const E = V(Sh.x * 0.95, -0.04, Sh.z + 0.01);
-      const W = V(Sh.x * 0.62, -0.04, Sh.z - body.forearm * 0.96);
-      pts[L.el] = E;
-      pts[L.wr] = W;
-      // Кулак: «пальцы» вперёд, чуть внутрь.
-      for (const j of L.fing) pts[j] = V(W.x - L.s * 0.02, -0.04, W.z - 0.07);
-    }
-    return pts;
-  });
+  return centerZ(
+    cycle(n, (u) => {
+      const breath = 0.5 - 0.5 * Math.cos(2 * Math.PI * u);
+      const { K, pts } = lying(body, alpha + 0.35 * breath);
+      proneFeet(K, pts, body);
+      for (const L of [K.S.l, K.S.r]) {
+        const Sh = pts[L.sh];
+        const E = V(Sh.x * 0.95, -0.04, Sh.z + 0.01);
+        const W = V(Sh.x * 0.62, -0.04, Sh.z - body.forearm * 0.96);
+        pts[L.el] = E;
+        pts[L.wr] = W;
+        // Кулак: «пальцы» вперёд, чуть внутрь.
+        for (const j of L.fing) pts[j] = V(W.x - L.s * 0.02, -0.04, W.z - 0.07);
+      }
+      return pts;
+    }),
+  );
 }
