@@ -2,6 +2,7 @@
 // Сеть недоступна (офлайн, деплой без API) — функции бросают ApiError с понятным текстом, приложение работает дальше.
 
 import { useSyncExternalStore } from 'react';
+import type { ArenaStanding } from '../../shared/arena';
 import type { Board, ResultInput } from '../../shared/rating';
 
 export interface ApiUser {
@@ -148,4 +149,9 @@ export function fetchBoard(board: Board, period: Period): Promise<BoardData> {
 
 export function fetchProgress(): Promise<ProgressData> {
   return call<ProgressData>('GET', '/me/progress');
+}
+
+/** Кубки арены: по разрядам и по упражнениям. Гость получит 401. */
+export function fetchStanding(): Promise<ArenaStanding> {
+  return call<ArenaStanding>('GET', '/duel/standing');
 }

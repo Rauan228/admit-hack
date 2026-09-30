@@ -83,8 +83,8 @@ export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate, o
               <Icon name="users" size={22} />
             </span>
             <span className="menu__text">
-              <b>Дуэль отжиманий</b>
-              <small>Онлайн против другого игрока</small>
+              <b>Арена дуэлей</b>
+              <small>Пуля, блиц и рапид</small>
             </span>
           </a>
         </nav>

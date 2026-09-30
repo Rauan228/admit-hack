@@ -1,13 +1,22 @@
 // Мой прогресс: по каждой доске — личный рекорд, последний результат, прирост к предыдущему и график.
 
 import { useEffect, useId, useState } from 'react';
+import { cupsLabel, formatById, type ArenaStanding } from '../../shared/arena';
 import { RATED_EXERCISES, boardExercise, boardKind, type Board } from '../../shared/rating';
 import { DwellButton } from '../components/dwell';
 import { Icon, type IconName } from '../components/Icon';
 import { EXERCISE_META } from '../lib/exercises';
 import { order } from '../lib/motion';
 import { boardTitle, boardUnit } from '../lib/rating';
-import { ApiError, fetchProgress, logout, useAuth, type HistoryItem, type ProgressData } from '../store/api';
+import {
+  ApiError,
+  fetchProgress,
+  fetchStanding,
+  logout,
+  useAuth,
+  type HistoryItem,
+  type ProgressData,
+} from '../store/api';
 import './Profile.css';
 
 const BOARDS: Board[] = ['quick', 'challenge', ...RATED_EXERCISES.map((e) => `single:${e}` as Board)];
@@ -20,6 +29,11 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: 'challenge', label: 'Челлендж 60 с' },
   { id: 'single', label: 'Упражнения' },
 ];
+
+function exTitle(id: string): string {
+  if (id in EXERCISE_META) return EXERCISE_META[id as keyof typeof EXERCISE_META].title;
+  return id;
+}
 
 function boardIcon(board: Board): IconName {
   const ex = boardExercise(board);
@@ -40,6 +54,7 @@ export function Profile({
 }) {
   const { user } = useAuth();
   const [data, setData] = useState<ProgressData | null>(null);
+  const [standing, setStanding] = useState<ArenaStanding | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,6 +62,9 @@ export function Profile({
     fetchProgress()
       .then((d) => alive && setData(d))
       .catch((e) => alive && setError(e instanceof ApiError ? e.message : 'Не получилось загрузить'));
+    fetchStanding()
+      .then((s) => alive && setStanding(s))
+      .catch(() => undefined);
     return () => {
       alive = false;
     };
@@ -67,8 +85,8 @@ export function Profile({
         </DwellButton>
 
         <header className="profile__head rise" style={order(0)}>
-          <span className="profile__avatar" aria-hidden="true">
-            {nick.slice(0, 1).toUpperCase()}
+          <span className="face profile__face" data-frame={standing?.frame ?? undefined} aria-hidden="true">
+            <span className="profile__avatar face__disc">{nick.slice(0, 1).toUpperCase()}</span>
           </span>
           <div className="profile__who">
             <h1 className="profile__title">{nick}</h1>
@@ -92,6 +110,8 @@ export function Profile({
             <Icon name="logout" size={16} /> Выйти из аккаунта
           </button>
         </header>
+
+        {standing && <ArenaCard standing={standing} />}
 
         {data && total > 0 && (
           <nav className="pills profile__filters" aria-label="Фильтр">
@@ -176,6 +196,65 @@ export function Profile({
         )}
       </div>
     </main>
+  );
+}
+
+function ArenaCard({ standing }: { standing: ArenaStanding }) {
+  const pct = Math.min(100, (standing.into / Math.max(1, standing.span)) * 100);
+  const next = standing.nextTitle;
+  return (
+    <section className="arena rise" style={order(1)} aria-label="Арена">
+      <div className="arena__lead">
+        <div>
+          <h2 className="arena__title">{standing.title?.name ?? 'Без титула'}</h2>
+          <p className="arena__meta">
+            {cupsLabel(standing.cups)} · уровень {standing.level} · {standing.xp} опыта
+            {next ? ` · до «${next.name}» ещё ${cupsLabel(next.left)}` : ''}
+          </p>
+        </div>
+      </div>
+      <div
+        className="arena__bar"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuenow={standing.into}
+        aria-valuemax={standing.span}
+        aria-label={`Уровень ${standing.level}`}
+      >
+        <span style={{ width: `${pct}%` }} />
+      </div>
+      <ul className="arena__formats">
+        {standing.formats.map((f) => (
+          <li key={f.id} className="arena__format">
+            <b>{f.name}</b>
+            <span>{f.cups}</span>
+            <small>
+              {f.wins}–{f.losses}
+              {f.draws > 0 ? `–${f.draws}` : ''}
+            </small>
+          </li>
+        ))}
+      </ul>
+      {standing.boards.length > 0 ? (
+        <ul className="arena__boards">
+          {standing.boards.map((b) => (
+            <li key={`${b.exercise}-${b.format}`} className="arena__board">
+              <span>
+                {exTitle(b.exercise)} · {formatById(b.format).name}
+              </span>
+              <b>{cupsLabel(b.cups)}</b>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="arena__hint">
+          Сыграй дуэль с игроком. У пули, блица и рапида свой рейтинг, и у каждого упражнения тоже.
+        </p>
+      )}
+      <a className="btn btn--sm arena__link" href={`${import.meta.env.BASE_URL}duel.html#ladder`}>
+        Таблица арены
+      </a>
+    </section>
   );
 }
 
