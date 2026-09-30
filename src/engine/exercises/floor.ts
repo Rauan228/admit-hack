@@ -31,6 +31,8 @@ export interface FloorMetrics extends BaseMetrics {
   tilt: number;
   /** Локти наружу от плеч, в ширинах плеч (больший из двух; null — локтей не видно). */
   elbowOut: number | null;
+  /** Планка: в упоре, но лёг — руки согнуты, а кисти не вынесены вперёд, как на предплечьях (отдых на полу). */
+  lowArms: boolean;
 }
 
 /** Что видно спереди в кадре: плечи, руки, признаки «стоит, а не в упоре». null — плеч не видно. */
@@ -115,6 +117,8 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
   /** Планка: высота плеч (в ширинах плеч) за последние plankStillMs. */
   private recent: { t: number; y: number }[] = [];
   private rawSince: number | null = null;
+  /** Руки «как в планке» — с гистерезисом: у границы (перекос плеч, шум) не мигает. */
+  private armsOk = false;
 
   constructor(
     private readonly cfg: FloorConfig,
@@ -148,16 +152,20 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
     else this.rawSince ??= frame.t;
     if (!this.position(raw, frame.t)) {
       // Не в упоре (встал, сел) — прогресс 0, а не «потерялся»: иначе при подготовке была бы пауза.
-      return { progress: 0, inPlank: false, drop: null, ...shape };
+      return { progress: 0, inPlank: false, drop: null, lowArms: false, ...shape };
     }
     if (this.hold) {
       // Планка — неподвижное удержание: секунды идут, только пока упор виден прямо сейчас (без удержания на
       // выходе — иначе после «встал» натикало бы ещё до 1,5 с) и плечи почти не двигаются. Отжимания, бёрпи,
       // присед с гирями у голеней в секунды планки не превращаются.
+      // Лёг на пол и замер — тоже «в упоре» (кисти под плечами, стопы не видны), но секунды не идут: планка —
+      // либо на прямых руках, либо на предплечьях (локти ~90°, кисти вынесены далеко вперёд — на записях
+      // они ниже плеч на 1,6–1,9 ширины плеч, а внизу отжимания и лёжа — не больше 1,05).
+      const arms = this.plankArms(pose, k);
       const still = this.still(pose.shoulderY / scale, frame.t);
       // И упор держится непрерывно хотя бы plankStillMs: мимолётная поза, похожая на упор, — не планка.
-      const held = raw && still && frame.t - (this.rawSince ?? frame.t) >= this.cfg.plankStillMs;
-      return { progress: held ? 1 : 0, inPlank: held, drop: null, ...shape };
+      const held = raw && arms && still && frame.t - (this.rawSince ?? frame.t) >= this.cfg.plankStillMs;
+      return { progress: held ? 1 : 0, inPlank: held, drop: null, lowArms: raw && !arms, ...shape };
     }
     this.top.push(pose.shoulderY, frame.t);
     const drop = (pose.shoulderY - (this.top.value ?? pose.shoulderY)) / scale;
@@ -173,7 +181,16 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
     // Отжимание без сгибания локтей невозможно: плечи опускаются при прямых руках — это присед или сбой
     // модели, а не низ отжимания.
     if (byElbow !== null) progress = Math.min(progress, byElbow + this.cfg.elbowSlack);
-    return { progress: clamp(progress, -0.3, 1.5), inPlank: true, drop, ...shape };
+    return { progress: clamp(progress, -0.3, 1.5), inPlank: true, drop, lowArms: false, ...shape };
+  }
+
+  /** Руки как в планке: прямые — или на предплечьях (согнуты, кисти далеко впереди). */
+  private plankArms(pose: FrontPose, k: number): boolean {
+    const slack = this.armsOk ? this.cfg.plankArmsSlack : 0;
+    const straight = pose.elbow !== null && pose.elbow >= this.cfg.plankStraightElbowDeg - slack * 100;
+    const forearms = pose.wristDrop !== null && pose.wristDrop * k >= this.cfg.plankForearmWristDrop - slack;
+    this.armsOk = straight || forearms;
+    return this.armsOk;
   }
 
   /**
@@ -232,6 +249,7 @@ class FloorMeter implements ExerciseMeter<FloorMetrics> {
     this.switchSince = null;
     this.recent = [];
     this.rawSince = null;
+    this.armsOk = false;
   }
 }
 
@@ -275,7 +293,11 @@ export function pushUpRules(cfg: FloorConfig = ENGINE_CONFIG.exercises.push_up):
 }
 
 export function plankRules(cfg: FloorConfig = ENGINE_CONFIG.exercises.push_up): RuleDef<FloorMetrics>[] {
-  return shapeRules({ ...cfg, maxElbowOut: cfg.plankMaxElbowOut }, 0);
+  return [
+    ...shapeRules({ ...cfg, maxElbowOut: cfg.plankMaxElbowOut }, 0),
+    // Лёг на пол посреди планки: секунды стоят, говорим, как их вернуть.
+    { code: 'plank_low', kind: 'frame', check: (m) => (m.lowArms ? {} : null) },
+  ];
 }
 
 /** Плечи и кисти — то, без чего спереди упор не распознать. */

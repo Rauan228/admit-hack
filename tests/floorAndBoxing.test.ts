@@ -201,7 +201,7 @@ describe('планка — на время', () => {
   });
   it('завалился на бок или локти далеко от плеч — подсказка и сниженная оценка секунд', () => {
     for (const [extra, code] of [
-      [{ tilt: 0.5 }, 'shoulders_uneven'],
+      [{ tilt: 0.45 }, 'shoulders_uneven'],
       [{ elbowsOut: 0.8 }, 'elbows_wide'],
     ] as const) {
       const events = plankEvents(6, extra);
@@ -234,6 +234,38 @@ describe('планка — на время', () => {
     );
     // Неподвижно — 1,5 с до подхода и 1 с после: секунды только за них.
     expect(events.filter((e) => e.type === 'rep').length).toBeLessThanOrEqual(2);
+  });
+  it('лёг на пол и замер (кисти под плечами, руки согнуты) — секунды не идут, подсказка «не ложись»; снова встал в планку — идут', () => {
+    const session = new ExerciseSession(def('plank'), 100, 0);
+    const noise = gaussian(0.003, 12);
+    const events: EngineEvent[] = [];
+    for (let t = 0; t <= 4000; t += 33) events.push(...session.update(floorFrame({ down: 0 }, t, noise), t));
+    const before = events.filter((e) => e.type === 'rep').length;
+    for (let t = 4033; t <= 10000; t += 33) events.push(...session.update(floorFrame({ down: 1 }, t, noise), t));
+    const lying = events.filter((e) => e.type === 'rep').length - before;
+    for (let t = 10033; t <= 14000; t += 33) events.push(...session.update(floorFrame({ down: 0 }, t, noise), t));
+    const after = events.filter((e) => e.type === 'rep').length - before - lying;
+    expect(before).toBeGreaterThanOrEqual(3);
+    // Полсекунды опускания могли ещё тикнуть — но не 6 секунд лёжа.
+    expect(lying).toBeLessThanOrEqual(1);
+    expect(after).toBeGreaterThanOrEqual(2);
+    expect(events.some((e) => e.type === 'form_error' && e.code === 'plank_low')).toBe(true);
+  });
+  it('низ отжимания с реальных записей, замерший на 6 с (грудь у пола), — не планка', () => {
+    for (const name of ['push-up-floor-front.json', 'push-up-front.json', 'push-up-front-three-quarter.json']) {
+      const frames = fixtureFrames(loadFixture(name)).filter((f): f is PoseFrame => f !== null);
+      // Кадр с самыми низкими плечами — низ отжимания; держим его неподвижно.
+      const shY = (f: PoseFrame) => (f.image[11]!.y + f.image[12]!.y) / 2;
+      const bottom = frames.reduce((a, b) => (shY(b) > shY(a) ? b : a));
+      const session = new ExerciseSession(def('plank'), 100, 0);
+      const noise = gaussian(0.002, 13);
+      let reps = 0;
+      for (let t = 0; t <= 6000; t += 33) {
+        const f: PoseFrame = { ...bottom, t, image: bottom.image.map((p) => ({ ...p, x: p.x + noise(), y: p.y + noise() })) };
+        reps += session.update(f, t).filter((e) => e.type === 'rep').length;
+      }
+      expect(reps, name).toBe(0);
+    }
   });
   it('стоит — секунды не идут', () => {
     const session = new ExerciseSession(def('plank'), 100, 0);

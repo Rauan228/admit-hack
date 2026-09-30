@@ -531,7 +531,7 @@ export const FORM_ERRORS: Record<ExerciseId, FormErrorDef[]> = {
       arrow: 'up',
       severity: 'bad',
       phases: ['bottom'],
-      priority: 1,
+      priority: 2,
       penalty: 20,
     },
     {
@@ -541,8 +541,19 @@ export const FORM_ERRORS: Record<ExerciseId, FormErrorDef[]> = {
       arrow: 'in',
       severity: 'warn',
       phases: ['bottom'],
-      priority: 2,
+      priority: 3,
       penalty: 15,
+    },
+    {
+      // Лёг на пол — секунды стоят (для счётчика это «исходное положение»).
+      code: 'plank_low',
+      message: 'Не ложись — держи корпус на прямых руках или на предплечьях',
+      joints: [LM.leftShoulder, LM.rightShoulder],
+      arrow: 'up',
+      severity: 'bad',
+      phases: ['start'],
+      priority: 1,
+      penalty: 20,
     },
   ],
   burpee: [

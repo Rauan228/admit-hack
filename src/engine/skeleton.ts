@@ -497,8 +497,8 @@ export function floorFrame(p: FloorParams, t: number, noise: () => number = () =
   };
   const down = Math.max(0, p.down);
   const halfShoulder = 0.11 * H;
-  // Плечи: на прямых руках — на высоте руки, внизу — на высоте предплечья; планка на локтях — плечо над локтем.
-  const shY = p.forearms ? floorY - 0.17 * H : floorY - (0.33 - 0.18 * down) * H;
+  // Плечи: на прямых руках — на высоте руки, внизу — на высоте предплечья.
+  const shY = floorY - (0.33 - 0.18 * down) * H;
   // Угол в локте на картинке: 175° на прямых руках → 110° внизу.
   const elbowDeg = Math.max(60, 175 - 65 * down);
   for (const side of [1, -1] as const) {
@@ -513,8 +513,10 @@ export function floorFrame(p: FloorParams, t: number, noise: () => number = () =
     let elbow: { x: number; y: number };
     let wrist: { x: number; y: number };
     if (p.forearms) {
-      elbow = { x: shoulder.x, y: floorY - 0.01 * H };
-      wrist = { x: cx + side * 0.05 * H, y: floorY + 0.04 * H };
+      // Как на записях: локоть под плечом чуть наружу, кисти сведены далеко впереди (ближе к камере — ниже
+      // в кадре: на 1,6–1,9 ширины плеч ниже плеч), угол в локте на картинке ~100–115°.
+      elbow = { x: cx + side * 0.18 * H, y: floorY - 0.1 * H };
+      wrist = { x: cx + side * 0.01 * H, y: floorY + 0.04 * H };
     } else {
       wrist = { x: cx + side * 0.14 * H, y: floorY - 0.01 * H };
       // Равные плечо и предплечье на картинке: длина из угла в локте, локоть — наружу.
