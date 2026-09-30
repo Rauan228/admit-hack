@@ -65,6 +65,13 @@ describe('наклоны в стороны', () => {
     clean(bends(28), 'side_bend', 8);
     clean(bends(28, {}, 15), 'side_bend', 8);
   });
+  it('маятником (влево — сразу вправо, у вертикали не задерживается) — каждый наклон отдельно, и на 15 FPS', () => {
+    // В «прямо» (меньше 6°) человек проводит ~115 мс — меньше, чем счётчик ждёт подтверждения возврата.
+    const swing = (fps: number) =>
+      track(4, 2000, (k) => ({ sideTilt: 35 * Math.sin(2 * Math.PI * k) }), { fps });
+    clean(swing(30), 'side_bend', 8);
+    clean(swing(15), 'side_bend', 8);
+  });
   it('наклон на 17° — «наклонись ниже»', () => {
     const res = runSession(bends(17), def('side_bend'));
     expect(res.reps).toHaveLength(8);

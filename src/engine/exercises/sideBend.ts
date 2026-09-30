@@ -8,7 +8,7 @@ import { ENGINE_CONFIG, type Widen } from '../config';
 import { dist2, pt, type PoseFrame } from '../geometry';
 import { LM } from '../hints';
 import type { RuleDef } from '../rules';
-import type { Side } from '../types';
+import type { Phase, Side } from '../types';
 import { seen, sideTiltDeg, trunk } from './common';
 import { leanBackDeg } from './highKnees';
 import type { BaseMetrics, ExerciseDef, ExerciseMeter } from './types';
@@ -26,9 +26,12 @@ export interface SideBendMetrics extends BaseMetrics {
 }
 
 class SideBendMeter implements ExerciseMeter<SideBendMetrics> {
+  /** В какую сторону идёт текущий наклон (null — стоим прямо). */
+  private bendSide: Side | null = null;
+
   constructor(private readonly cfg: SideBendConfig) {}
 
-  measure(frame: PoseFrame): SideBendMetrics | null {
+  measure(frame: PoseFrame, phase: Phase): SideBendMetrics | null {
     const t = trunk(frame);
     if (!t) return null;
     const tilt = sideTiltDeg(t);
@@ -43,8 +46,17 @@ class SideBendMeter implements ExerciseMeter<SideBendMetrics> {
       // + — таз уехал туда же, куда наклон (человек валится всем телом, а не гнётся в боку).
       if (hipWidth > 0) hipShift = ((t.hip.x - feet) / hipWidth) * (side === 'left' ? 1 : -1);
     }
+    const progress = Math.abs(tilt) / this.cfg.goodTiltDeg;
+    const { startMax, downMin } = this.cfg.fsm;
+    if (phase === 'start') this.bendSide = null;
+    else if (this.bendSide === null && progress >= startMax) this.bendSide = side;
+    // Наклоны «маятником» (влево — сразу вправо) проходят вертикаль за доли секунды: в «прямо» человек
+    // не задерживается, и счётчик склеивал два наклона в один. Смена стороны у вертикали и есть возврат.
+    // Большой наклон в другую сторону за кадр — сбой модели, а не проход через вертикаль.
+    const returned = phase === 'up' && this.bendSide !== null && side !== this.bendSide && progress < downMin;
     return {
-      progress: Math.abs(tilt) / this.cfg.goodTiltDeg,
+      progress,
+      returned,
       tilt,
       side,
       forward: back === null ? null : -back,
@@ -52,7 +64,9 @@ class SideBendMeter implements ExerciseMeter<SideBendMetrics> {
     };
   }
 
-  reset(): void {}
+  reset(): void {
+    this.bendSide = null;
+  }
 }
 
 export function sideBendRules(
