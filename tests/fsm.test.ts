@@ -139,6 +139,12 @@ describe('счётчик повторений', () => {
     expect(kinds([...gap, ...g.update(0.05, 15 * 67 + 400)], 'rep')).toHaveLength(0);
   });
 
+  it('подход начался посреди движения (первый же кадр в амплитуде) — повтор досчитывается, а не сбрасывается по таймауту', () => {
+    const ev = feed([0.6, 0.8, 1.0, 1.2, ...ramp(1.2, 0, 20), 0, 0, 0]);
+    expect(kinds(ev, 'timeout')).toHaveLength(0);
+    expect(kinds(ev, 'rep')).toHaveLength(1);
+  });
+
   it('NaN игнорируется', () => {
     const c = new RepCounter(TH);
     expect(c.update(NaN, 0)).toEqual([]);
