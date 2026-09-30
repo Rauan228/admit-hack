@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Phase, Severity, Side } from '../../engine/types';
 import { numberWord, say } from '../audio/voice';
 import { sfx } from '../audio/sfx';
+import { HoldGauge } from '../components/HoldGauge';
 import { Icon } from '../components/Icon';
 import { restartEngineMode, useEngineEvents } from '../engine/bus';
 import { clearFormError, flashRep, showFormError } from '../engine/overlay';
@@ -24,6 +25,11 @@ const PHASES: { id: Phase; label: string }[] = [
 
 const HINT_MS = 3400;
 const PRAISE_MS = 1300;
+/**
+ * Первые секунды подхода «обе руки вверх» не заканчивают его: человек только что поднял руки на интро,
+ * чтобы начать, и ещё опускает их. Движок сам перевзводит жест только после опускания рук, это — страховка.
+ */
+const HANDS_UP_GRACE_MS = 2000;
 
 interface Hint {
   id: number;
@@ -62,6 +68,10 @@ export function Workout({
   const acc = useRef(new SetAccumulator());
   const finished = useRef(false);
   const hintId = useRef(0);
+  /** Момент старта подхода (ставится в эффекте ниже); до него любой жест — «рано». */
+  const startedAt = useRef(Infinity);
+  /** Удержание «обе руки вверх» 0…1 — крупный индикатор, что подход сейчас закончится. */
+  const [hold, setHold] = useState(0);
 
   const finish = (result: SetResult) => {
     if (finished.current) return;
@@ -80,6 +90,7 @@ export function Workout({
   useEffect(() => {
     restartEngineMode({ exercise: item.exercise, targetReps: item.target });
     const t0 = performance.now();
+    startedAt.current = t0;
     const id = setInterval(() => setElapsed((performance.now() - t0) / 1000), 250);
     return () => clearInterval(id);
   }, [item.exercise, item.target]);
@@ -163,8 +174,18 @@ export function Workout({
           say(e.hint, 'hint');
         }
         break;
+      case 'gesture_hold':
+        if (meta.handsUpToFinish && performance.now() - startedAt.current >= HANDS_UP_GRACE_MS)
+          setHold(e.progress);
+        break;
       case 'gesture':
-        if (e.name === 'both_hands_up' && meta.handsUpToFinish) finishEarly();
+        setHold(0);
+        if (
+          e.name === 'both_hands_up' &&
+          meta.handsUpToFinish &&
+          performance.now() - startedAt.current >= HANDS_UP_GRACE_MS
+        )
+          finishEarly();
         break;
     }
   });
@@ -305,6 +326,10 @@ export function Workout({
           </p>
         )}
       </section>
+
+      {meta.handsUpToFinish && (
+        <HoldGauge progress={hold} title="Закончить подход" hint="Держи руки вверху — подход завершится" />
+      )}
 
       {paused && (
         <div className="pause" role="alert">

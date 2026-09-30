@@ -6,9 +6,15 @@
 // правую руку — курсор уходит вправо, как в зеркале. Сглаживание двойное: точки уже прошли
 // One Euro, курсор проходит ещё один фильтр в координатах экрана.
 //
-// «Обе руки вверх»: запястья выше головы 0,8 с подряд. Срабатывает один раз; следующий жест —
-// только после того, как руки опустились. Пока жест держится, курсор отпущен (pointer_lost),
-// чтобы он не скакал по кнопкам.
+// «Обе руки вверх»: запястья выше головы 1,2 с подряд (config.gestures.bothHandsHoldMs). Пока
+// руки держатся, каждый кадр идёт gesture_hold с прогрессом 0…1 — для индикатора «держи». Срабатывает
+// один раз; следующий жест — только после того, как руки опустились. Пока жест держится, курсор
+// отпущен (pointer_lost), чтобы он не скакал по кнопкам.
+//
+// Запястье не видно (на телефоне руки над головой часто выходят за верх кадра) — судим по локтю:
+// локоть выше линии головы — рука вверху, локоть ниже плеча — опущена. Невидимое запястье само по себе
+// «опущенным» не считается: раньше из-за этого жест перевзводился прямо над головой и досрочно
+// заканчивал только что начатый подход.
 
 import { ENGINE_CONFIG, type Widen } from './config';
 import { OneEuroFilter } from './filter';
@@ -16,7 +22,10 @@ import { clamp, isVisible, mirrorX, torsoLength, type PoseFrame } from './geomet
 import { LM } from './hints';
 import type { EngineEvent } from './types';
 
-export type GestureEvent = Extract<EngineEvent, { type: 'pointer' | 'pointer_lost' | 'gesture' }>;
+export type GestureEvent = Extract<
+  EngineEvent,
+  { type: 'pointer' | 'pointer_lost' | 'gesture' | 'gesture_hold' }
+>;
 export type Hand = 'left' | 'right';
 
 export interface GestureOptions {
@@ -28,10 +37,12 @@ export interface GestureOptions {
 
 type GestureConfig = Widen<typeof ENGINE_CONFIG.gestures>;
 
-const SIDES: Record<Hand, { wrist: number; shoulder: number }> = {
-  left: { wrist: LM.leftWrist, shoulder: LM.leftShoulder },
-  right: { wrist: LM.rightWrist, shoulder: LM.rightShoulder },
+const SIDES: Record<Hand, { wrist: number; elbow: number; shoulder: number }> = {
+  left: { wrist: LM.leftWrist, elbow: LM.leftElbow, shoulder: LM.leftShoulder },
+  right: { wrist: LM.rightWrist, elbow: LM.rightElbow, shoulder: LM.rightShoulder },
 };
+
+const HANDS: readonly Hand[] = ['left', 'right'];
 
 interface ScreenPoint {
   x: number;
@@ -77,6 +88,8 @@ export class GestureTracker {
   private bothSince: number | null = null;
   private bothLastSeen = -Infinity;
   private armed = true;
+  /** Прогресс удержания уже показан (после сброса шлём один gesture_hold с 0). */
+  private holdShown = false;
 
   constructor(private readonly cfg: GestureConfig = ENGINE_CONFIG.gestures) {
     this.fx = new OneEuroFilter(cfg.pointerFilter);
@@ -124,6 +137,7 @@ export class GestureTracker {
     this.fy.reset();
     this.bothSince = null;
     this.armed = false;
+    this.holdShown = false;
   }
 
   private releasePointer(events: GestureEvent[]): void {
@@ -154,21 +168,20 @@ export class GestureTracker {
 
   private handsAboveHead(frame: PoseFrame): boolean {
     const torso = torsoLength(frame);
-    const lw = frame.image[LM.leftWrist];
-    const rw = frame.image[LM.rightWrist];
-    if (
-      !(torso > 0) ||
-      !isVisible(lw, this.cfg.minVisibility, 0.1) ||
-      !isVisible(rw, this.cfg.minVisibility, 0.1)
-    ) {
-      return false;
-    }
+    if (!(torso > 0)) return false;
     // Если нос не виден (руки закрыли лицо), считаем голову на корпус выше плеч.
     const nose = frame.image[LM.nose];
     const shoulderY = ((frame.image[LM.leftShoulder]?.y ?? 0) + (frame.image[LM.rightShoulder]?.y ?? 0)) / 2;
     const headY = nose && nose.v >= this.cfg.minVisibility ? nose.y : shoulderY - 0.45 * torso;
     const line = headY - this.cfg.handsAboveNose * torso;
-    return lw.y < line && rw.y < line;
+    // Запястье видно — по нему; ушло за край кадра — по локтю (выше головы бывает только у поднятой руки).
+    const up = (hand: Hand): boolean => {
+      const w = frame.image[SIDES[hand].wrist];
+      if (isVisible(w, this.cfg.minVisibility, 0.1)) return w.y < line;
+      const e = frame.image[SIDES[hand].elbow];
+      return isVisible(e, this.cfg.minVisibility, 0.1) && e.y < line;
+    };
+    return HANDS.every(up);
   }
 
   private trackBothHands(
@@ -180,31 +193,52 @@ export class GestureTracker {
   ): void {
     if (!enabled) {
       this.bothSince = null;
+      this.endHold(events);
       return;
     }
     if (bothUp) {
       if (this.bothSince === null || tMs - this.bothLastSeen > this.cfg.bothHandsGapMs) this.bothSince = tMs;
       this.bothLastSeen = tMs;
-      if (this.armed && tMs - this.bothSince >= this.cfg.bothHandsHoldMs) {
+      if (!this.armed) return;
+      const progress = Math.min(1, (tMs - this.bothSince) / this.cfg.bothHandsHoldMs);
+      this.holdShown = true;
+      events.push({ type: 'gesture_hold', name: 'both_hands_up', progress: round3(progress) });
+      if (progress >= 1) {
         this.armed = false;
+        this.holdShown = false;
         events.push({ type: 'gesture', name: 'both_hands_up' });
       }
       return;
     }
-    if (tMs - this.bothLastSeen > this.cfg.bothHandsGapMs) this.bothSince = null;
+    if (tMs - this.bothLastSeen > this.cfg.bothHandsGapMs) {
+      this.bothSince = null;
+      this.endHold(events);
+    }
     // Перевзвод: обе руки опущены ниже плеч.
     if (!this.armed && frame && this.handsBelowShoulders(frame)) this.armed = true;
   }
 
+  /** Удержание сорвалось (руки опустились раньше времени или жест выключили) — индикатору сказать «0». */
+  private endHold(events: GestureEvent[]): void {
+    if (!this.holdShown) return;
+    this.holdShown = false;
+    events.push({ type: 'gesture_hold', name: 'both_hands_up', progress: 0 });
+  }
+
   private handsBelowShoulders(frame: PoseFrame): boolean {
     const torso = torsoLength(frame);
-    const below = (hand: Hand) => {
-      const w = frame.image[SIDES[hand].wrist];
+    const below = (hand: Hand): boolean => {
       const s = frame.image[SIDES[hand].shoulder];
-      // Невидимое запястье (опущено за край кадра или закрыто телом) тоже считаем опущенным.
-      return !w || !s || w.v < this.cfg.minVisibility || w.y > s.y + this.cfg.rearmBelowShoulder * torso;
+      if (!s) return false;
+      const line = s.y + this.cfg.rearmBelowShoulder * torso;
+      const w = frame.image[SIDES[hand].wrist];
+      if (isVisible(w, this.cfg.minVisibility, 0.1)) return w.y > line;
+      // Запястье не видно: кисть за нижним краем кадра или за телом — локоть ниже плеча; над головой за
+      // верхним краем — локоть выше. Не видно и локтя — рука неизвестно где, не опущена.
+      const e = frame.image[SIDES[hand].elbow];
+      return isVisible(e, this.cfg.minVisibility, 0.1) && e.y > line;
     };
-    return below('left') && below('right');
+    return HANDS.every(below);
   }
 }
 

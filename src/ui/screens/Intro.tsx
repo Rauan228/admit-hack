@@ -12,6 +12,7 @@ import { say } from '../audio/voice';
 import { sfx } from '../audio/sfx';
 import { DwellButton } from '../components/dwell';
 import { Ghost } from '../components/Ghost';
+import { HoldGauge } from '../components/HoldGauge';
 import { Icon } from '../components/Icon';
 import { useEngineEvents } from '../engine/bus';
 import { MUSCLE_NAMES } from '../lib/athlete';
@@ -77,8 +78,12 @@ export function Intro({
     return () => clearTimeout(timer);
   }, [index, meta, start, launch]);
 
+  /** Удержание жеста 0…1 — крупный индикатор «держи», чтобы человек видел, что старт принят. */
+  const [hold, setHold] = useState(0);
   useEngineEvents((e) => {
-    if (start === 'gesture' && e.type === 'gesture' && e.name === 'both_hands_up') launch();
+    if (start !== 'gesture') return;
+    if (e.type === 'gesture_hold') setHold(e.progress);
+    else if (e.type === 'gesture' && e.name === 'both_hands_up') launch();
   });
 
   const goal = plan.timeLimitSec
@@ -166,6 +171,13 @@ export function Intro({
         </section>
       </div>
 
+      {!going && (
+        <HoldGauge
+          progress={hold}
+          title={`Начинаем: ${meta.title}`}
+          hint="Держи руки вверху — старт, когда полоса заполнится"
+        />
+      )}
       {going && (
         <div className="intro__count intro__count--go" aria-live="assertive">
           <svg viewBox="0 0 100 100" className="intro__count-ring" aria-hidden="true">

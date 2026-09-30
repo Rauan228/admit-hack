@@ -147,15 +147,78 @@ describe('курсор-рука', () => {
 describe('обе руки вверх', () => {
   const up = frameOf(BOTH_HANDS_UP);
   const down = frameOf({});
+  /** Руки над головой, но запястья вышли из кадра (телефон, человек близко): видны только локти. */
+  const upWristsHidden = frameOf(BOTH_HANDS_UP, 0, (p) => {
+    p[LM.leftWrist]!.v = 0;
+    p[LM.rightWrist]!.v = 0;
+  });
+  const holds = (evs: GestureEvent[]) =>
+    evs.filter((e): e is Extract<GestureEvent, { type: 'gesture_hold' }> => e.type === 'gesture_hold');
 
-  it('0,8 с удержания — один жест', () => {
-    const evs = run(new GestureTracker(), repeat(up, 30));
+  it('1,2 с удержания — один жест', () => {
+    const evs = run(new GestureTracker(), repeat(up, 45));
     expect(evs.filter((e) => e.type === 'gesture')).toEqual([{ type: 'gesture', name: 'both_hands_up' }]);
   });
 
-  it('короче 0,8 с — жеста нет', () => {
-    const evs = run(new GestureTracker(), [...repeat(up, 20), ...repeat(down, 10)]);
+  it('короче 1,2 с — жеста нет', () => {
+    const evs = run(new GestureTracker(), [...repeat(up, 30), ...repeat(down, 10)]);
     expect(evs.some((e) => e.type === 'gesture')).toBe(false);
+  });
+
+  it('пока руки подняты, идёт прогресс удержания 0…1, и он доходит до 1 перед самим жестом', () => {
+    const evs = run(new GestureTracker(), repeat(up, 45));
+    const p = holds(evs).map((e) => e.progress);
+    expect(p.length).toBeGreaterThan(10);
+    expect(p[0]).toBeLessThan(0.1);
+    for (let i = 1; i < p.length; i++) expect(p[i]).toBeGreaterThanOrEqual(p[i - 1]!);
+    const gestureAt = evs.findIndex((e) => e.type === 'gesture');
+    const lastHold = evs
+      .slice(0, gestureAt)
+      .filter((e) => e.type === 'gesture_hold')
+      .at(-1);
+    expect(lastHold).toEqual({ type: 'gesture_hold', name: 'both_hands_up', progress: 1 });
+    // После жеста прогресс больше не шлём — руки всё ещё вверху, но жест уже сработал.
+    expect(evs.slice(gestureAt + 1).some((e) => e.type === 'gesture_hold')).toBe(false);
+  });
+
+  it('опустил руки раньше времени — прогресс сбрасывается в 0 один раз', () => {
+    const evs = run(new GestureTracker(), [...repeat(up, 15), ...repeat(down, 20)]);
+    const p = holds(evs).map((e) => e.progress);
+    expect(p.at(-1)).toBe(0);
+    // Первый кадр удержания — тоже 0 (старт); после роста ноль-сброс приходит ровно один раз.
+    let lastPositive = -1;
+    p.forEach((x, i) => {
+      if (x > 0) lastPositive = i;
+    });
+    expect(lastPositive).toBeGreaterThan(0);
+    expect(p.slice(lastPositive + 1)).toEqual([0]);
+    expect(evs.some((e) => e.type === 'gesture')).toBe(false);
+  });
+
+  it('запястья над головой ушли из кадра — по локтям это всё ещё «руки вверх»', () => {
+    const evs = run(new GestureTracker(), repeat(upWristsHidden, 45));
+    expect(evs.filter((e) => e.type === 'gesture')).toHaveLength(1);
+  });
+
+  it('после reset() запястья над головой пропали из кадра — это НЕ «руки опущены», жест не перевзводится', () => {
+    // Телефон: руки над головой, запястья выше кадра. Раньше невидимое запястье считалось опущенным,
+    // жест взводился заново и через удержание заканчивал только что начатый подход.
+    const tracker = new GestureTracker();
+    run(tracker, repeat(up, 45));
+    tracker.reset();
+    const evs = run(tracker, [...repeat(upWristsHidden, 20), ...repeat(up, 60)], ON, 3000);
+    expect(evs.some((e) => e.type === 'gesture')).toBe(false);
+  });
+
+  it('запястья не видны, но локти ниже плеч (руки висят, кисти за кадром) — это «опущены», жест взводится', () => {
+    const downWristsHidden = frameOf({}, 0, (p) => {
+      p[LM.leftWrist]!.v = 0;
+      p[LM.rightWrist]!.v = 0;
+    });
+    const tracker = new GestureTracker();
+    tracker.reset();
+    const evs = run(tracker, [...repeat(downWristsHidden, 10), ...repeat(up, 45)]);
+    expect(evs.filter((e) => e.type === 'gesture')).toHaveLength(1);
   });
 
   it('держит руки 3 с — жест всё равно один', () => {
@@ -164,12 +227,12 @@ describe('обе руки вверх', () => {
   });
 
   it('опустил и поднял снова — второй жест', () => {
-    const evs = run(new GestureTracker(), [...repeat(up, 30), ...repeat(down, 10), ...repeat(up, 30)]);
+    const evs = run(new GestureTracker(), [...repeat(up, 45), ...repeat(down, 10), ...repeat(up, 45)]);
     expect(evs.filter((e) => e.type === 'gesture')).toHaveLength(2);
   });
 
   it('короткий провал детекции внутри удержания прощается', () => {
-    const evs = run(new GestureTracker(), [...repeat(up, 15), null, null, ...repeat(up, 15)]);
+    const evs = run(new GestureTracker(), [...repeat(up, 25), null, null, ...repeat(up, 25)]);
     expect(evs.filter((e) => e.type === 'gesture')).toHaveLength(1);
   });
 
@@ -180,7 +243,7 @@ describe('обе руки вверх', () => {
 
   it('пока руки над головой, курсор отпущен: перед жестом приходит pointer_lost', () => {
     const tracker = new GestureTracker();
-    const evs = run(tracker, [...repeat(frameOf({ armR: 100 }), 10), ...repeat(up, 30)]);
+    const evs = run(tracker, [...repeat(frameOf({ armR: 100 }), 10), ...repeat(up, 45)]);
     const lostAt = evs.findIndex((e) => e.type === 'pointer_lost');
     const gestureAt = evs.findIndex((e) => e.type === 'gesture');
     expect(lostAt).toBeGreaterThanOrEqual(0);
@@ -194,14 +257,14 @@ describe('обе руки вверх', () => {
     tracker.reset();
     const still = run(tracker, repeat(up, 60), ON, 2000);
     expect(still.some((e) => e.type === 'gesture')).toBe(false);
-    const again = run(tracker, [...repeat(down, 10), ...repeat(up, 30)], ON, 5000);
+    const again = run(tracker, [...repeat(down, 10), ...repeat(up, 45)], ON, 5000);
     expect(again.filter((e) => e.type === 'gesture')).toHaveLength(1);
   });
 
   it('после reset() с опущенными руками жест работает как обычно', () => {
     const tracker = new GestureTracker();
     tracker.reset();
-    const evs = run(tracker, [...repeat(down, 5), ...repeat(up, 30)]);
+    const evs = run(tracker, [...repeat(down, 5), ...repeat(up, 45)]);
     expect(evs.filter((e) => e.type === 'gesture')).toHaveLength(1);
   });
 
