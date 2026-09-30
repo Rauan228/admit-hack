@@ -187,6 +187,24 @@ describe('обе руки вверх', () => {
     expect(gestureAt).toBeGreaterThan(lostAt);
   });
 
+  it('после reset() (смена режима) руки, поднятые ещё до него, жест не дают — только после опускания', () => {
+    // Интро → подход: человек поднял руки, чтобы начать, и ещё держит их — подход не должен закончиться досрочно.
+    const tracker = new GestureTracker();
+    run(tracker, repeat(up, 30));
+    tracker.reset();
+    const still = run(tracker, repeat(up, 60), ON, 2000);
+    expect(still.some((e) => e.type === 'gesture')).toBe(false);
+    const again = run(tracker, [...repeat(down, 10), ...repeat(up, 30)], ON, 5000);
+    expect(again.filter((e) => e.type === 'gesture')).toHaveLength(1);
+  });
+
+  it('после reset() с опущенными руками жест работает как обычно', () => {
+    const tracker = new GestureTracker();
+    tracker.reset();
+    const evs = run(tracker, [...repeat(down, 5), ...repeat(up, 30)]);
+    expect(evs.filter((e) => e.type === 'gesture')).toHaveLength(1);
+  });
+
   it('одна рука вверху — это курсор, а не жест', () => {
     const evs = run(new GestureTracker(), repeat(frameOf({ armR: 170 }), 40));
     expect(evs.some((e) => e.type === 'gesture')).toBe(false);

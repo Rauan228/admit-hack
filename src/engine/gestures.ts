@@ -111,6 +111,11 @@ export class GestureTracker {
     return events;
   }
 
+  /**
+   * Смена режима движка. Жест не взведён, пока руки не опустятся ниже плеч: иначе руки, поднятые
+   * ещё в интро («готов — начали»), через 0,8 с закончили бы подход досрочно. Опущенные руки
+   * взводят его на первом же кадре, так что в обычном случае задержки нет.
+   */
   reset(): void {
     this.active = null;
     this.pointerShown = false;
@@ -118,7 +123,7 @@ export class GestureTracker {
     this.fx.reset();
     this.fy.reset();
     this.bothSince = null;
-    this.armed = true;
+    this.armed = false;
   }
 
   private releasePointer(events: GestureEvent[]): void {
