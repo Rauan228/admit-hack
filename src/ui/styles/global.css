@@ -297,6 +297,28 @@ button {
   opacity: 0.55;
 }
 
+/* Телефон: вкладки не переносятся, а листаются пальцем вбок. Ряд ограничен шириной экрана — иначе он
+   растягивался по содержимому, обрезался родителем и прокрутки не было. */
+@media (max-width: 760px) {
+  .pills {
+    display: flex;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pills > * {
+    flex: none;
+  }
+}
+
 .stack {
   display: flex;
   flex-direction: column;

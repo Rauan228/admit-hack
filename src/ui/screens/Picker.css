@@ -161,11 +161,7 @@
   }
 
   .picker__tabs {
-    flex-wrap: nowrap;
-    margin: 0 calc(-1 * var(--pad)) var(--s-4);
-    padding: 0 var(--pad);
-    overflow-x: auto;
-    scrollbar-width: none;
+    margin-bottom: var(--s-4);
   }
 
   .picker__tabs::-webkit-scrollbar {
