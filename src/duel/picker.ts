@@ -1,12 +1,14 @@
 // E-29: выбор дуэли на вступлении — упражнение, время боя и бот-соперник. Выбор общий для всех режимов:
 // бой с ботом, онлайн-дуэль (комната создаётся с этим упражнением и временем) и вызов другу после боя.
 // Последний выбор помним в localStorage — вернулся на страницу, а там твоё упражнение.
+// Арена: упражнение — карусель с 3D-атлетом (стрелки и полоса превью), время — три разряда.
 
 import { ARENA_FORMATS } from '../shared/arena';
 import { DEFAULT_DUEL_EXERCISE, DUEL_EXERCISE_IDS, isDuelExercise, type DuelExercise } from '../shared/duel';
 import { ROOM_DURATIONS } from '../shared/duelRoom';
 import { BOTS, botTotal, findBot, type Bot } from './bot';
-import { cameraTip, exerciseTitle, formatName, groupLabel, whereLabel } from './labels';
+import { mountGhost, type GhostMount } from './ghost';
+import { cameraTip, exerciseTitle, formatName, isFloor, whereLabel } from './labels';
 
 export interface Pick {
   exercise: DuelExercise;
@@ -20,7 +22,11 @@ const DEFAULT_MS = 60_000;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const el = {
   grid: $<HTMLDivElement>('ex-grid'),
-  where: $<HTMLSpanElement>('ex-where'),
+  where: $<HTMLElement>('ex-where'),
+  name: $<HTMLElement>('ex-name'),
+  stage: $<HTMLDivElement>('ex-stage'),
+  prev: $<HTMLButtonElement>('ex-prev'),
+  next: $<HTMLButtonElement>('ex-next'),
   dur: $<HTMLDivElement>('dur-pick'),
   bots: $<HTMLDivElement>('bots'),
   sumEx: $<HTMLElement>('sum-ex'),
@@ -30,6 +36,14 @@ const el = {
 
 const pick: Pick = { exercise: DEFAULT_DUEL_EXERCISE, durationMs: DEFAULT_MS, bot: findBot(null) };
 let changed: () => void = () => undefined;
+let hero: GhostMount | null = null;
+/** Поза превью: середина движения, где упражнение узнаётся с первого взгляда. */
+const THUMB_PHASE: Partial<Record<DuelExercise, number>> = {
+  push_up: 0.5,
+  squat: 0.5,
+  lunge: 0.5,
+  burpee: 0.35,
+};
 
 export function picked(): Readonly<Pick> {
   return pick;
@@ -53,11 +67,19 @@ export function initPicker(params: URLSearchParams, onChange: () => void): void 
   pick.bot = findBot(params.get('bot') ?? (typeof saved.bot === 'string' ? saved.bot : null));
 
   for (const id of DUEL_EXERCISE_IDS) {
-    const b = option('ex', () => set({ exercise: id }));
+    const b = option('thumb', () => set({ exercise: id }));
     b.dataset.value = id;
-    b.append(span('ex__title', exerciseTitle(id)), span('ex__where', groupLabel(id)));
+    b.setAttribute('aria-label', exerciseTitle(id));
+    b.title = exerciseTitle(id);
+    const art = span('thumb__art', '');
+    art.setAttribute('aria-hidden', 'true');
+    b.append(art);
     el.grid.append(b);
+    mountGhost(art, { exercise: id, still: true, phase: THUMB_PHASE[id] ?? 0.3, className: 'thumb__ghost' });
   }
+  hero = mountGhost(el.stage, { exercise: pick.exercise, sway: true, className: 'carousel__ghost' });
+  el.prev.addEventListener('click', () => step(-1));
+  el.next.addEventListener('click', () => step(1));
   for (const f of ARENA_FORMATS) {
     const b = option('seg__item seg__item--stack', () => set({ durationMs: f.ms }));
     b.dataset.value = String(f.ms);
@@ -74,6 +96,13 @@ export function initPicker(params: URLSearchParams, onChange: () => void): void 
     el.bots.append(b);
   }
   render();
+}
+
+/** Стрелки карусели: соседнее упражнение по кругу. */
+export function step(by: number): void {
+  const i = DUEL_EXERCISE_IDS.indexOf(pick.exercise);
+  const n = DUEL_EXERCISE_IDS.length;
+  set({ exercise: DUEL_EXERCISE_IDS[(i + by + n) % n]! });
 }
 
 function set(next: Partial<Pick>): void {
@@ -93,6 +122,14 @@ function render(): void {
       `≈ ${botTotal(bot, pick.exercise, pick.durationMs)} за ${formatName(pick.durationMs)}`;
   }
   el.where.textContent = whereLabel(pick.exercise);
+  el.name.textContent = exerciseTitle(pick.exercise);
+  hero?.set({ exercise: pick.exercise });
+  el.stage.classList.toggle('is-floor', isFloor(pick.exercise));
+  // Выбранное превью — в видимой части полосы (саму страницу не прокручиваем).
+  const on = el.grid.querySelector<HTMLElement>('.thumb.is-active');
+  const g = el.grid;
+  if (on && (on.offsetLeft < g.scrollLeft || on.offsetLeft + on.offsetWidth > g.scrollLeft + g.clientWidth))
+    g.scrollLeft = on.offsetLeft - (g.clientWidth - on.offsetWidth) / 2;
   el.sumEx.textContent = exerciseTitle(pick.exercise);
   el.sumMeta.textContent = `${formatName(pick.durationMs)} · против бота «${pick.bot.name}»`;
   el.tip.textContent = cameraTip(pick.exercise);

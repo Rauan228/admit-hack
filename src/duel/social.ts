@@ -43,6 +43,7 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const el = {
   app: $<HTMLElement>('app'),
   account: $<HTMLDivElement>('account'),
+  loginSheet: $<HTMLDialogElement>('login-sheet'),
   inbox: $<HTMLDivElement>('inbox'),
   card: $<HTMLDivElement>('challenge-card'),
   dialog: $<HTMLDialogElement>('invite'),
@@ -73,6 +74,18 @@ let invite: {
 } | null = null;
 /** Номер последнего запроса списка — ответ на устаревший поиск не рисуем. */
 let listSeq = 0;
+/** Сессию уже спросили у сервера (до ответа не знаем, гость это или нет). */
+let known = false;
+
+/** Кто вошёл, его кубки и есть ли API — для карточек арены. */
+export function accountState(): {
+  me: Me | null;
+  standing: ArenaStanding | null;
+  online: boolean;
+  known: boolean;
+} {
+  return { me, standing, online, known };
+}
 
 export async function initSocial(h: Hooks): Promise<void> {
   hooks = h;
@@ -85,6 +98,7 @@ export async function initSocial(h: Hooks): Promise<void> {
   } catch {
     online = false;
   }
+  known = true;
   // Форму входа могли открыть, пока узнавали сессию — не затираем её пустым ответом.
   if (me || !formOpen) renderAccount();
   void refreshInbox();
@@ -125,16 +139,7 @@ function renderAccount(): void {
     who.append(text('b', '', me.nick), rankBlock(standing));
     box.append(avatar, who);
     const out = button('Выйти', 'btn btn--sm btn--ghost');
-    out.addEventListener('click', async () => {
-      await api.logout().catch(() => undefined);
-      me = null;
-      standing = null;
-      formOpen = false;
-      hooks.accountChanged?.('out');
-      renderAccount();
-      el.inbox.replaceChildren();
-      void showLinkChallenge();
-    });
+    out.addEventListener('click', () => void logout());
     el.account.append(box, out);
     return;
   }
@@ -153,12 +158,24 @@ function renderAccount(): void {
   el.account.append(open);
 }
 
-/** Соревнование без аккаунта не стартует — открываем вход прямо в панели. */
+/** Соревнование без аккаунта не стартует — открываем вход в окне поверх арены. */
 export function openLogin(): void {
   if (me || !online) return;
   formOpen = true;
   renderAccount();
-  el.account.scrollIntoView({ block: 'nearest' });
+  if (!el.loginSheet.open) el.loginSheet.showModal();
+  el.account.querySelector('input')?.focus();
+}
+
+export async function logout(): Promise<void> {
+  await api.logout().catch(() => undefined);
+  me = null;
+  standing = null;
+  formOpen = false;
+  hooks.accountChanged?.('out');
+  renderAccount();
+  el.inbox.replaceChildren();
+  void showLinkChallenge();
 }
 
 /** После боя подтянуть кубки, рамку и таблицу. */
@@ -206,6 +223,7 @@ function rankBlock(s: ArenaStanding | null): HTMLElement {
 function onSignedIn(user: Me): void {
   me = user;
   formOpen = false;
+  if (el.loginSheet.open) el.loginSheet.close();
   hooks.accountChanged?.('in');
   renderAccount();
   void refreshRank();

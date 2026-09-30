@@ -1,6 +1,7 @@
 // E-26: онлайн-дуэль на странице — «Онлайн сейчас» и «Позвать», приглашение поверх любого экрана,
 // вход по ссылке #r=<комната>, лобби на экране подготовки («Готов»), итог — от сервера.
 // Время боя назначает сервер; страница только переводит его часы в свои (Live.toLocal).
+// Арена: подбор соперника — «seek» в очередь сервера, пара приходит обычной комнатой (room.matched).
 // Все имена — через textContent: ники и имена гостей приходят от других людей.
 
 import { cupsLabel, type AwardView } from '../shared/arena';
@@ -21,9 +22,26 @@ export interface OnlineHooks {
   /** Бой окончен по серверу (приходит и повторно — если поздний повтор изменил счёт). */
   over(view: RoomView): void;
   /** Кубки этого раунда — после окна поздних повторов. */
-  award(a: AwardView & { round: number }): void;
+  award(a: AwardView & { room: string; round: number }): void;
   /** Вышли из комнаты. */
   leftRoom(): void;
+  /** Любое новое состояние комнаты (экран «Соперник найден» следит за соперником). */
+  room?(view: RoomView): void;
+  /** Поиск соперника: идёт (с какого момента по часам страницы) или снят (null). */
+  seeking?(s: SeekState | null): void;
+  /** Сколько людей на арене и сколько ищут бой. */
+  stats?(): void;
+  /** Сервер отказал (для экрана поиска). */
+  error?(message: string): void;
+}
+
+export interface SeekState {
+  exercise: string;
+  durationMs: number;
+  /** Начало поиска по performance.now() страницы. */
+  since: number;
+  /** Сколько ещё ищут на этой доске. */
+  queue: number;
 }
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -64,6 +82,10 @@ let players: Player[] = [];
 /** Кого уже позвали в эту комнату: ник (нижний регистр) → пришло сразу / ждёт, когда он откроет дуэль. */
 const called = new Map<string, 'online' | 'waiting'>();
 let sending: string | null = null;
+let seekState: SeekState | null = null;
+/** Что просили у сервера: после обрыва связи поиск надо поставить заново. */
+let seekWant: { exercise: string; durationMs: number } | null = null;
+let stats: { online: number; seeking: Record<string, number> } | null = null;
 
 /** Создать комнату с тем, что выбрано на вступлении: упражнение и время боя (E-29, E-30). */
 function createRoom(): void {
@@ -76,7 +98,14 @@ function createRoom(): void {
 
 export function initOnline(h: OnlineHooks): void {
   hooks = h;
-  live = new Live({ message: onMessage, connected: () => renderList() });
+  live = new Live({
+    message: onMessage,
+    connected: (on) => {
+      renderList();
+      // Сервер снимает поиск при обрыве — вернулись в сеть, встаём в очередь снова.
+      if (on && seekWant) live.send({ t: 'seek', ...seekWant });
+    },
+  });
   live.connect();
   el.create.addEventListener('click', () => {
     pendingInvite = null;
@@ -134,6 +163,43 @@ export const onlineDuel = {
   rep: () => live.send({ t: 'rep' }),
   giveUp: () => live.send({ t: 'giveup' }),
   leave: () => live.send({ t: 'leave' }),
+  matched: () => !!view?.matched,
+  view: () => view,
+  /** Встать в очередь подбора (только с аккаунтом — иначе откроется вход). */
+  seek(exercise: string, durationMs: number): boolean {
+    if (meKnown && !me) {
+      openLogin();
+      return false;
+    }
+    // Из лобби прошлой комнаты (реванш, соперник ушёл) — выходим молча: экран поиска уже на месте.
+    if (view) {
+      live.dropRoom();
+      called.clear();
+      view = entered = null;
+      countdownRound = 0;
+      renderLobby();
+    }
+    seekWant = { exercise, durationMs };
+    seekState = { exercise, durationMs, since: performance.now(), queue: 0 };
+    live.send({ t: 'seek', exercise, durationMs });
+    hooks.seeking?.(seekState);
+    return true;
+  },
+  cancelSeek(): void {
+    const was = !!seekWant;
+    seekWant = seekState = null;
+    if (was) live.send({ t: 'cancel_seek' });
+  },
+  seeking: () => seekState,
+  signedIn: () => !!me,
+  accountKnown: () => meKnown,
+  onlineCount: () => stats?.online ?? null,
+  /** Ищут бой: на этой доске и всего. */
+  seekers(exercise: string, durationMs: number): { board: number; total: number } {
+    const all = stats?.seeking ?? {};
+    const total = Object.values(all).reduce((a, b) => a + b, 0);
+    return { board: all[`${exercise}:${durationMs}`] ?? 0, total };
+  },
 };
 
 function onMessage(m: ServerMsg): void {
@@ -153,7 +219,24 @@ function onMessage(m: ServerMsg): void {
       return renderList();
     }
     case 'room':
+      seekWant = seekState = null;
       return onRoom(m.room);
+    case 'seeking':
+      if (!seekWant) return; // отменили, пока ответ шёл
+      seekState = {
+        exercise: m.exercise,
+        durationMs: m.durationMs,
+        // После переподключения сервер начинает отсчёт заново — таймер на экране не сбрасываем.
+        since: Math.min(seekState?.since ?? Infinity, performance.now() - Math.max(0, m.now - m.since)),
+        queue: m.queue,
+      };
+      return hooks.seeking?.(seekState);
+    case 'seek_cancelled':
+      seekWant = seekState = null;
+      return hooks.seeking?.(null);
+    case 'stats':
+      stats = { online: m.online, seeking: m.seeking };
+      return hooks.stats?.();
     case 'invite_sent':
       sending = null;
       called.set(m.nick.toLowerCase(), m.online ? 'online' : 'waiting');
@@ -175,6 +258,11 @@ function onMessage(m: ServerMsg): void {
       el.lobbyOpp.textContent = `${m.by} не может сейчас — позови кого-то ещё или отправь ссылку.`;
       return;
     case 'error':
+      if (seekWant) {
+        seekWant = seekState = null;
+        hooks.seeking?.(null);
+      }
+      hooks.error?.(m.message);
       return showError(m.message);
   }
 }
@@ -196,6 +284,7 @@ function onRoom(r: RoomView): void {
     hooks.countdown(live.toLocal(r.startsAt) - r.countdownMs, r.durationMs, r.countdownMs);
   }
   if (r.phase === 'over') hooks.over(r);
+  hooks.room?.(r);
   renderLobby();
 }
 

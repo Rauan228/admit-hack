@@ -1,10 +1,14 @@
 // E-24: дуэль — отдельная страница /duel.html (без React и без экранов платформы).
 // Ты против бота, записи друга (E-25) или живого соперника онлайн (E-26) — в любом упражнении дуэли (E-29).
-// Экраны: intro → setup (камера, скелет) → countdown → battle → result. Время и счёт — в DuelMatch,
-// здесь только движок, DOM и звук. Для проверок: ?mock=1 (мок-движок), ?bot=machine, ?sec=20, ?ex=squat.
+// Экраны: intro (арена) → setup (камера, скелет) → countdown → battle → result. Подбор соперника:
+// intro → search («Ищем соперника…») → found («Соперник найден!», авто-готовность) → countdown → battle.
+// Время и счёт — в DuelMatch, здесь только движок, DOM и звук.
+// Для проверок: ?mock=1 (мок-движок), ?bot=machine, ?sec=20, ?ex=squat.
 
 import '../ui/styles/global.css';
 import './duel.css';
+import './arena.css';
+
 import { CameraError } from '../engine/camera';
 import { createEngine } from '../engine/createEngine';
 import { prefetchPoseAssetsWhenIdle } from '../engine/pose';
@@ -16,22 +20,45 @@ import { COLORS } from '../ui/theme';
 import { describeAward } from '../shared/arena';
 import type { RoomView } from '../shared/duelRoom';
 import { minGapMs, type DuelExercise } from '../shared/duel';
+import { ROOM_DURATIONS } from '../shared/duelRoom';
 import { botTimeline, botTotal, repsAt } from './bot';
 import { setFace } from './face';
+import { mountGhost, type GhostMount } from './ghost';
+import { initHome, paintStats, pickChanged, recordClean, refreshHome, trophy } from './home';
 import { initLadder } from './ladder';
 import { cameraTip, exerciseTitle, formatName, isFloor, repsWord } from './labels';
 import { DuelMatch, formatClock, type DuelPhase, type DuelSnapshot } from './match';
 import { initOnline, onlineDuel, reconnectOnline } from './online';
-import { initPicker, picked } from './picker';
-import { initSocial, myFace, openInvite, sendAnswer, type RecordedOpponent } from './social';
+import { initPicker, picked, roomDuration } from './picker';
+import {
+  accountState,
+  initSocial,
+  myFace,
+  openInvite,
+  openLogin,
+  sendAnswer,
+  type RecordedOpponent,
+} from './social';
+import { initTour } from './tour';
 
-type Screen = 'intro' | 'setup' | DuelPhase | 'result';
+type Screen = 'intro' | 'search' | 'found' | 'setup' | DuelPhase | 'result';
 
 const COUNTDOWN_MS = 5000;
 /** Потолок подхода для движка: бой держит таймер страницы, а не цель по повторам. */
 const ENGINE_TARGET = 300;
 const HINT_MS = 2500;
 const REP_FLASH_MS = 520;
+/** «Соперник найден!»: через столько сами жмём «Готов». */
+const FOUND_READY_MS = 3000;
+/** Подсказка под «Хорошо! Чистое повторение» — главное в технике упражнения. */
+const CLEAN_CUE: Partial<Record<DuelExercise, string>> = {
+  push_up: 'Держи спину ровно',
+  squat: 'Колени — по линии носков',
+  lunge: 'Корпус держи прямо',
+  burpee: 'Приземляйся мягко',
+  squat_press: 'Руки — до конца вверх',
+  jumping_jack: 'Руки — над головой',
+};
 
 const params = new URLSearchParams(location.search);
 
@@ -50,6 +77,7 @@ const ui = {
   start: $<HTMLButtonElement>('start'),
   countdown: $<HTMLSpanElement>('countdown'),
   countdownText: $<HTMLParagraphElement>('countdown-text'),
+  find: $<HTMLButtonElement>('find'),
   sideMe: $<HTMLDivElement>('side-me'),
   sideOpp: $<HTMLDivElement>('side-opp'),
   scoreMe: $<HTMLSpanElement>('score-me'),
@@ -59,10 +87,17 @@ const ui = {
   oppFace: $<HTMLElement>('opp-face'),
   oppName: $<HTMLSpanElement>('opp-name'),
   clock: $<HTMLSpanElement>('clock'),
-  hudEx: $<HTMLSpanElement>('hud-ex'),
+  hudEx: $<HTMLElement>('hud-ex'),
+  hudMeta: $<HTMLElement>('hud-meta'),
   lead: $<HTMLParagraphElement>('lead'),
-  tugMe: $<HTMLDivElement>('tug-me'),
-  hint: $<HTMLParagraphElement>('hint'),
+  barMe: $<HTMLElement>('bar-me'),
+  barOpp: $<HTMLElement>('bar-opp'),
+  panelMe: $<HTMLElement>('panel-me'),
+  oppCardFace: $<HTMLElement>('opp-card-face'),
+  oppCardNum: $<HTMLElement>('opp-card-num'),
+  hintBox: $<HTMLDivElement>('hint-box'),
+  hint: $<HTMLElement>('hint'),
+  hintSub: $<HTMLElement>('hint-sub'),
   giveUp: $<HTMLButtonElement>('give-up'),
   resultEx: $<HTMLParagraphElement>('result-ex'),
   resultTitle: $<HTMLHeadingElement>('result-title'),
@@ -75,9 +110,19 @@ const ui = {
   resultNote: $<HTMLParagraphElement>('result-note'),
   resultAward: $<HTMLParagraphElement>('result-award'),
   inviteOpen: $<HTMLButtonElement>('invite-open'),
+  seekNew: $<HTMLButtonElement>('seek-new'),
+  searchClock: $<HTMLElement>('search-clock'),
+  searchArc: $<HTMLElement>('search-arc'),
+  searchMeta: $<HTMLElement>('search-meta'),
+  searchNote: $<HTMLElement>('search-note'),
+  foundGo: $<HTMLButtonElement>('found-go'),
+  foundNote: $<HTMLElement>('found-note'),
+  foundEx: $<HTMLElement>('found-ex'),
 };
 $<HTMLAnchorElement>('home').href = import.meta.env.BASE_URL;
 $<HTMLAnchorElement>('menu-link').href = `${import.meta.env.BASE_URL}app`;
+$<HTMLAnchorElement>('nav-train').href = `${import.meta.env.BASE_URL}app`;
+$<HTMLAnchorElement>('nav-rating').href = `${import.meta.env.BASE_URL}app/rating`;
 
 /** Во что идёт текущий бой и сколько он длится — по режиму: бот, запись друга или онлайн-комната. */
 let currentExercise: DuelExercise = 'push_up';
@@ -102,14 +147,24 @@ let seen: boolean | null = null;
 let shown = { me: -1, opp: -1, second: -1, lastTen: false };
 let flashTimer = 0;
 let wakeLock: { release(): Promise<void> } | null = null;
+/** Повторы этого боя: всего и чистых (для «чистых повторов» в карточке рейтинга). */
+let battleReps = { all: 0, clean: 0 };
+/** «Соперник найден»: когда сами нажмём «Готов» (performance.now); 0 — уже нажали или не ждём. */
+let foundAt = 0;
+let foundReady = false;
+let foundGhost: GhostMount | null = null;
+let searchGhosts: GhostMount[] = [];
+let engineLoading = false;
 
 // ——— Выбор упражнения, времени и бота ———
-initPicker(params, () => undefined);
+initPicker(params, () => pickChanged());
 initLadder();
+initHome();
 
 // ——— Вызовы друзьям (E-25) ———
 void initSocial({
   accept(opp) {
+    closeSheets();
     opponent = opp;
     unlockAudio();
     unlockVoice();
@@ -120,36 +175,59 @@ void initSocial({
   accountChanged(why) {
     reconnectOnline(why === 'out');
     paintMe();
+    void refreshHome();
   },
   rankChanged() {
     paintMe();
+    void refreshHome();
   },
-});
+}).then(() => refreshHome());
 
 // ——— Онлайн-дуэль (E-26): время боя и итог — от сервера ———
 /** Итог раунда уже объявлен голосом (объявляем по серверу, а не по своему счёту). */
 let announced = false;
-/** Раунд, для которого уже показали кубки. Повтор комнаты тот же раунд не стирает строку. */
-let awardRound = -1;
+/** Комната и раунд, для которых уже показали кубки («id:раунд»). Повтор комнаты строку не стирает. */
+let awardKey = '';
+const roundKey = (v: RoomView | null) => (v ? `${v.id}:${v.round}` : '');
 initOnline({
   enterRoom() {
     opponent = null;
+    closeSheets();
     void keepScreenOn();
+    // Подбор соперника: сначала «Соперник найден!»; камера уже включается (или включилась) на поиске.
+    const v = onlineDuel.view();
+    if (onlineDuel.matched() && v && (v.phase === 'lobby' || v.phase === 'over')) {
+      showFound();
+      if (!engine && !engineLoading) void startEngine(true);
+      return;
+    }
     if (engine) toSetup();
     else void startEngine();
+  },
+  room: onRoomUpdate,
+  seeking(s) {
+    if (!s && screen === 'search') show('intro');
+  },
+  stats: paintStats,
+  error(message) {
+    if (screen !== 'search' && screen !== 'found') return;
+    show('intro');
+    ui.introError.textContent = message;
+    ui.introError.hidden = false;
   },
   countdown: startOnlineMatch,
   over: onlineResult,
   award(a) {
-    if (!onlineDuel.active() || a.round !== onlineDuel.round()) return;
-    awardRound = a.round;
+    if (!onlineDuel.active() || `${a.room}:${a.round}` !== roundKey(onlineDuel.view())) return;
+    awardKey = `${a.room}:${a.round}`;
     ui.resultAward.textContent = describeAward(a);
     const opp = onlineDuel.opponent();
     paintMe();
     if (opp) paintOpp(opp.name, opp.frame, opp.title);
   },
   leftRoom() {
-    if (screen === 'intro') return;
+    // Ушли из комнаты, чтобы искать нового соперника, — экран поиска уже на месте.
+    if (screen === 'intro' || onlineDuel.seeking()) return;
     match = null;
     engine?.setMode('menu');
     show('intro');
@@ -167,11 +245,32 @@ document.addEventListener(
 
 // ——— Экраны ———
 function show(next: Screen): void {
+  const was = screen;
   screen = next;
   app.dataset.screen = next;
   for (const el of app.querySelectorAll<HTMLElement>('[data-for]')) {
     el.hidden = !el.dataset.for!.split(' ').includes(next);
   }
+  if (next !== 'battle') ui.hintBox.hidden = true;
+  if (next !== 'found') foundAt = 0;
+  // 3D-атлеты поиска и «Соперник найден» не крутятся впустую, пока экран скрыт.
+  if (next !== 'found') {
+    foundGhost?.unmount();
+    foundGhost = null;
+  }
+  if (next !== 'search') {
+    for (const g of searchGhosts) g.unmount();
+    searchGhosts = [];
+  }
+  if (next === 'intro' && was !== 'intro') {
+    void refreshHome();
+    // Вернулись из боя — арена сверху, с выбором упражнения.
+    if (was === 'result' || was === 'setup') document.querySelector('.intro')?.scrollTo(0, 0);
+  }
+}
+
+function closeSheets(): void {
+  for (const d of document.querySelectorAll<HTMLDialogElement>('dialog[open]')) d.close();
 }
 
 /** Что за бой сейчас собираем: упражнение, время и с кем. */
@@ -201,16 +300,139 @@ ui.cameraOn.addEventListener('click', () => {
   unlockAudio();
   unlockVoice();
   void keepScreenOn();
+  closeSheets();
   opponent = null;
   if (engine) return toSetup();
   void startEngine();
 });
 
-async function startEngine(): Promise<void> {
+// ——— Подбор соперника ———
+ui.find.addEventListener('click', () => {
+  unlockAudio();
+  unlockVoice();
+  startSeek(picked().exercise, roomDuration());
+});
+
+/** Встать в очередь и показать «Ищем соперника…»; камера включается, пока ищем. */
+function startSeek(exercise: DuelExercise, durationMs: number, note = ''): void {
+  const { me, known, online } = accountState();
+  if (known && !online) {
+    ui.introError.textContent = 'Подбор соперника работает на основном сайте — здесь только бой с ботом.';
+    ui.introError.hidden = false;
+    return;
+  }
+  if (known && !me) return openLogin();
+  ui.introError.hidden = true;
+  if (!onlineDuel.seek(exercise, durationMs)) return;
+  opponent = null;
+  match = null;
+  engine?.setMode('menu');
+  void keepScreenOn();
+  showSearch(exercise, durationMs, note);
+  if (!engine && !engineLoading) void startEngine(true);
+}
+
+function showSearch(exercise: DuelExercise, durationMs: number, note: string): void {
+  ui.searchMeta.textContent = `${exerciseTitle(exercise)} · ${formatName(durationMs)}`;
+  ui.searchNote.textContent = note;
+  ui.searchNote.dataset.fixed = note ? '1' : '';
+  show('search');
+  // Два силуэта за таймером: тёплый слева, холодный справа — ты и тот, кого ищем.
+  searchGhosts = [
+    mountGhost($('search-ghost-a'), { exercise, still: true, phase: 0.5 }),
+    mountGhost($('search-ghost-b'), { exercise, still: true, phase: 0.5, yaw: -2.4 }),
+  ];
+}
+
+$<HTMLButtonElement>('search-cancel').addEventListener('click', () => {
+  onlineDuel.cancelSeek();
+  show('intro');
+});
+
+/** «Соперник найден!»: двое, упражнение, сами жмём «Готов» через 3 с. */
+function showFound(): void {
+  const v = onlineDuel.view();
+  if (!v) return;
+  foundReady = false;
+  ui.foundGo.disabled = false;
+  ui.foundGo.textContent = `Начать через ${Math.round(FOUND_READY_MS / 1000)}…`;
+  const f = formatName(v.durationMs).split(' · ');
+  ui.foundEx.textContent = `${exerciseTitle(v.exercise)} · ${f[1] ?? f[0]}`;
+  ui.foundNote.textContent = '';
+  show('found');
+  foundAt = performance.now() + FOUND_READY_MS;
+  $('found-ghost').classList.toggle('is-floor', isFloor(v.exercise));
+  foundGhost = mountGhost($('found-ghost'), { exercise: v.exercise });
+  paintFound(v);
+  sfx.tick();
+}
+
+function paintFound(v: RoomView): void {
+  const me = v.players[v.you];
+  const opp = v.players[1 - v.you];
+  const mine = myFace();
+  fighter('found-me', mine.name, mine.frame, mine.title, me?.cups ?? null);
+  if (opp) fighter('found-opp', opp.name, opp.frame, opp.title, opp.cups ?? null);
+  if (foundReady) ui.foundNote.textContent = opp?.ready ? 'Оба готовы — поехали!' : 'Ждём соперника…';
+  else if (opp?.ready) ui.foundNote.textContent = 'Соперник готов';
+}
+
+function fighter(
+  id: string,
+  name: string,
+  frame: string | null,
+  title: string | null,
+  cups: number | null,
+): void {
+  setFace($(`${id}-face`), name, frame, title);
+  $(`${id}-nick`).textContent = name;
+  $(`${id}-title`).textContent = title ?? 'Без титула';
+  const c = $(`${id}-cups`);
+  c.replaceChildren(String(cups ?? 0), trophy());
+  c.setAttribute('aria-label', `Кубков на этой доске: ${cups ?? 0}`);
+}
+
+/** «Готов» с экрана «Соперник найден» — только когда камера уже работает. */
+function foundGoReady(): void {
+  if (foundReady) return;
+  foundAt = 0;
+  if (!engineReady) {
+    ui.foundGo.disabled = true;
+    ui.foundGo.textContent = 'Включаем камеру…';
+    return;
+  }
+  foundReady = true;
+  onlineDuel.ready();
+  ui.foundGo.disabled = true;
+  ui.foundGo.textContent = 'Ждём соперника…';
+  const v = onlineDuel.view();
+  if (v) paintFound(v);
+}
+
+ui.foundGo.addEventListener('click', () => {
+  unlockAudio();
+  unlockVoice();
+  foundGoReady();
+});
+$<HTMLButtonElement>('found-cancel').addEventListener('click', () => onlineDuel.leave());
+
+/** Комната обновилась: на «Соперник найден» следим, не ушёл ли соперник. */
+function onRoomUpdate(v: RoomView): void {
+  if (screen !== 'found' || !v.matched) return;
+  if (v.players.length < 2 && (v.phase === 'lobby' || v.phase === 'over'))
+    return startSeek(v.exercise, v.durationMs, 'Соперник передумал — ищем другого');
+  paintFound(v);
+}
+
+/** quiet — камера включается в фоне (пока ищем соперника), без экрана подготовки. */
+async function startEngine(quiet = false): Promise<void> {
+  engineLoading = true;
   ui.cameraOn.disabled = true;
   ui.introError.hidden = true;
-  toSetup();
-  setStatus('Загружаю модель…', 'wait');
+  if (!quiet) {
+    toSetup();
+    setStatus('Загружаю модель…', 'wait');
+  }
   try {
     engine = await createEngine();
     engine.on(onEvent);
@@ -219,16 +441,22 @@ async function startEngine(): Promise<void> {
     engineReady = true;
     ui.start.disabled = false;
     setStatus('Камера включена — встань так, чтобы тебя было видно.', 'wait');
+    // Ждали камеру на «Соперник найден» — теперь можно «Готов».
+    if (screen === 'found' && !foundReady && !foundAt) foundGoReady();
   } catch (err) {
     // Причину — в консоль: без неё «не удалось запустить» не разобрать (E-27).
     console.error('[duel] движок не запустился', err);
     engine?.stop();
     engine = null;
+    // Без камеры бой не сыграть: снимаем поиск и выходим из найденной комнаты.
+    onlineDuel.cancelSeek();
+    if (onlineDuel.active() && screen === 'found') onlineDuel.leave();
     show('intro');
     ui.introError.textContent =
       err instanceof CameraError ? err.message : 'Не удалось запустить распознавание. Обнови страницу.';
     ui.introError.hidden = false;
   } finally {
+    engineLoading = false;
     ui.cameraOn.disabled = false;
   }
 }
@@ -277,7 +505,7 @@ function onEvent(e: EngineEvent): void {
         else setStatus(e.hint, 'bad');
       }
       // Посреди боя пропал из кадра — повторы не считаются, скажем, как вернуться.
-      else if (screen === 'battle' && e.status !== 'ok') hint(e.hint);
+      else if (screen === 'battle' && e.status !== 'ok') hint(e.hint, 'bad');
       break;
     case 'gesture':
       if (screen === 'setup' && engineReady && !ui.start.disabled) go();
@@ -290,11 +518,18 @@ function onEvent(e: EngineEvent): void {
       if (match?.addRep(performance.now())) {
         sfx.repClean();
         if (onlineDuel.active()) onlineDuel.rep();
+        battleReps.all += 1;
+        if (!e.errors.length) {
+          battleReps.clean += 1;
+          // Ошибку в технике не перебиваем похвалой, пока её видно.
+          if (ui.hintBox.hidden || ui.hintBox.dataset.kind === 'ok')
+            hint('Хорошо! Чистое повторение', 'ok', CLEAN_CUE[currentExercise] ?? 'Держи темп');
+        }
       }
       break;
     case 'form_error':
       if (screen !== 'battle') break;
-      hint(e.message);
+      hint(e.message, 'bad');
       errorJoints = new Set(e.joints);
       break;
     case 'form_ok':
@@ -315,6 +550,7 @@ function paintMe(): void {
 
 function paintOpp(name: string, frame: string | null, title: string | null): void {
   setFace(ui.oppFace, name, frame, title);
+  setFace(ui.oppCardFace, name, frame, title);
   ui.oppName.textContent = name;
   setFace(ui.resultOppFace, name, frame, title);
   ui.resultOppName.textContent = name;
@@ -330,10 +566,13 @@ function prepareBoard(exercise: DuelExercise, durationMs: number, oppName: strin
   paintMe();
   paintOpp(oppName, liveOpp?.frame ?? null, liveOpp?.title ?? null);
   ui.hudEx.textContent = exerciseTitle(exercise);
+  const f = formatName(durationMs).split(' · ');
+  ui.hudMeta.textContent = f.length === 2 ? `${f[1]} · ${f[0]}` : f[0]!;
   ui.countdownText.textContent = `${exerciseTitle(exercise)} — ${isFloor(exercise) ? 'ложись в упор' : 'встань в кадр'}`;
-  ui.hint.textContent = '';
+  ui.hintBox.hidden = true;
   ui.sideMe.classList.remove('is-rep');
   errorJoints = new Set();
+  battleReps = { all: 0, clean: 0 };
 }
 
 /** Бой с ботом или с записью друга. */
@@ -366,6 +605,10 @@ ui.giveUp.addEventListener('click', () => {
   if (onlineDuel.active()) onlineDuel.giveUp();
 });
 $<HTMLButtonElement>('again').addEventListener('click', again);
+ui.seekNew.addEventListener('click', () => {
+  const ms = ROOM_DURATIONS.includes(currentDurationMs) ? currentDurationMs : roomDuration();
+  startSeek(currentExercise, ms);
+});
 
 /** «Старт» с ботом или вызовом; онлайн — «Готов», а старт назначит сервер. */
 function go(): void {
@@ -415,12 +658,16 @@ function onlineResult(v: RoomView): void {
   fillResult(v.exercise, v.durationMs, title, me?.reps ?? 0, opp?.reps ?? 0, opp?.name ?? 'Соперник');
   paintMe();
   paintOpp(opp?.name ?? 'Соперник', opp?.frame ?? null, opp?.title ?? null);
-  if (awardRound !== v.round) ui.resultAward.textContent = '';
+  if (awardKey !== roundKey(v)) ui.resultAward.textContent = '';
   app.dataset.outcome = outcome;
   const gaveUp = me?.gaveUp ? 'me' : opp?.gaveUp ? 'opp' : null;
   ui.resultNote.textContent = noteFor(outcome, me?.reps ?? 0, opp?.reps ?? 0, gaveUp);
   ui.inviteOpen.hidden = true;
-  if (screen !== 'result') show('result');
+  ui.seekNew.hidden = !onlineDuel.signedIn();
+  if (screen !== 'result') {
+    saveClean();
+    show('result');
+  }
   if (!announced) {
     announced = true;
     if (outcome === 'win') sfx.fanfare();
@@ -486,9 +733,11 @@ function showResult(s: DuelSnapshot): void {
   if (onlineDuel.active()) {
     fillResult(currentExercise, currentDurationMs, s.gaveUp ? 'Ты сдался' : 'Время!', s.me, s.opp, oppName);
     ui.resultNote.textContent = 'Считаем итог на сервере…';
-    if (awardRound !== onlineDuel.round()) ui.resultAward.textContent = '';
+    if (awardKey !== roundKey(onlineDuel.view())) ui.resultAward.textContent = '';
     app.dataset.outcome = '';
     ui.inviteOpen.hidden = true;
+    ui.seekNew.hidden = !onlineDuel.signedIn();
+    saveClean();
     show('result');
     return;
   }
@@ -504,6 +753,8 @@ function showResult(s: DuelSnapshot): void {
   app.dataset.outcome = s.outcome ?? '';
   // Звать друга есть смысл с настоящим результатом.
   ui.inviteOpen.hidden = s.gaveUp || s.me === 0;
+  ui.seekNew.hidden = !onlineDuel.signedIn();
+  saveClean();
   if (opponent && match) {
     const opp = opponent;
     const note = ui.resultNote.textContent;
@@ -533,10 +784,12 @@ function frame(): void {
     if (s.phase !== screen) onPhase(s.phase, s);
     render(s);
   }
-  if (screen === 'battle' && now > hintUntil && ui.hint.textContent) {
-    ui.hint.textContent = '';
+  if (screen === 'battle' && now > hintUntil && !ui.hintBox.hidden) {
+    ui.hintBox.hidden = true;
     errorJoints = new Set();
   }
+  if (screen === 'search') renderSearch(now);
+  if (screen === 'found' && foundAt) renderFound(now);
   draw();
 }
 
@@ -553,12 +806,17 @@ function render(s: DuelSnapshot): void {
   }
   if (s.me !== shown.me) {
     ui.scoreMe.textContent = String(s.me);
+    ui.panelMe.textContent = String(s.me);
     if (shown.me >= 0) repFlash();
     shown.me = s.me;
   }
   if (s.opp !== shown.opp) {
     ui.scoreOpp.textContent = String(s.opp);
-    if (shown.opp >= 0) pop(ui.scoreOpp);
+    ui.oppCardNum.textContent = String(s.opp);
+    if (shown.opp >= 0) {
+      pop(ui.scoreOpp);
+      pop(ui.oppCardNum);
+    }
     shown.opp = s.opp;
   }
   const lastTen = s.phase === 'battle' && s.timeLeftMs <= 10_000;
@@ -566,7 +824,10 @@ function render(s: DuelSnapshot): void {
   shown.lastTen = lastTen;
   ui.clock.textContent = formatClock(s.timeLeftMs);
   ui.clock.classList.toggle('is-last', lastTen);
-  ui.tugMe.style.width = `${(s.share * 100).toFixed(1)}%`;
+  // Полосы гонки: лидер — почти до конца, отстающий — в пропорции.
+  const top = Math.max(8, s.me, s.opp) * 1.08;
+  ui.barMe.style.width = `${((s.me / top) * 100).toFixed(1)}%`;
+  ui.barOpp.style.width = `${((s.opp / top) * 100).toFixed(1)}%`;
   const diff = s.me - s.opp;
   const lead = diff > 0 ? 'me' : diff < 0 ? 'opp' : 'even';
   if (ui.lead.dataset.lead !== lead || ui.lead.dataset.diff !== String(diff)) {
@@ -588,9 +849,53 @@ function repFlash(): void {
   flashTimer = window.setTimeout(() => ui.sideMe.classList.remove('is-rep'), REP_FLASH_MS);
 }
 
-function hint(text: string): void {
+/** Карточка внизу боя: зелёная — чистый повтор, красная — ошибка техники или «тебя не видно». */
+function hint(text: string, kind: 'ok' | 'bad', sub = ''): void {
   ui.hint.textContent = text;
-  hintUntil = performance.now() + HINT_MS;
+  ui.hintSub.textContent = sub;
+  ui.hintBox.dataset.kind = kind;
+  ui.hintBox.hidden = false;
+  hintUntil = performance.now() + (kind === 'ok' ? 1400 : HINT_MS);
+}
+
+/** Бой кончился — в копилку «чистых повторов». */
+function saveClean(): void {
+  recordClean(battleReps.all, battleReps.clean);
+  battleReps = { all: 0, clean: 0 };
+}
+
+/** Таймер поиска: время вверх, дуга — доля минуты; подсказка, когда окно по кубкам расширяется. */
+function renderSearch(now: number): void {
+  const s = onlineDuel.seeking();
+  if (!s) return;
+  const sec = Math.max(0, Math.floor((now - s.since) / 1000));
+  const txt = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+  if (ui.searchClock.textContent !== txt) ui.searchClock.textContent = txt;
+  const frac = ((now - s.since) % 60_000) / 60_000;
+  ui.searchArc.style.strokeDashoffset = String(339.3 * (1 - frac));
+  if (ui.searchNote.dataset.fixed === '1' && sec < 4) return;
+  const note =
+    sec >= 20
+      ? 'Ищем любого свободного соперника'
+      : sec >= 10
+        ? 'Расширяем поиск по кубкам'
+        : s.queue > 0
+          ? `Ещё ${s.queue} ${repsLike(s.queue)} бой на этой доске`
+          : '';
+  if (ui.searchNote.textContent !== note) ui.searchNote.textContent = note;
+}
+
+function repsLike(n: number): string {
+  const d = n % 10;
+  const dd = n % 100;
+  return d === 1 && dd !== 11 ? 'игрок ищет' : 'ищут';
+}
+
+function renderFound(now: number): void {
+  const left = Math.ceil((foundAt - now) / 1000);
+  if (left <= 0) return foundGoReady();
+  const txt = `Начать через ${left}…`;
+  if (ui.foundGo.textContent !== txt) ui.foundGo.textContent = txt;
 }
 
 /** Короткая «вспышка» числа: перезапуск CSS-анимации. */
@@ -657,5 +962,8 @@ window.addEventListener('pagehide', () => {
 
 show('intro');
 requestAnimationFrame(frame);
+// Первый визит — короткое обучение прямо на арене (не по ссылке-приглашению и не посреди боя).
+initTour(() => screen === 'intro' && !location.hash);
+
 // E-34: пока выбирают соперника — подкачать модель позы и wasm, «Включить камеру» стартует сразу.
 if (!params.has('mock')) prefetchPoseAssetsWhenIdle();

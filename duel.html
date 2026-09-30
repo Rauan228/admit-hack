@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#09090b" />
     <meta
       name="description"
-      content="FORMA — дуэль: отжимания, приседания, «звёздочка» и ещё 7 упражнений против бота или друга, счёт считает камера."
+      content="FORMA — арена дуэлей: подбор соперника твоего уровня, отжимания, приседания и ещё 8 упражнений. Счёт считает камера."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,7 +15,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap"
     />
-    <title>FORMA — дуэль</title>
+    <title>FORMA — арена дуэлей</title>
   </head>
   <body>
     <main id="app" class="duel" data-screen="intro">
@@ -24,97 +24,211 @@
         <canvas id="overlay"></canvas>
       </div>
 
-      <!-- ——— Вступление: выбор упражнения, времени и соперника ——— -->
-      <section class="intro" data-for="intro">
+      <!-- ——— Арена: выбор упражнения и времени, подбор соперника, рейтинг ——— -->
+      <section class="intro arena" data-for="intro">
         <header class="bar">
           <a class="bar__logo" id="home">FORMA</a>
-          <a class="bar__link" id="menu-link">В меню</a>
+          <nav class="bar__nav" aria-label="Разделы">
+            <a class="bar__tab" id="nav-train">Тренировка</a>
+            <a class="bar__tab is-active" aria-current="page">Дуэли</a>
+            <a class="bar__tab" id="nav-rating">Рейтинг</a>
+          </nav>
+          <div class="bar__end">
+            <button
+              class="icon-btn"
+              id="tour-open"
+              type="button"
+              aria-label="Как это работает"
+              title="Как это работает"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6" />
+                <path d="M12 17h.01" />
+              </svg>
+            </button>
+            <a class="bar__link" id="menu-link">В меню</a>
+          </div>
         </header>
 
-        <div class="intro__inner">
-          <div class="intro__head">
-            <h1 class="intro__title">Дуэль</h1>
-            <p class="intro__lead">
-              Кто больше за время боя. Пуля, блиц и рапид — у каждого разряда свой рейтинг. Повторы считает
-              камера.
-            </p>
-          </div>
+        <div class="arena__inner">
+          <div class="arena__grid">
+            <div class="arena__main">
+              <div class="arena__head">
+                <h1 class="arena__title">Арена дуэлей</h1>
+                <p class="arena__online" id="online-count" aria-live="polite">Подключаемся…</p>
+              </div>
 
-          <div class="callout" id="challenge-card" aria-live="polite" hidden></div>
-          <div class="callout" id="room-card" aria-live="polite" hidden></div>
+              <div class="callout" id="challenge-card" aria-live="polite" hidden></div>
+              <div class="callout" id="room-card" aria-live="polite" hidden></div>
 
-          <div class="intro__grid">
-            <div class="intro__main">
-              <section class="panel panel--ex" aria-labelledby="ex-title">
-                <div class="panel__head">
-                  <h2 class="panel__title" id="ex-title">Упражнение</h2>
-                  <span class="panel__aside" id="ex-where"></span>
+              <section class="card pick" id="pick" aria-labelledby="ex-title">
+                <div class="pick__ex" id="tour-ex">
+                  <h2 class="card__title" id="ex-title">Выбери упражнение</h2>
+                  <div class="carousel">
+                    <button
+                      class="carousel__arrow"
+                      id="ex-prev"
+                      type="button"
+                      aria-label="Предыдущее упражнение"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+                    </button>
+                    <div class="carousel__stage" id="ex-stage" aria-hidden="true"></div>
+                    <button
+                      class="carousel__arrow"
+                      id="ex-next"
+                      type="button"
+                      aria-label="Следующее упражнение"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                  </div>
+                  <p class="carousel__name" id="ex-name">Отжимания</p>
+                  <p class="carousel__where" id="ex-where"></p>
+                  <div class="thumbs" id="ex-grid" role="radiogroup" aria-labelledby="ex-title"></div>
                 </div>
-                <div class="ex-grid" id="ex-grid" role="radiogroup" aria-labelledby="ex-title"></div>
-              </section>
 
-              <section class="panel panel--time" aria-labelledby="dur-title">
-                <div class="panel__head">
-                  <h2 class="panel__title" id="dur-title">Время боя</h2>
-                  <span class="panel__aside">Свой рейтинг у каждого</span>
+                <div class="pick__dur" id="tour-dur">
+                  <h2 class="card__title" id="dur-title">Выбери длительность</h2>
+                  <div class="seg seg--3" id="dur-pick" role="radiogroup" aria-labelledby="dur-title"></div>
+                  <p class="seekers" id="seekers" aria-live="polite"></p>
                 </div>
-                <div class="seg seg--3" id="dur-pick" role="radiogroup" aria-labelledby="dur-title"></div>
-              </section>
 
-              <section class="panel panel--online online" id="online" aria-labelledby="online-title">
-                <div class="panel__head">
-                  <h2 class="panel__title" id="online-title">Соревнование</h2>
-                  <span class="panel__aside">Только с аккаунтом</span>
+                <div class="pick__go" id="tour-go">
+                  <button class="btn btn--primary btn--lg find" id="find" type="button">
+                    <span id="find-label">Найти соперника</span>
+                    <svg class="find__bolt" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z" />
+                    </svg>
+                  </button>
+                  <p class="intro__error" id="intro-error" role="alert" hidden></p>
+                  <div class="pick__more">
+                    <button class="btn more" id="friend-open" type="button">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="9" cy="8" r="3.2" />
+                        <path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5" />
+                        <path d="M16 5.3a3 3 0 0 1 0 5.4M18 14.5c1.4.7 2.3 2.2 2.6 4.5" />
+                      </svg>
+                      <span class="more__full">Сыграть с другом</span
+                      ><span class="more__short">С другом</span>
+                    </button>
+                    <button class="btn more" id="bot-open" type="button">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="4.5" y="8" width="15" height="11" rx="3.5" />
+                        <path d="M12 4.5V8M9.2 13h.01M14.8 13h.01M9.5 16.2h5" />
+                      </svg>
+                      <span class="more__full">Бой с ботом</span><span class="more__short">С ботом</span>
+                    </button>
+                    <button class="btn more" id="rules-open" type="button">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 4.5h10.5a3 3 0 0 1 3 3v12H8a3 3 0 0 1-3-3z" />
+                        <path d="M5 16.5a3 3 0 0 1 3-3h10.5M9 8.5h6" />
+                      </svg>
+                      <span>Правила</span>
+                    </button>
+                  </div>
                 </div>
-                <div class="account" id="account"></div>
-                <input
-                  class="input"
-                  id="online-search"
-                  type="search"
-                  placeholder="Найти игрока по нику"
-                  aria-label="Поиск игрока по нику"
-                  hidden
-                />
-                <ul class="people" id="online-list"></ul>
-                <p class="note" id="online-note" role="status"></p>
-                <button class="btn btn--sm online__create" id="online-create" type="button">
-                  Создать дуэль по ссылке
-                </button>
               </section>
             </div>
 
-            <aside class="intro__side">
-              <section class="panel panel--fight fight" aria-labelledby="bots-title">
-                <div class="panel__head">
-                  <h2 class="panel__title" id="bots-title">Бой с ботом</h2>
-                </div>
-                <div class="bots" id="bots" role="radiogroup" aria-labelledby="bots-title"></div>
-                <div class="fight__sum">
-                  <span class="fight__label">Твоя дуэль</span>
-                  <b class="fight__ex" id="sum-ex">Отжимания</b>
-                  <span class="fight__meta" id="sum-meta"></span>
-                </div>
-                <button class="btn btn--primary btn--lg fight__go" id="camera-on" type="button">
-                  Начать бой
-                </button>
-                <p class="fight__tip" id="intro-tip"></p>
-                <p class="intro__error" id="intro-error" role="alert" hidden></p>
+            <aside class="arena__side">
+              <section class="card profile" id="profile" aria-label="Профиль"></section>
+              <section class="card rating" id="rating" aria-labelledby="rating-title">
+                <h2 class="card__title" id="rating-title">Твой рейтинг</h2>
+                <div class="rating__body" id="rating-body"></div>
               </section>
-
-              <section class="panel panel--inbox inbox" id="inbox"></section>
+              <div class="arena__lists" id="tour-lists">
+                <section class="card recent" id="recent" aria-labelledby="recent-title">
+                  <div class="card__head">
+                    <h2 class="card__title" id="recent-title">Последние дуэли</h2>
+                    <button class="link" id="recent-all" type="button">Все</button>
+                  </div>
+                  <ul class="recent__list" id="recent-list"></ul>
+                </section>
+                <section class="card top" id="top" aria-labelledby="top-title">
+                  <div class="card__head">
+                    <h2 class="card__title" id="top-title">Топ игроков</h2>
+                    <div class="top__pick">
+                      <select class="select" id="top-format" aria-label="Разряд">
+                        <option value="">Все</option>
+                        <option value="bullet">Пуля</option>
+                        <option value="blitz">Блиц</option>
+                        <option value="rapid">Рапид</option>
+                      </select>
+                      <select class="select" id="top-period" aria-label="Период">
+                        <option value="week">Неделя</option>
+                        <option value="all">Всё время</option>
+                      </select>
+                    </div>
+                  </div>
+                  <ol class="top__list" id="top-list"></ol>
+                  <button class="link top__all" id="ladder-open" type="button">Вся таблица</button>
+                </section>
+              </div>
+              <section class="card inbox" id="inbox"></section>
             </aside>
           </div>
+        </div>
+        <!-- Телефон: кнопка боя прилипает к низу, когда основная ушла из виду. -->
+        <button class="btn btn--primary btn--lg find find--sticky" id="find-sticky" type="button" hidden>
+          <span id="find-sticky-label">Найти соперника</span>
+          <svg class="find__bolt" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z" />
+          </svg>
+        </button>
+      </section>
 
-          <section class="panel panel--ladder" id="ladder" aria-labelledby="ladder-title">
-            <div class="panel__head">
-              <h2 class="panel__title" id="ladder-title">Таблица арены</h2>
-              <span class="panel__aside">Кубки, не повторы</span>
+      <!-- ——— Поиск соперника ——— -->
+      <section class="flow search" data-for="search" aria-live="polite">
+        <div class="flow__glow" aria-hidden="true">
+          <div class="flow__ghost flow__ghost--warm" id="search-ghost-a"></div>
+          <div class="flow__ghost flow__ghost--cold" id="search-ghost-b"></div>
+        </div>
+        <div class="flow__inner">
+          <h2 class="flow__title">Ищем соперника…</h2>
+          <div class="timer" aria-hidden="true">
+            <svg viewBox="0 0 120 120">
+              <circle class="timer__track" cx="60" cy="60" r="54" />
+              <circle class="timer__arc" id="search-arc" cx="60" cy="60" r="54" />
+            </svg>
+            <span class="timer__num" id="search-clock">0:00</span>
+          </div>
+          <p class="flow__lead" id="search-lead">Подбираем игрока твоего уровня</p>
+          <p class="flow__meta" id="search-meta"></p>
+          <p class="flow__note" id="search-note"></p>
+          <button class="btn btn--lg flow__cancel" id="search-cancel" type="button">Отменить</button>
+        </div>
+      </section>
+
+      <!-- ——— Соперник найден ——— -->
+      <section class="flow found" data-for="found" aria-live="polite">
+        <div class="flow__inner">
+          <h2 class="flow__title">Соперник найден!</h2>
+          <div class="versus">
+            <div class="fighter" id="found-me">
+              <span class="face" id="found-me-face"><span class="face__disc"></span></span>
+              <b class="fighter__nick" id="found-me-nick"></b>
+              <span class="fighter__title" id="found-me-title"></span>
+              <span class="fighter__cups" id="found-me-cups"></span>
             </div>
-            <div class="seg seg--4" id="ladder-format" role="group" aria-label="Разряд"></div>
-            <div class="chips" id="ladder-ex" role="group" aria-label="Упражнение"></div>
-            <p class="ladder__rule" id="ladder-rule"></p>
-            <ol class="ladder" id="ladder-rows"></ol>
-          </section>
+            <span class="versus__vs" aria-hidden="true">VS</span>
+            <div class="fighter" id="found-opp">
+              <span class="face" id="found-opp-face"><span class="face__disc"></span></span>
+              <b class="fighter__nick" id="found-opp-nick"></b>
+              <span class="fighter__title" id="found-opp-title"></span>
+              <span class="fighter__cups" id="found-opp-cups"></span>
+            </div>
+          </div>
+          <div class="found__ex">
+            <div class="found__ghost" id="found-ghost" aria-hidden="true"></div>
+            <p class="found__name" id="found-ex"></p>
+          </div>
+          <p class="flow__note" id="found-note"></p>
+          <button class="btn btn--primary btn--lg found__go" id="found-go" type="button">
+            Начать через 3…
+          </button>
+          <button class="btn btn--lg flow__cancel" id="found-cancel" type="button">Отмена</button>
         </div>
       </section>
 
@@ -148,8 +262,8 @@
         </div>
       </div>
 
-      <!-- ——— Табло: отсчёт и бой ——— -->
-      <header class="hud hud-panel" data-for="countdown battle">
+      <!-- ——— Табло: отсчёт и бой. Соперник — только аватар и счёт, без видео ——— -->
+      <header class="hud" data-for="countdown battle">
         <div class="hud__side hud__side--me" id="side-me">
           <span class="hud__who">
             <span class="face" id="me-face"><span class="face__disc" id="me-avatar">Я</span></span>
@@ -159,10 +273,11 @@
             ><span class="hud__num" id="score-me">0</span
             ><span class="hud__plus" aria-hidden="true">+1</span></span
           >
+          <span class="hud__bar" aria-hidden="true"><span id="bar-me"></span></span>
         </div>
         <div class="hud__mid">
           <span class="hud__clock" id="clock" aria-label="Осталось времени">1:00</span>
-          <span class="hud__ex" id="hud-ex">Отжимания</span>
+          <p class="hud__lead" id="lead" data-lead="even">Поровну</p>
         </div>
         <div class="hud__side hud__side--opp" id="side-opp">
           <span class="hud__who">
@@ -170,17 +285,39 @@
             <span class="hud__name" id="opp-name">Атлет</span>
           </span>
           <span class="hud__num" id="score-opp">0</span>
+          <span class="hud__bar" aria-hidden="true"><span id="bar-opp"></span></span>
         </div>
-        <div class="tug" aria-hidden="true"><div class="tug__me" id="tug-me"></div></div>
-        <p class="hud__lead" id="lead" data-lead="even">Поровну</p>
       </header>
+
+      <aside class="bpanel" data-for="countdown battle">
+        <p class="bpanel__ex" id="hud-ex">Отжимания</p>
+        <p class="bpanel__meta" id="hud-meta">1 мин · Блиц</p>
+        <div class="bpanel__score">
+          <span class="bpanel__label">Твой счёт</span>
+          <b class="bpanel__num" id="panel-me">0</b>
+        </div>
+      </aside>
+
+      <aside class="opp-card" data-for="countdown battle">
+        <span class="face" id="opp-card-face"><span class="face__disc">А</span></span>
+        <span class="opp-card__label">Соперник</span>
+        <b class="opp-card__num" id="opp-card-num">0</b>
+      </aside>
 
       <div class="countdown" data-for="countdown">
         <span class="countdown__num" id="countdown">5</span>
         <p class="countdown__text" id="countdown-text">Встань в кадр</p>
       </div>
 
-      <p class="hint" id="hint" data-for="battle" role="status"></p>
+      <div class="hint" id="hint-box" data-for="battle" data-kind="ok" role="status" hidden>
+        <span class="hint__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path class="hint__ok" d="M6.5 12.5l3.8 3.8 7.2-8.3" />
+            <path class="hint__bad" d="M12 7v6.2M12 17h.01" />
+          </svg>
+        </span>
+        <span class="hint__text"><b id="hint"></b><small id="hint-sub"></small></span>
+      </div>
       <div class="battle-foot" data-for="battle">
         <button class="btn btn--sm btn--giveup" id="give-up" type="button">Сдаться</button>
       </div>
@@ -207,8 +344,9 @@
           <p class="result__award" id="result-award"></p>
           <div class="result__actions">
             <button class="btn btn--primary btn--lg" id="again" type="button">Реванш</button>
+            <button class="btn btn--lg" id="seek-new" type="button">Найти нового соперника</button>
             <button class="btn btn--lg" id="invite-open" type="button">Вызвать друга</button>
-            <button class="btn btn--lg btn--ghost" id="change" type="button">Другая дуэль</button>
+            <button class="btn btn--lg btn--ghost" id="change" type="button">В арену</button>
           </div>
           <p class="result__gesture">Или подними обе руки — начнём реванш.</p>
         </div>
@@ -257,6 +395,147 @@
       </div>
       <p class="invite__status" id="inv-status" role="status"></p>
     </dialog>
+
+    <!-- ——— Сыграть с другом: позвать игрока или ссылка ——— -->
+    <dialog class="sheet" id="friend-sheet" aria-labelledby="friend-title">
+      <form method="dialog" class="sheet__close">
+        <button class="icon-btn" type="submit" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+      </form>
+      <h2 class="sheet__title" id="friend-title">Сыграть с другом</h2>
+      <p class="sheet__lead" id="friend-lead"></p>
+      <section class="online" id="online">
+        <input
+          class="input"
+          id="online-search"
+          type="search"
+          placeholder="Найти игрока по нику"
+          aria-label="Поиск игрока по нику"
+          hidden
+        />
+        <ul class="people" id="online-list"></ul>
+        <p class="note" id="online-note" role="status"></p>
+        <button class="btn online__create" id="online-create" type="button">Создать дуэль по ссылке</button>
+      </section>
+    </dialog>
+
+    <!-- ——— Бой с ботом: тренировка без кубков ——— -->
+    <dialog class="sheet" id="bot-sheet" aria-labelledby="bots-title">
+      <form method="dialog" class="sheet__close">
+        <button class="icon-btn" type="submit" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+      </form>
+      <h2 class="sheet__title" id="bots-title">Бой с ботом</h2>
+      <p class="sheet__lead">Тренировка: кубки не меняются, аккаунт не нужен.</p>
+      <div class="bots" id="bots" role="radiogroup" aria-labelledby="bots-title"></div>
+      <div class="fight__sum">
+        <span class="fight__label">Твоя дуэль</span>
+        <b class="fight__ex" id="sum-ex">Отжимания</b>
+        <span class="fight__meta" id="sum-meta"></span>
+      </div>
+      <button class="btn btn--primary btn--lg fight__go" id="camera-on" type="button">Начать бой</button>
+      <p class="fight__tip" id="intro-tip"></p>
+    </dialog>
+
+    <!-- ——— Вход ——— -->
+    <dialog class="sheet" id="login-sheet" aria-labelledby="login-title">
+      <form method="dialog" class="sheet__close">
+        <button class="icon-btn" type="submit" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+      </form>
+      <h2 class="sheet__title" id="login-title">Вход в FORMA</h2>
+      <div class="account" id="account"></div>
+    </dialog>
+
+    <!-- ——— Правила ——— -->
+    <dialog class="sheet sheet--wide" id="rules" aria-labelledby="rules-title">
+      <form method="dialog" class="sheet__close">
+        <button class="icon-btn" type="submit" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+      </form>
+      <h2 class="sheet__title" id="rules-title">Правила арены</h2>
+      <div class="rules">
+        <section class="rules__item">
+          <h3>Как считаются повторы</h3>
+          <p>
+            Камера видит скелет и засчитывает только полное движение — до нижней точки и обратно. Слишком
+            частые «повторы» сервер отбрасывает: темп должен быть живым. Соперник видит твой счёт сразу, но не
+            видит тебя — видео никуда не уходит.
+          </p>
+        </section>
+        <section class="rules__item">
+          <h3>Разряды</h3>
+          <p>
+            <b>Пуля</b> — 30 секунд, <b>блиц</b> — минута, <b>рапид</b> — 3 минуты. У каждого упражнения в
+            каждом разряде свой рейтинг: пуля на отжиманиях не двигает блиц на приседаниях.
+          </p>
+        </section>
+        <section class="rules__item">
+          <h3>Кубки</h3>
+          <p>
+            Победа прибавляет кубки, поражение снимает, ничья — ноль. Обыграть сильного выгоднее, чем слабого.
+            Ниже нуля кубков не бывает, сдача — поражение. Бой с ботом кубки не меняет.
+          </p>
+        </section>
+        <section class="rules__item">
+          <h3>Подбор соперника</h3>
+          <p>
+            Ищем игрока на той же доске и с близкими кубками. Если никого нет, через 10 секунд берём шире,
+            через 20 — любого, кто ищет бой.
+          </p>
+        </section>
+        <section class="rules__item rules__item--wide">
+          <h3>Титулы и рамки</h3>
+          <p>Титул и рамка вокруг аватара — по сумме кубков со всех досок.</p>
+          <ul class="titles" id="rules-titles"></ul>
+        </section>
+      </div>
+    </dialog>
+
+    <!-- ——— Все дуэли ——— -->
+    <dialog class="sheet sheet--wide" id="history-sheet" aria-labelledby="history-title">
+      <form method="dialog" class="sheet__close">
+        <button class="icon-btn" type="submit" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+      </form>
+      <h2 class="sheet__title" id="history-title">Твои дуэли</h2>
+      <ul class="recent__list" id="history-list"></ul>
+    </dialog>
+
+    <!-- ——— Таблица арены ——— -->
+    <dialog class="sheet sheet--wide" id="ladder-sheet" aria-labelledby="ladder-title">
+      <form method="dialog" class="sheet__close">
+        <button class="icon-btn" type="submit" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+      </form>
+      <section class="ladder-sheet" id="ladder" aria-labelledby="ladder-title">
+        <h2 class="sheet__title" id="ladder-title">Таблица арены</h2>
+        <div class="seg seg--4" id="ladder-format" role="group" aria-label="Разряд"></div>
+        <div class="chips" id="ladder-ex" role="group" aria-label="Упражнение"></div>
+        <p class="ladder__rule" id="ladder-rule"></p>
+        <ol class="ladder" id="ladder-rows"></ol>
+      </section>
+    </dialog>
+
+    <!-- ——— Обучение: подсветка частей страницы ——— -->
+    <div class="tour" id="tour" hidden>
+      <div class="tour__hole" id="tour-hole"></div>
+      <div class="tour__card" id="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+        <p class="tour__step" id="tour-step"></p>
+        <h2 class="tour__title" id="tour-title"></h2>
+        <p class="tour__text" id="tour-text"></p>
+        <div class="tour__actions">
+          <button class="btn btn--sm btn--ghost" id="tour-skip" type="button">Пропустить</button>
+          <button class="btn btn--sm btn--primary" id="tour-next" type="button">Далее</button>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/duel/main.ts"></script>
   </body>
 </html>

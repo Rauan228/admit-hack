@@ -2,7 +2,14 @@
 // Свой маленький fetch: клиент платформы (ui/store/api.ts) тянет React, а страница дуэли — без него.
 // Cookie-сессия общая с платформой: вошёл там — вошёл и здесь.
 
-import type { ArenaFormatId, ArenaStanding, AwardView, LadderData } from '../shared/arena';
+import type {
+  ArenaFormatId,
+  ArenaHistory,
+  ArenaStanding,
+  AwardView,
+  LadderData,
+  LadderPeriod,
+} from '../shared/arena';
 import type { DuelExercise } from '../shared/duel';
 
 export interface Me {
@@ -105,14 +112,23 @@ export const api = {
   answer: (id: string, timeline: number[], name?: string) =>
     call<AnswerResult>('POST', '/duel/answer', { id, timeline, name }),
   standing: () => call<ArenaStanding>('GET', '/duel/standing'),
-  ladder: (format: ArenaFormatId | null, exercise: DuelExercise | null) => {
+  ladder: (format: ArenaFormatId | null, exercise: DuelExercise | null, period: LadderPeriod = 'all') => {
     const q = new URLSearchParams();
     if (format) q.set('format', format);
     if (exercise) q.set('exercise', exercise);
+    if (period !== 'all') q.set('period', period);
     const tail = q.toString() ? `?${q}` : '';
     return call<LadderData>('GET', `/duel/ladder${tail}`);
   },
   inbox: () => call<Inbox>('GET', '/duel/inbox'),
+  /** Арена: последние бои и кривая кубков. */
+  history: (limit = 20) => call<ArenaHistory>('GET', `/duel/history?limit=${limit}`),
+  /** Тренировки платформы — отсюда доля чистых повторов. */
+  progress: () =>
+    call<{ boards: Record<string, { history: { reps: number; cleanReps: number }[] }> }>(
+      'GET',
+      '/me/progress',
+    ),
   players: (q = '') =>
     call<{ players: Player[] }>('GET', `/duel/players?q=${encodeURIComponent(q)}`).then((r) => r.players),
   friends: () => call<{ friends: { nick: string }[] }>('GET', '/duel/friends').then((r) => r.friends),
