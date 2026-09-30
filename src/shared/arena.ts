@@ -67,6 +67,33 @@ export interface LadderData {
   me: LadderEntry | null;
 }
 
+/** Бой из истории — глазами игрока. */
+export interface HistoryItem {
+  id: string;
+  exercise: string;
+  format: ArenaFormatId;
+  /** live — бой онлайн, async — ответ на вызов. */
+  kind: 'live' | 'async';
+  opponent: { nick: string; title: string | null; frame: ArenaFrame | null };
+  reps: number;
+  oppReps: number;
+  outcome: ArenaOutcome;
+  cupsDelta: number;
+  at: number;
+}
+
+export interface ArenaHistory {
+  /** Последние бои, новые — первыми. */
+  matches: HistoryItem[];
+  /** Сумма кубков после каждого боя (от старых к новым, не больше 30 точек; первая — до них). */
+  curve: { at: number; cups: number }[];
+  /** Всего побед за все бои. */
+  wins: number;
+  total: number;
+}
+
+export type LadderPeriod = 'all' | 'week';
+
 export interface ArenaFormatStanding {
   id: ArenaFormatId;
   name: string;

@@ -32,6 +32,8 @@ export interface RoomView {
   /** E-29: во что соревнуемся. */
   exercise: DuelExercise;
   phase: RoomPhase;
+  /** Комнату собрал подбор соперника (а не приглашение или ссылка). Старый сервер поля не шлёт. */
+  matched?: boolean;
   round: number;
   durationMs: number;
   countdownMs: number;
@@ -48,6 +50,8 @@ export interface RoomView {
     /** Титул по сумме кубков. null — ещё без титула, рамки нет. */
     title: string | null;
     frame: string | null;
+    /** Кубки на доске этой комнаты (упражнение × разряд); null — не знаем (гость, короткий бой). */
+    cups?: number | null;
   }[];
   result: { winner: number | null; reason: RoomResult['reason'] } | null;
 }
@@ -64,7 +68,10 @@ export type ClientMsg =
   | { t: 'giveup' }
   | { t: 'leave' }
   | { t: 'invite'; nick: string }
-  | { t: 'decline'; room: string; from: string };
+  | { t: 'decline'; room: string; from: string }
+  /** Подбор соперника: встать в очередь на доску (упражнение × время) и выйти из неё. */
+  | { t: 'seek'; exercise?: string; durationMs?: number }
+  | { t: 'cancel_seek' };
 
 /** Сервер → клиент. */
 export type ServerMsg =
@@ -77,6 +84,12 @@ export type ServerMsg =
   | { t: 'invite_sent'; nick: string; online: boolean }
   | { t: 'declined'; by: string }
   | ({ t: 'award'; room: string; round: number } & AwardView)
+  /** Ищем соперника: с какого момента (часы сервера) и сколько ещё ищут на этой доске, кроме тебя. */
+  | { t: 'seeking'; exercise: DuelExercise; durationMs: number; since: number; now: number; queue: number }
+  /** Поиск снят: отменил сам, начал его в другой вкладке или вошёл в комнату. */
+  | { t: 'seek_cancelled' }
+  /** Сколько людей на арене и сколько ищут бой по доскам: «упражнение:мс» → число. */
+  | { t: 'stats'; online: number; seeking: Record<string, number> }
   | { t: 'error'; message: string };
 
 /** Повтор, досчитанный движком чуть позже финиша (задержка сети и распознавания), ещё засчитываем. */
@@ -95,10 +108,15 @@ export class DuelRoom {
   readonly exercise: DuelExercise;
   readonly durationMs: number;
   readonly countdownMs: number;
+  readonly matched: boolean;
 
   // Без параметров-свойств: на VPS Node только стирает типы (см. tests/server-strip.test.ts).
-  constructor(id: string, opts: { durationMs?: number; countdownMs?: number; exercise?: DuelExercise } = {}) {
+  constructor(
+    id: string,
+    opts: { durationMs?: number; countdownMs?: number; exercise?: DuelExercise; matched?: boolean } = {},
+  ) {
     this.id = id;
+    this.matched = opts.matched ?? false;
     this.exercise = opts.exercise ?? DEFAULT_DUEL_EXERCISE;
     this.durationMs = opts.durationMs ?? 60_000;
     this.countdownMs = opts.countdownMs ?? 5000;
@@ -194,6 +212,7 @@ export class DuelRoom {
       id: this.id,
       exercise: this.exercise,
       phase: this.phase,
+      matched: this.matched,
       round: this.round,
       durationMs: this.durationMs,
       countdownMs: this.countdownMs,
@@ -209,6 +228,7 @@ export class DuelRoom {
         gaveUp: p.gaveUp,
         title: null,
         frame: null,
+        cups: null,
       })),
       result: r && {
         winner: r.winner === null ? null : this.players.findIndex((p) => p.key === r.winner),

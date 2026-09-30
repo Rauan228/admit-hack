@@ -13,10 +13,13 @@ import {
   type ArenaBoardStanding,
   type ArenaFormatId,
   type ArenaOutcome,
+  type ArenaHistory,
   type ArenaStanding,
   type AwardView,
+  type HistoryItem,
   type LadderData,
   type LadderEntry,
+  type LadderPeriod,
 } from '../src/shared/arena.ts';
 import type { Db } from './db.ts';
 
@@ -106,12 +109,40 @@ const SCHEMA = `
   );
 `;
 
+export const WEEK_MS = 7 * 24 * 3600_000;
+
+interface MatchRow {
+  id: string;
+  exercise: string;
+  format: string;
+  a_user: number;
+  b_user: number;
+  a_reps: number;
+  b_reps: number;
+  winner: number | null;
+  a_cups: number;
+  b_cups: number;
+  created_at: number;
+  a_nick: string | null;
+  b_nick: string | null;
+}
+
 export interface ArenaStore {
   /** Записать исход. null — такой бой уже зачтён. Вызывать один раз, своей транзакцией. */
   settleMatch(now: number, input: MatchInput): MatchAwards | null;
   badge(userId: number): { title: string | null; frame: AwardView['frame'] };
   standing(userId: number): ArenaStanding;
-  ladder(format: ArenaFormatId | null, exercise: string | null, meId: number | null): LadderData;
+  /** Кубки одной доски — для подбора соперника по уровню. */
+  boardCups(userId: number, exercise: string, format: ArenaFormatId): number;
+  history(userId: number, limit?: number): ArenaHistory;
+  /** period 'week' — кубки, набранные за последние 7 дней (нужно now). */
+  ladder(
+    format: ArenaFormatId | null,
+    exercise: string | null,
+    meId: number | null,
+    period?: LadderPeriod,
+    now?: number,
+  ): LadderData;
 }
 
 export function awardView(p: PlayerAward): AwardView {
@@ -155,6 +186,18 @@ export function createArena(db: Db): ArenaStore {
     ),
     mine: db.prepare(
       `SELECT exercise, format, cups, xp, wins, losses, draws FROM arena_ratings WHERE user_id = ?`,
+    ),
+    myMatches: db.prepare(
+      `SELECT m.id, m.exercise, m.format, m.a_user, m.b_user, m.a_reps, m.b_reps, m.winner,
+              m.a_cups, m.b_cups, m.created_at, ua.nick AS a_nick, ub.nick AS b_nick
+       FROM arena_matches m
+       LEFT JOIN users ua ON ua.id = m.a_user
+       LEFT JOIN users ub ON ub.id = m.b_user
+       WHERE m.a_user = ? OR m.b_user = ?
+       ORDER BY m.created_at ASC, m.rowid ASC`,
+    ),
+    since: db.prepare(
+      `SELECT exercise, format, a_user, b_user, winner, a_cups, b_cups FROM arena_matches WHERE created_at >= ?`,
     ),
   };
 
@@ -325,8 +368,91 @@ export function createArena(db: Db): ArenaStore {
     };
   }
 
-  function ladder(format: ArenaFormatId | null, exercise: string | null, meId: number | null): LadderData {
+  function boardCups(userId: number, exercise: string, format: ArenaFormatId): number {
+    return boardOf(userId, exercise, format).cups;
+  }
+
+  function history(userId: number, limit = 20): ArenaHistory {
+    const rows = q.myMatches.all(userId, userId) as unknown as MatchRow[];
+    const badges = new Map<number, ReturnType<typeof badge>>();
+    const badgeOf = (id: number) => {
+      let b = badges.get(id);
+      if (!b) badges.set(id, (b = badge(id)));
+      return b;
+    };
+    let cups = 0;
+    let wins = 0;
+    const curve: { at: number; cups: number }[] = [{ at: rows[0]?.created_at ?? 0, cups: 0 }];
+    const items: HistoryItem[] = [];
+    const opponentOf = new Map<string, number>();
+    for (const r of rows) {
+      const mineA = r.a_user === userId;
+      const delta = mineA ? r.a_cups : r.b_cups;
+      const oppId = mineA ? r.b_user : r.a_user;
+      const outcome = outcomeFor(userId, r.winner);
+      if (outcome === 'win') wins += 1;
+      cups = Math.max(0, cups + delta);
+      curve.push({ at: r.created_at, cups });
+      if (!isArenaFormat(r.format)) continue;
+      opponentOf.set(r.id, oppId);
+      items.push({
+        id: r.id,
+        exercise: r.exercise,
+        format: r.format,
+        kind: r.id.startsWith('live:') ? 'live' : 'async',
+        opponent: { nick: (mineA ? r.b_nick : r.a_nick) ?? 'Игрок', title: null, frame: null },
+        reps: mineA ? r.a_reps : r.b_reps,
+        oppReps: mineA ? r.b_reps : r.a_reps,
+        outcome,
+        cupsDelta: delta,
+        at: r.created_at,
+      });
+    }
+    // Титул и рамка соперника — нынешние и только у тех, кого покажем.
+    const recent = items.slice(-Math.max(1, Math.min(50, limit))).reverse();
+    for (const it of recent) {
+      const b = badgeOf(opponentOf.get(it.id)!);
+      it.opponent.title = b.title;
+      it.opponent.frame = b.frame;
+    }
+    return { matches: recent, curve: curve.slice(-30), wins, total: rows.length };
+  }
+
+  /** Неделя: кубки, набранные в боях за 7 дней (могут быть и в минусе), и исходы этих боёв. */
+  function weekTotals(format: ArenaFormatId | null, exercise: string | null, now: number) {
+    const out = new Map<number, { cups: number; wins: number; losses: number; draws: number }>();
+    const rows = q.since.all(now - WEEK_MS) as unknown as Pick<
+      MatchRow,
+      'exercise' | 'format' | 'a_user' | 'b_user' | 'winner' | 'a_cups' | 'b_cups'
+    >[];
+    for (const r of rows) {
+      if ((format !== null && r.format !== format) || (exercise !== null && r.exercise !== exercise))
+        continue;
+      for (const [id, delta] of [
+        [r.a_user, r.a_cups],
+        [r.b_user, r.b_cups],
+      ] as const) {
+        const u = out.get(id) ?? { cups: 0, wins: 0, losses: 0, draws: 0 };
+        const o = outcomeFor(id, r.winner);
+        u.cups += delta;
+        if (o === 'win') u.wins += 1;
+        else if (o === 'lose') u.losses += 1;
+        else u.draws += 1;
+        out.set(id, u);
+      }
+    }
+    return out;
+  }
+
+  function ladder(
+    format: ArenaFormatId | null,
+    exercise: string | null,
+    meId: number | null,
+    period: LadderPeriod = 'all',
+    now = Date.now(),
+  ): LadderData {
     const raw = q.rows.all() as unknown as RawRow[];
+    const week = period === 'week' ? weekTotals(format, exercise, now) : null;
     const byUser = new Map<
       number,
       { nick: string; cups: number; xp: number; wins: number; losses: number; draws: number; total: number }
@@ -338,6 +464,7 @@ export function createArena(db: Db): ArenaStore {
         byUser.set(r.user_id, u);
       }
       u.total += r.cups;
+      if (week) continue;
       if ((format === null || r.format === format) && (exercise === null || r.exercise === exercise)) {
         u.cups += r.cups;
         u.xp += r.xp;
@@ -346,6 +473,12 @@ export function createArena(db: Db): ArenaStore {
         u.draws += r.draws;
       }
     }
+    if (week)
+      for (const [id, w] of week) {
+        const u = byUser.get(id);
+        if (!u) continue;
+        Object.assign(u, w);
+      }
     const ranked = [...byUser.entries()]
       .filter(([, u]) => u.wins + u.losses + u.draws > 0)
       .sort(
@@ -381,5 +514,5 @@ export function createArena(db: Db): ArenaStore {
     };
   }
 
-  return { settleMatch, badge, standing, ladder };
+  return { settleMatch, badge, standing, boardCups, history, ladder };
 }

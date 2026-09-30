@@ -285,16 +285,27 @@ export function duelRoutes(ctx: DuelContext): Record<string, Handler> {
       return ctx.arena.standing(u.id);
     },
 
+    // Арена: последние бои и кривая кубков для карточки «Твой рейтинг».
+    'GET /api/duel/history': (req, _res, url) => {
+      const u = signedIn(req, 'Войди, чтобы видеть свои дуэли');
+      const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit')) || 20));
+      return ctx.arena.history(u.id, limit);
+    },
+
     'GET /api/duel/ladder': (req, _res, url) => {
       const rawFormat = url.searchParams.get('format');
       const rawExercise = url.searchParams.get('exercise');
+      const rawPeriod = url.searchParams.get('period');
       if (rawFormat && !isArenaFormat(rawFormat)) fail(400, 'Неизвестный разряд');
       if (rawExercise && !isDuelExercise(rawExercise)) fail(400, 'Неизвестное упражнение');
+      if (rawPeriod && rawPeriod !== 'all' && rawPeriod !== 'week') fail(400, 'Неизвестный период');
       const u = ctx.currentUser(req);
       return ctx.arena.ladder(
         (rawFormat || null) as ArenaFormatId | null,
         rawExercise || null,
         u?.id ?? null,
+        rawPeriod === 'week' ? 'week' : 'all',
+        now(),
       );
     },
 

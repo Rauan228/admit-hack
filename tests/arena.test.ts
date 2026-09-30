@@ -122,4 +122,50 @@ describe('зачёт в базе', () => {
     expect(store.standing(2).formats.find((f) => f.id === 'bullet')?.wins).toBe(1);
     expect(store.standing(2).formats.find((f) => f.id === 'blitz')?.cups).toBe(0);
   });
+
+  it('история: последние бои глазами игрока, кривая кубков, неделя в таблице', () => {
+    const store = arena();
+    const day = 24 * 3600_000;
+    const now = 30 * day;
+    store.settleMatch(now - 10 * day, {
+      id: 'live:OLD:1',
+      exercise: 'push_up',
+      format: 'blitz',
+      a: { userId: 1, reps: 20 },
+      b: { userId: 2, reps: 10 },
+      winnerUserId: 1,
+    });
+    store.settleMatch(now - day, {
+      id: 'async:C1:2',
+      exercise: 'push_up',
+      format: 'blitz',
+      a: { userId: 1, reps: 5 },
+      b: { userId: 2, reps: 9 },
+      winnerUserId: 2,
+    });
+    const h = store.history(1);
+    expect(h.total).toBe(2);
+    expect(h.wins).toBe(1);
+    expect(h.matches.map((m) => m.id)).toEqual(['async:C1:2', 'live:OLD:1']);
+    expect(h.matches[0]).toMatchObject({
+      kind: 'async',
+      opponent: { nick: 'Rauan' },
+      reps: 5,
+      oppReps: 9,
+      outcome: 'lose',
+      format: 'blitz',
+    });
+    expect(h.matches[1]).toMatchObject({ kind: 'live', outcome: 'win', cupsDelta: 16 });
+    expect(h.curve.map((p) => p.cups)).toEqual([0, 16, store.standing(1).cups]);
+    expect(store.history(2).matches[0]).toMatchObject({ opponent: { nick: 'Arslan' }, outcome: 'win' });
+    expect(store.boardCups(1, 'push_up', 'blitz')).toBe(store.standing(1).cups);
+    expect(store.boardCups(1, 'push_up', 'bullet')).toBe(0);
+
+    // За неделю Rauan набрал, Arslan потерял; старый бой в неделю не входит.
+    const week = store.ladder(null, null, 1, 'week', now);
+    expect(week.rows.map((r) => r.nick)).toEqual(['Rauan', 'Arslan']);
+    expect(week.rows[0]).toMatchObject({ wins: 1, losses: 0 });
+    expect(week.rows[1]!.cups).toBeLessThan(0);
+    expect(store.ladder(null, null, 1, 'week', now + 30 * day).rows).toEqual([]);
+  });
 });

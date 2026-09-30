@@ -17,7 +17,7 @@ describe('онлайн-дуэль по WebSocket', () => {
   const sockets: WebSocket[] = [];
 
   beforeEach(async () => {
-    app = createApp(openDb(':memory:'), { duel: { countdownMs: 200, durationMs: 800 } });
+    app = createApp(openDb(':memory:'), { duel: { countdownMs: 200, durationMs: 800, seekTickMs: 50 } });
     server = createServer((req, res) => void app(req, res));
     server.on('upgrade', app.upgrade);
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -242,6 +242,102 @@ describe('онлайн-дуэль по WebSocket', () => {
     expect((await a.next('error')).message).toMatch(/не найдена/);
     a.send('не json' as unknown as object);
     expect((await a.next('error')).message).toMatch(/сообщение/);
+  });
+
+  it('подбор: двое ищут одну доску → общая комната, как по приглашению; разные доски не сводит', async () => {
+    const a = await player(await cookieOf('Arslan'));
+    const b = await player(await cookieOf('Rauan'));
+    const c = await player(await cookieOf('Other'));
+    a.send({ t: 'seek', exercise: 'squat', durationMs: 30_000 });
+    expect(await a.next('seeking')).toMatchObject({ exercise: 'squat', durationMs: 30_000, queue: 0 });
+    c.send({ t: 'seek', exercise: 'squat', durationMs: 60_000 });
+    await c.next('seeking');
+    b.send({ t: 'seek', exercise: 'squat', durationMs: 30_000 });
+    const ra = await a.next('room');
+    const rb = await b.next('room');
+    expect(rb.room.players).toHaveLength(2);
+    expect(ra.room.id).toBe(rb.room.id);
+    expect(ra.room).toMatchObject({ matched: true, exercise: 'squat', durationMs: 30_000, phase: 'lobby' });
+    expect(ra.room.players.map((p) => p.cups)).toEqual([0, 0]);
+    expect(await c.none('room', 200)).toBe(true);
+    // Дальше — обычный протокол готовности и общего отсчёта.
+    a.send({ t: 'ready', ready: true });
+    b.send({ t: 'ready', ready: true });
+    await b.next('room', (m) => m.room.phase === 'countdown');
+    const stats = await c.next('stats', (m) => m.seeking['squat:60000'] === 1 && !m.seeking['squat:30000']);
+    expect(stats.online).toBe(3);
+  });
+
+  it('подбор: только с аккаунтом; отмена; обрыв снимает поиск; один поиск на аккаунт', async () => {
+    const guest = await player();
+    guest.send({ t: 'seek', exercise: 'push_up', durationMs: 60_000 });
+    expect((await guest.next('error')).message).toMatch(/Войди/);
+
+    const arslan = await cookieOf('Arslan');
+    const a = await player(arslan);
+    a.send({ t: 'seek', durationMs: 60_000 });
+    await a.next('seeking');
+    a.send({ t: 'cancel_seek' });
+    await a.next('seek_cancelled');
+    const b = await player(await cookieOf('Rauan'));
+    b.send({ t: 'seek', durationMs: 60_000 });
+    await b.next('seeking');
+    expect(await a.none('room', 200)).toBe(true);
+
+    // Второй вкладкой тот же аккаунт: прежний поиск снят, с собой не сводит.
+    const tab1 = await player(arslan);
+    tab1.send({ t: 'seek', exercise: 'lunge', durationMs: 180_000 });
+    await tab1.next('seeking');
+    const tab2 = await player(arslan);
+    tab2.send({ t: 'seek', exercise: 'lunge', durationMs: 180_000 });
+    await tab2.next('seeking');
+    await tab1.next('seek_cancelled');
+
+    // Обрыв: поиск Rauan снят — пришедший позже Other его не получит.
+    b.ws.close();
+    const st = await guest.next(
+      'stats',
+      (m) => !m.seeking['push_up:60000'] && m.seeking['lunge:180000'] === 1,
+    );
+    expect(st.online).toBe(2);
+    const o = await player(await cookieOf('Other'));
+    o.send({ t: 'seek', durationMs: 60_000 });
+    await o.next('seeking');
+    expect(await o.none('room', 250)).toBe(true);
+
+    o.send({ t: 'seek', durationMs: 15_000 });
+    expect((await o.next('error')).message).toMatch(/врем/);
+    o.send({ t: 'seek', exercise: 'plank', durationMs: 60_000 });
+    expect((await o.next('error')).message).toMatch(/упражнение/);
+  });
+
+  it('подбор: в бою искать нельзя; из лобби — выходит из комнаты', async () => {
+    const a = await player(await cookieOf('Arslan'));
+    const b = await player(await cookieOf('Rauan'));
+    a.send({ t: 'create' });
+    const { room } = await a.next('room');
+    b.send({ t: 'join', room: room.id });
+    await a.next('room', (m) => m.room.players.length === 2);
+    b.send({ t: 'seek', durationMs: 60_000 });
+    await b.next('seeking');
+    await a.next('room', (m) => m.room.players.length === 1);
+    b.send({ t: 'cancel_seek' });
+    await b.next('seek_cancelled');
+    b.send({ t: 'join', room: room.id });
+    await a.next('room', (m) => m.room.players.length === 2);
+    a.send({ t: 'ready', ready: true });
+    b.send({ t: 'ready', ready: true });
+    await a.next('room', (m) => m.room.phase === 'countdown');
+    a.send({ t: 'seek', durationMs: 60_000 });
+    expect((await a.next('error')).message).toMatch(/доиграй/);
+  });
+
+  it('стартовая статистика: сколько на арене и кто ищет', async () => {
+    const a = await player(await cookieOf('Arslan'));
+    expect(await a.next('stats')).toMatchObject({ online: 1, seeking: {} });
+    const g = await player();
+    await g.next('stats');
+    expect((await a.next('stats', (m) => m.online === 2)).online).toBe(2);
   });
 
   it('чужой сайт (Origin) — отказ до рукопожатия', async () => {

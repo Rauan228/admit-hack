@@ -1,5 +1,7 @@
 // E-26: онлайн-дуэль по WebSocket (/api/duel/ws). Кто сейчас онлайн, приглашения, комнаты на двоих.
 // Судья — сервер: общий отсчёт, минута боя, приём повторов и итог (логика комнаты — src/shared/duelRoom.ts).
+// Подбор соперника (арена): очередь по доске «упражнение × время», пара — по кубкам (server/duelQueue.ts),
+// дальше — обычная комната, как по приглашению.
 // Защита: только свой Origin (иначе чужой сайт играл бы от имени зашедшего), лимиты соединений,
 // размера кадра и частоты сообщений; ники и имена гостей — через ту же проверку, что при регистрации.
 
@@ -7,7 +9,7 @@ import { randomInt } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { formatByMs } from '../src/shared/arena.ts';
-import { duelExerciseOf } from '../src/shared/duel.ts';
+import { duelExerciseOf, type DuelExercise } from '../src/shared/duel.ts';
 import {
   DuelRoom,
   ROOM_DURATIONS,
@@ -17,6 +19,7 @@ import {
 } from '../src/shared/duelRoom.ts';
 import { awardView, type ArenaStore } from './arena.ts';
 import { RateLimiter, checkNick } from './auth.ts';
+import { SeekQueue } from './duelQueue.ts';
 import { acceptWebSocket, reject, type WsConn } from './ws.ts';
 
 export interface LiveOptions {
@@ -25,6 +28,8 @@ export interface LiveOptions {
   durationMs?: number;
   /** Кубки за бой. Без него комната работает, но в рейтинг не идёт (короткие тесты). */
   arena?: ArenaStore;
+  /** Как часто пересобирать пары и слать «сколько ищут» (окно по кубкам растёт со временем). */
+  seekTickMs?: number;
 }
 
 interface Client {
@@ -64,6 +69,9 @@ export function createDuelLive(
   /** Отложенные приглашения: ник (в нижнем регистре) → кто и в какую комнату позвал. */
   const waiting = new Map<string, { room: DuelRoom; from: string; at: number }[]>();
   let presenceTimer: ReturnType<typeof setTimeout> | null = null;
+  let statsTimer: ReturnType<typeof setTimeout> | null = null;
+  const queue = new SeekQueue<Client>();
+  let seekTimer: ReturnType<typeof setInterval> | null = null;
 
   const heartbeat = setInterval(() => {
     for (const c of clients) {
@@ -99,10 +107,12 @@ export function createDuelLive(
     ws.onmessage = (text) => onMessage(c, text);
     ws.onclose = () => onClose(c);
     send(c, { t: 'hello', me: c.user?.nick ?? null, online: onlineNicks() });
+    send(c, statsMsg());
     if (c.user) {
       presenceChanged();
       deliverWaiting(c);
     }
+    statsChanged();
   }
 
   function onMessage(c: Client, text: string): void {
@@ -119,9 +129,16 @@ export function createDuelLive(
     }
     switch (m.t) {
       case 'create':
+        stopSeek(c);
         return create(c, m.exercise, m.durationMs);
       case 'join':
+        stopSeek(c);
         return join(c, m);
+      case 'seek':
+        return seek(c, m.exercise, m.durationMs);
+      case 'cancel_seek':
+        stopSeek(c);
+        return send(c, { t: 'seek_cancelled' });
       case 'ready':
         return inRoom(c, (room, key) => room.setReady(key, m.ready === true, now()));
       case 'rep':
@@ -159,6 +176,90 @@ export function createDuelLive(
     });
     rooms.set(room.id, room);
     enter(c, room, newId(24), c.user.nick);
+  }
+
+  // ——— Подбор соперника ———
+  function seek(c: Client, rawExercise: unknown, duration: unknown): void {
+    if (!c.user) return fail(c, 'Войди, чтобы искать соперника');
+    const exercise = duelExerciseOf(rawExercise);
+    if (!exercise) return fail(c, 'Неизвестное упражнение');
+    const durationMs = duration === undefined ? 60_000 : duration;
+    if (typeof durationMs !== 'number' || !ROOM_DURATIONS.includes(durationMs))
+      return fail(c, 'Такого времени боя нет — выбери пулю (30 с), блиц (1 мин) или рапид (3 мин)');
+    const phase = c.room?.phase;
+    if (phase === 'countdown' || phase === 'battle') return fail(c, 'Сначала доиграй бой');
+    leaveRoom(c);
+    const format = formatByMs(durationMs);
+    const cups = opts.arena && format ? opts.arena.boardCups(c.user.id, exercise, format.id) : 0;
+    const since = now();
+    // Один поиск на аккаунт: в другой вкладке поиск снимается.
+    for (const old of queue.add({ ref: c, userId: c.user.id, exercise, durationMs, cups, since }))
+      send(old.ref, { t: 'seek_cancelled' });
+    sendSeeking(c);
+    matchmake();
+    armSeekTimer();
+    statsChanged();
+  }
+
+  function stopSeek(c: Client): void {
+    if (queue.remove(c)) statsChanged();
+  }
+
+  function sendSeeking(c: Client): void {
+    const s = queue.get(c);
+    if (!s) return;
+    send(c, {
+      t: 'seeking',
+      exercise: s.exercise as DuelExercise,
+      durationMs: s.durationMs,
+      since: s.since,
+      now: now(),
+      queue: queue.count(s.exercise, s.durationMs) - 1,
+    });
+  }
+
+  /** Собрать пары и посадить каждую в свою комнату — дальше всё как по приглашению. */
+  function matchmake(): void {
+    const pairs = queue.pairs(now());
+    for (const [a, b] of pairs) {
+      if (rooms.size >= MAX_ROOMS) {
+        for (const x of [a, b]) {
+          fail(x.ref, 'Сервер занят — попробуй через минуту');
+          send(x.ref, { t: 'seek_cancelled' });
+        }
+        continue;
+      }
+      const room = new DuelRoom(newId(8), {
+        countdownMs: opts.countdownMs,
+        durationMs: a.durationMs,
+        exercise: a.exercise as DuelExercise,
+        matched: true,
+      });
+      rooms.set(room.id, room);
+      // Оба входят до первой рассылки: «Соперник найден» сразу видит двоих.
+      for (const x of [a, b]) {
+        leaveRoom(x.ref);
+        const p = room.join({ key: newId(24), name: x.ref.user!.nick, userId: x.userId }, now());
+        if (typeof p === 'string') continue;
+        x.ref.room = room;
+        x.ref.key = p.key;
+      }
+      broadcast(room);
+    }
+    if (pairs.length) statsChanged();
+  }
+
+  function armSeekTimer(): void {
+    if (seekTimer) return;
+    seekTimer = setInterval(() => {
+      matchmake();
+      for (const s of queue.all()) sendSeeking(s.ref);
+      if (!queue.size && seekTimer) {
+        clearInterval(seekTimer);
+        seekTimer = null;
+      }
+    }, opts.seekTickMs ?? 1000);
+    seekTimer.unref();
   }
 
   function join(c: Client, m: Extract<ClientMsg, { t: 'join' }>): void {
@@ -245,6 +346,8 @@ export function createDuelLive(
 
   function onClose(c: Client): void {
     clients.delete(c);
+    queue.remove(c);
+    statsChanged();
     if (c.room && c.key) {
       const key = c.key;
       // Тот же игрок открыт в другой вкладке — он всё ещё в сети.
@@ -279,6 +382,8 @@ export function createDuelLive(
       const b = opts.arena!.badge(id);
       p.title = b.title;
       p.frame = b.frame;
+      const format = formatByMs(room.durationMs);
+      if (format) p.cups = opts.arena!.boardCups(id, room.exercise, format.id);
     });
     return view;
   }
@@ -374,6 +479,27 @@ export function createDuelLive(
     presenceTimer.unref();
   }
 
+  /** Людей на арене: аккаунт в нескольких вкладках — один, гость — каждое соединение. */
+  function statsMsg(): ServerMsg {
+    const accounts = new Set<number>();
+    let guests = 0;
+    for (const c of clients) {
+      if (c.user) accounts.add(c.user.id);
+      else guests += 1;
+    }
+    return { t: 'stats', online: accounts.size + guests, seeking: queue.stats() };
+  }
+
+  function statsChanged(): void {
+    if (statsTimer) return;
+    statsTimer = setTimeout(() => {
+      statsTimer = null;
+      const m = statsMsg();
+      for (const c of clients) send(c, m);
+    }, 150);
+    statsTimer.unref();
+  }
+
   function byNick(nick: unknown): Client[] {
     if (typeof nick !== 'string') return [];
     const n = nick.trim().toLowerCase();
@@ -390,6 +516,7 @@ export function createDuelLive(
 
   function close(): void {
     clearInterval(heartbeat);
+    if (seekTimer) clearInterval(seekTimer);
     for (const t of timers.values()) clearTimeout(t);
     for (const c of clients) c.ws.terminate();
   }
