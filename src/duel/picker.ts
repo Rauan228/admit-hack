@@ -2,10 +2,11 @@
 // бой с ботом, онлайн-дуэль (комната создаётся с этим упражнением и временем) и вызов другу после боя.
 // Последний выбор помним в localStorage — вернулся на страницу, а там твоё упражнение.
 
+import { ARENA_FORMATS } from '../shared/arena';
 import { DEFAULT_DUEL_EXERCISE, DUEL_EXERCISE_IDS, isDuelExercise, type DuelExercise } from '../shared/duel';
 import { ROOM_DURATIONS } from '../shared/duelRoom';
 import { BOTS, botTotal, findBot, type Bot } from './bot';
-import { cameraTip, durationLabel, exerciseTitle, groupLabel, whereLabel } from './labels';
+import { cameraTip, exerciseTitle, formatName, groupLabel, whereLabel } from './labels';
 
 export interface Pick {
   exercise: DuelExercise;
@@ -57,10 +58,10 @@ export function initPicker(params: URLSearchParams, onChange: () => void): void 
     b.append(span('ex__title', exerciseTitle(id)), span('ex__where', groupLabel(id)));
     el.grid.append(b);
   }
-  for (const ms of ROOM_DURATIONS) {
-    const b = option('seg__item', () => set({ durationMs: ms }));
-    b.dataset.value = String(ms);
-    b.textContent = durationLabel(ms);
+  for (const f of ARENA_FORMATS) {
+    const b = option('seg__item seg__item--stack', () => set({ durationMs: f.ms }));
+    b.dataset.value = String(f.ms);
+    b.append(span('seg__name', f.name), span('seg__time', f.short));
     el.dur.append(b);
   }
   for (const bot of BOTS) {
@@ -89,11 +90,11 @@ function render(): void {
   for (const b of el.bots.querySelectorAll<HTMLElement>('.bot')) {
     const bot = findBot(b.dataset.value ?? null);
     b.querySelector('.bot__pace')!.textContent =
-      `≈ ${botTotal(bot, pick.exercise, pick.durationMs)} за ${durationLabel(pick.durationMs)}`;
+      `≈ ${botTotal(bot, pick.exercise, pick.durationMs)} за ${formatName(pick.durationMs)}`;
   }
   el.where.textContent = whereLabel(pick.exercise);
   el.sumEx.textContent = exerciseTitle(pick.exercise);
-  el.sumMeta.textContent = `${durationLabel(pick.durationMs)} · против бота «${pick.bot.name}»`;
+  el.sumMeta.textContent = `${formatName(pick.durationMs)} · против бота «${pick.bot.name}»`;
   el.tip.textContent = cameraTip(pick.exercise);
 }
 

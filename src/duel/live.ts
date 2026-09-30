@@ -69,6 +69,15 @@ export class Live {
     };
   }
 
+  /** Забыть комнату и не возвращаться в неё после переподключения (выход из аккаунта). */
+  dropRoom(): void {
+    if (this.ws?.readyState === WebSocket.OPEN && this.room) this.raw({ t: 'leave' });
+    this.room = null;
+    this.key = null;
+    this.name = undefined;
+    this.queue = [];
+  }
+
   /** Переподключиться — после входа или выхода: сервер узнаёт игрока по cookie при рукопожатии. */
   reconnect(): void {
     const ws = this.ws;

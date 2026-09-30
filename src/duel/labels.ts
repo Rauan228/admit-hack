@@ -2,6 +2,7 @@
 // Общие для выбора, лобби, вызовов и итога — чтобы везде было одинаково.
 
 import type { ExerciseId } from '../engine/types';
+import { formatByMs } from '../shared/arena';
 import { DEFAULT_DUEL_EXERCISE, isDuelExercise, type DuelExercise } from '../shared/duel';
 import { CATEGORIES, EXERCISE_META } from '../ui/lib/exercises';
 
@@ -31,6 +32,12 @@ export function groupLabel(ex: ExerciseId): string {
 /** Время боя по-человечески: «30 с», «1 мин», «3 мин». */
 export function durationLabel(ms: number): string {
   return ms < 60_000 ? `${Math.round(ms / 1000)} с` : `${Math.round(ms / 60_000)} мин`;
+}
+
+/** Разряд, если время соревновательное: «Пуля · 30 с». Иначе просто длительность. */
+export function formatName(ms: number): string {
+  const f = formatByMs(ms);
+  return f ? `${f.name} · ${f.short}` : durationLabel(ms);
 }
 
 /** Как ставить камеру: на полу перед собой (отжимания) или стоя лицом к ней. */

@@ -297,6 +297,14 @@
   background: var(--surface-2);
 }
 
+.seg--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.seg--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .seg__item {
   min-height: 48px;
   border: 0;
@@ -313,6 +321,20 @@
 
 .seg__item:hover {
   color: var(--fg);
+}
+
+.seg__item--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.05;
+}
+
+.seg__time {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.72;
 }
 
 /* Боты: уровень — шкалой из трёх столбиков, темп под упражнение — справа. */
@@ -594,6 +616,167 @@
 .account__note b {
   color: var(--fg);
   font-weight: 600;
+}
+
+.account__me {
+  display: flex;
+  flex: 1 1 220px;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.account__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account__who b {
+  overflow: hidden;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account__meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.account__rank {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.account__bar {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--surface-3);
+}
+
+.account__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+/* ——— Таблица арены ——— */
+.panel--ladder {
+  margin-top: var(--s-3);
+}
+
+.chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--muted);
+  font: 600 13px / 1 var(--font-body);
+  cursor: pointer;
+}
+
+.chip:hover {
+  color: var(--fg);
+}
+
+.chip.is-active {
+  background: var(--fg);
+  color: var(--on-light);
+}
+
+.ladder__rule {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.ladder {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ladder__row {
+  display: grid;
+  grid-template-columns: 28px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 6px 14px 6px 8px;
+  border-radius: 16px;
+  background: var(--surface-2);
+}
+
+.ladder__row.is-me {
+  background: var(--primary-soft);
+}
+
+.ladder__rank {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ladder__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ladder__who b,
+.ladder__who small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ladder__who b {
+  font-size: 15px;
+}
+
+.ladder__who small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ladder__cups {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ladder__empty {
+  padding: var(--s-4) 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .account__note a {
@@ -950,17 +1133,12 @@
   color: var(--good);
 }
 
-.hud__avatar {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--surface-3);
-  color: var(--fg);
-  font-size: 12px;
-  font-weight: 700;
+.hud .face {
+  --face-size: 32px;
+}
+
+.hud .face__disc {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .hud__name {
@@ -1274,10 +1452,24 @@
   font-weight: 700;
 }
 
-.result__note {
+.result__note,
+.result__award {
   color: var(--muted);
   font-size: 16px;
   line-height: 1.45;
+}
+
+.result__award {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.result__award:empty {
+  display: none;
+}
+
+.result .face {
+  --face-size: 44px;
 }
 
 .result__actions {
@@ -1441,6 +1633,10 @@
   .panel--inbox {
     order: 5;
   }
+
+  .panel--ladder {
+    order: 6;
+  }
 }
 
 /* ——— Телефон ——— */
@@ -1541,8 +1737,8 @@
     font-size: 13px;
   }
 
-  .hud__avatar {
-    display: none;
+  .hud .face {
+    --face-size: 26px;
   }
 
   .hud__clock {

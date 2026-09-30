@@ -2,6 +2,7 @@
 // Свой маленький fetch: клиент платформы (ui/store/api.ts) тянет React, а страница дуэли — без него.
 // Cookie-сессия общая с платформой: вошёл там — вошёл и здесь.
 
+import type { ArenaFormatId, ArenaStanding, AwardView, LadderData } from '../shared/arena';
 import type { DuelExercise } from '../shared/duel';
 
 export interface Me {
@@ -44,6 +45,16 @@ export interface Inbox {
 export interface Player {
   nick: string;
   friend: boolean;
+  cups?: number;
+  title?: string | null;
+  frame?: string | null;
+}
+
+export interface AnswerResult {
+  reps: number;
+  outcome: Outcome;
+  award: AwardView | null;
+  rival: { title: string | null; frame: string | null } | null;
 }
 
 export type Outcome = 'win' | 'lose' | 'draw';
@@ -92,7 +103,15 @@ export const api = {
       (r) => r.challenge,
     ),
   answer: (id: string, timeline: number[], name?: string) =>
-    call<{ reps: number; outcome: Outcome }>('POST', '/duel/answer', { id, timeline, name }),
+    call<AnswerResult>('POST', '/duel/answer', { id, timeline, name }),
+  standing: () => call<ArenaStanding>('GET', '/duel/standing'),
+  ladder: (format: ArenaFormatId | null, exercise: DuelExercise | null) => {
+    const q = new URLSearchParams();
+    if (format) q.set('format', format);
+    if (exercise) q.set('exercise', exercise);
+    const tail = q.toString() ? `?${q}` : '';
+    return call<LadderData>('GET', `/duel/ladder${tail}`);
+  },
   inbox: () => call<Inbox>('GET', '/duel/inbox'),
   players: (q = '') =>
     call<{ players: Player[] }>('GET', `/duel/players?q=${encodeURIComponent(q)}`).then((r) => r.players),

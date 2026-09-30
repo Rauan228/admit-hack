@@ -3,9 +3,12 @@
 // вызова по ссылке. Бой идёт против записи повторов вызова; ответ уходит автору.
 // Все имена — только через textContent: ники и имена гостей приходят от других людей.
 
+import { cupsLabel, describeAward, type ArenaStanding } from '../shared/arena';
 import type { DuelExercise } from '../shared/duel';
-import { ApiError, api, challengeUrl, type Challenge, type Me, type Player } from './api';
-import { durationLabel, duelExercise, exerciseTitle, repsWord } from './labels';
+import { ApiError, api, challengeUrl, type AnswerResult, type Challenge, type Me, type Player } from './api';
+import { face } from './face';
+import { duelExercise, exerciseTitle, formatName, repsWord } from './labels';
+import { reloadLadder } from './ladder';
 
 export interface RecordedOpponent {
   challengeId: string;
@@ -21,7 +24,15 @@ interface Hooks {
   /** Принять вызов: бой против записи. */
   accept(opp: RecordedOpponent): void;
   /** Вошёл или вышел (онлайн-дуэли нужно переподключиться с новой cookie). */
-  accountChanged?(): void;
+  accountChanged?(why: 'in' | 'out'): void;
+  /** Подтянулись кубки — обновить рамку, если бой уже на экране. */
+  rankChanged?(): void;
+}
+
+export interface AnswerNote {
+  note: string;
+  awardText: string;
+  rival: { title: string | null; frame: string | null } | null;
 }
 
 /** Основной сайт — там, где есть API (зеркала на Pages и Vercel — только статика). */
@@ -48,6 +59,9 @@ const el = {
 
 let hooks: Hooks;
 let me: Me | null = null;
+let standing: ArenaStanding | null = null;
+/** Форма входа открыта сразу — со страницы приглашения, без лишнего клика «Войти». */
+let formOpen = false;
 /** API доступен (на зеркалах без сервера — нет). */
 let online = true;
 let guestName = '';
@@ -64,10 +78,15 @@ export async function initSocial(h: Hooks): Promise<void> {
   hooks = h;
   try {
     me = await api.me();
+    if (me) {
+      formOpen = false;
+      standing = await api.standing().catch(() => null);
+    }
   } catch {
     online = false;
   }
-  renderAccount();
+  // Форму входа могли открыть, пока узнавали сессию — не затираем её пустым ответом.
+  if (me || !formOpen) renderAccount();
   void refreshInbox();
   void showLinkChallenge();
   window.addEventListener('hashchange', () => void showLinkChallenge());
@@ -97,37 +116,99 @@ function renderAccount(): void {
     return;
   }
   if (me) {
-    const p = text('p', 'account__note', 'Ты — ');
-    p.append(text('b', '', me.nick));
+    const box = document.createElement('div');
+    box.className = 'account__me';
+    const avatar = face(me.nick, standing?.frame ?? null, 40);
+    if (standing?.title) avatar.title = standing.title.name;
+    const who = document.createElement('div');
+    who.className = 'account__who';
+    who.append(text('b', '', me.nick), rankBlock(standing));
+    box.append(avatar, who);
     const out = button('Выйти', 'btn btn--sm btn--ghost');
     out.addEventListener('click', async () => {
       await api.logout().catch(() => undefined);
       me = null;
-      hooks.accountChanged?.();
+      standing = null;
+      formOpen = false;
+      hooks.accountChanged?.('out');
       renderAccount();
       el.inbox.replaceChildren();
       void showLinkChallenge();
     });
-    el.account.append(p, out);
+    el.account.append(box, out);
     return;
   }
   const p = text(
     'p',
     'account__note',
-    'Войди, чтобы звать игроков и видеть вызовы. По ссылке от друга можно играть и без входа.',
+    'Пуля, блиц и рапид — только с аккаунтом. Бой с ботом кубки не меняет. На вызов по ссылке можно ответить и гостем, но кубки получит только вошедший.',
   );
-  const open = button('Войти', 'btn btn--sm');
-  open.addEventListener('click', () => {
-    open.remove();
+  el.account.append(p);
+  if (formOpen) {
     el.account.append(loginForm(onSignedIn));
-  });
-  el.account.append(p, open);
+    return;
+  }
+  const open = button('Войти', 'btn btn--sm');
+  open.addEventListener('click', () => openLogin());
+  el.account.append(open);
+}
+
+/** Соревнование без аккаунта не стартует — открываем вход прямо в панели. */
+export function openLogin(): void {
+  if (me || !online) return;
+  formOpen = true;
+  renderAccount();
+  el.account.scrollIntoView({ block: 'nearest' });
+}
+
+/** После боя подтянуть кубки, рамку и таблицу. */
+export async function refreshRank(): Promise<void> {
+  if (!me) return;
+  standing = await api.standing().catch(() => standing);
+  renderAccount();
+  reloadLadder();
+  hooks.rankChanged?.();
+}
+
+/** Буква и рамка для табло: пока идёт бой, титул мог смениться. */
+export function myFace(): { name: string; frame: string | null; title: string | null } {
+  return {
+    name: me?.nick ?? 'Ты',
+    frame: standing?.frame ?? null,
+    title: standing?.title?.name ?? null,
+  };
+}
+
+function rankBlock(s: ArenaStanding | null): HTMLElement {
+  const wrap = document.createElement('span');
+  wrap.className = 'account__rank';
+  if (!s) {
+    wrap.append(text('span', 'account__meta', 'Кубки появятся после первой соревновательной дуэли'));
+    return wrap;
+  }
+  const title = s.title?.name ?? 'Без титула';
+  const next = s.nextTitle ? ` · до «${s.nextTitle.name}» ${cupsLabel(s.nextTitle.left)}` : '';
+  wrap.append(text('span', 'account__meta', `${title} · ${cupsLabel(s.cups)} · уровень ${s.level}${next}`));
+  const bar = document.createElement('span');
+  bar.className = 'account__bar';
+  bar.setAttribute('role', 'progressbar');
+  bar.setAttribute('aria-valuemin', '0');
+  bar.setAttribute('aria-valuenow', String(s.into));
+  bar.setAttribute('aria-valuemax', String(s.span));
+  bar.setAttribute('aria-label', `Уровень ${s.level}, опыт ${s.xp}`);
+  const fill = document.createElement('span');
+  fill.style.width = `${Math.min(100, (s.into / Math.max(1, s.span)) * 100)}%`;
+  bar.append(fill);
+  wrap.append(bar);
+  return wrap;
 }
 
 function onSignedIn(user: Me): void {
   me = user;
-  hooks.accountChanged?.();
+  formOpen = false;
+  hooks.accountChanged?.('in');
   renderAccount();
+  void refreshRank();
   void refreshInbox();
   void showLinkChallenge();
 }
@@ -197,7 +278,7 @@ async function refreshInbox(): Promise<void> {
     for (const c of waiting.slice(0, 5)) {
       const li = row(
         c.from,
-        `${exerciseTitle(duelExercise(c.exercise))} · ${c.reps} за ${durationLabel(c.durationMs)}`,
+        `${exerciseTitle(duelExercise(c.exercise))} · ${c.reps} за ${formatName(c.durationMs)}`,
       );
       const go = button('Принять', 'btn btn--sm');
       go.addEventListener('click', () => void acceptById(c.id, go));
@@ -263,7 +344,7 @@ async function showLinkChallenge(): Promise<void> {
   const score = text('p', 'callout__score', '');
   score.append(
     text('b', '', String(c.reps)),
-    text('span', '', `${repsWord(c.reps)} · ${exerciseTitle(ex)} за ${durationLabel(c.durationMs)}`),
+    text('span', '', `${repsWord(c.reps)} · ${exerciseTitle(ex)} за ${formatName(c.durationMs)}`),
   );
   el.card.append(head, score);
   if (!c.mine) el.card.append(text('p', 'callout__text', 'Сделаешь больше?'));
@@ -293,15 +374,26 @@ async function showLinkChallenge(): Promise<void> {
   el.card.append(go);
 }
 
-/** Ответ на вызов после боя; возвращает строку для экрана итогов. */
-export async function sendAnswer(opp: RecordedOpponent, timeline: number[]): Promise<string> {
+/** Ответ на вызов после боя: строка для итога и, если бой рейтинговый, кубки. */
+export async function sendAnswer(opp: RecordedOpponent, timeline: number[]): Promise<AnswerNote> {
+  const empty = (note: string): AnswerNote => ({ note, awardText: '', rival: null });
   try {
-    await api.answer(opp.challengeId, timeline, me ? undefined : guestName || undefined);
+    const res: AnswerResult = await api.answer(
+      opp.challengeId,
+      timeline,
+      me ? undefined : guestName || undefined,
+    );
     void refreshInbox();
-    return `Ответ отправлен — ${opp.name} увидит твой результат.`;
+    if (res.award) void refreshRank();
+    return {
+      note: `Ответ отправлен — ${opp.name} увидит твой результат.`,
+      awardText: res.award ? describeAward(res.award) : 'Кубки не изменились.',
+      rival: res.rival,
+    };
   } catch (err) {
-    if (err instanceof ApiError && err.status === 409) return 'Ответ уже был — этот бой шёл без зачёта.';
-    return (err as Error).message;
+    if (err instanceof ApiError && err.status === 409)
+      return empty('Ответ уже был — этот бой шёл без зачёта.');
+    return empty((err as Error).message);
   }
 }
 
@@ -314,7 +406,7 @@ export function openInvite(
 ): void {
   invite = { timeline, durationMs, exercise, linkId: null };
   el.invReps.textContent = String(timeline.length);
-  el.invEx.textContent = `${exerciseTitle(exercise)} за ${durationLabel(durationMs)}.`;
+  el.invEx.textContent = `${exerciseTitle(exercise)} за ${formatName(durationMs)}.`;
   el.invStatus.textContent = '';
   el.invLink.hidden = true;
   el.search.value = suggest ?? '';
@@ -354,7 +446,7 @@ async function shareLink(): Promise<void> {
     el.invLink.hidden = false;
     const n = invite.timeline.length;
     const title = exerciseTitle(invite.exercise);
-    const text = `${title}: ${n} ${repsWord(n)} за ${durationLabel(invite.durationMs)} в FORMA. Сможешь больше?`;
+    const text = `${title}: ${n} ${repsWord(n)} за ${formatName(invite.durationMs)} в FORMA. Сможешь больше?`;
     if (navigator.share) {
       await navigator.share({ title: `Дуэль: ${title}`, text, url }).catch(() => undefined);
       el.invStatus.textContent = 'Ссылка готова.';
@@ -398,7 +490,11 @@ async function showPeople(): Promise<void> {
 }
 
 function personRow(p: Player): HTMLLIElement {
-  const li = row(p.nick, '');
+  const bits = [p.title, p.cups ? cupsLabel(p.cups) : ''].filter((part): part is string => !!part);
+  const li = row(p.nick, bits.join(' · '));
+  const avatar = face(p.nick, p.frame ?? null, 32);
+  if (p.title) avatar.title = p.title;
+  li.prepend(avatar);
   const star = button(p.friend ? '★' : '☆', 'person__star');
   star.setAttribute('aria-pressed', String(p.friend));
   star.setAttribute('aria-label', p.friend ? `Убрать ${p.nick} из друзей` : `Добавить ${p.nick} в друзья`);

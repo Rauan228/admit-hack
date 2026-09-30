@@ -1,0 +1,95 @@
+/* Рамка титула арены. Одна и та же вокруг буквы ника: в профиле, в таблице и на табло боя.
+   Без data-frame рамки нет — титул ещё не взят. */
+
+.face {
+  --face-size: 28px;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--face-size);
+  height: var(--face-size);
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.face[data-frame] {
+  width: calc(var(--face-size) + 8px);
+  height: calc(var(--face-size) + 8px);
+  padding: 3px;
+  box-shadow: 0 0 12px var(--face-glow, transparent);
+}
+
+.face__disc {
+  display: grid;
+  place-items: center;
+  width: var(--face-size);
+  height: var(--face-size);
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--fg);
+  font-size: calc(var(--face-size) * 0.42);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.face[data-frame='spark'] {
+  --face-glow: rgba(251, 146, 60, 0.45);
+  background: conic-gradient(#ffedd5, #fb923c, #fff7ed, #fb923c, #ffedd5);
+}
+
+.face[data-frame='fighter'] {
+  --face-glow: rgba(180, 83, 9, 0.45);
+  background: conic-gradient(#fcd34d, #b45309, #fde68a, #92400e, #fcd34d);
+}
+
+.face[data-frame='athlete'] {
+  --face-glow: rgba(125, 211, 252, 0.4);
+  background: conic-gradient(#e0f2fe, #7dd3fc, #0369a1, #e0f2fe);
+}
+
+.face[data-frame='gladiator'] {
+  --face-glow: rgba(248, 113, 113, 0.45);
+  background: conic-gradient(#fecaca, #ef4444, #7f1d1d, #fecaca);
+}
+
+.face[data-frame='master'] {
+  --face-glow: rgba(228, 228, 231, 0.45);
+  background: conic-gradient(#fafafa, #a1a1aa, #f4f4f5, #71717a, #fafafa);
+}
+
+.face[data-frame='champion'] {
+  --face-glow: rgba(250, 204, 21, 0.55);
+  background: conic-gradient(#fef9c3, #facc15, #a16207, #fef9c3);
+}
+
+@property --face-spin {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.face[data-frame='legend'] {
+  --face-glow: rgba(167, 139, 250, 0.55);
+  background: conic-gradient(from var(--face-spin), #ddd6fe, #8b5cf6, #4c1d95, #ddd6fe);
+  animation: face-spin 4s linear infinite;
+}
+
+.face[data-frame='titan'] {
+  --face-glow: rgba(34, 211, 238, 0.55);
+  background: conic-gradient(from var(--face-spin), #67e8f9, #fde68a, #f97316, #22d3ee);
+  animation: face-spin 3s linear infinite;
+}
+
+@keyframes face-spin {
+  to {
+    --face-spin: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .face[data-frame='legend'],
+  .face[data-frame='titan'] {
+    animation: none;
+  }
+}

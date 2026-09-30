@@ -12,14 +12,17 @@ import { sfx, unlockAudio } from '../ui/audio/sfx';
 import { numberWord, say, unlockVoice } from '../ui/audio/voice';
 import { coverView, drawSkeleton } from '../ui/lib/skeleton';
 import { COLORS } from '../ui/theme';
+import { describeAward } from '../shared/arena';
 import type { RoomView } from '../shared/duelRoom';
 import { minGapMs, type DuelExercise } from '../shared/duel';
 import { botTimeline, botTotal, repsAt } from './bot';
-import { cameraTip, durationLabel, exerciseTitle, isFloor, repsWord } from './labels';
+import { setFace } from './face';
+import { initLadder } from './ladder';
+import { cameraTip, exerciseTitle, formatName, isFloor, repsWord } from './labels';
 import { DuelMatch, formatClock, type DuelPhase, type DuelSnapshot } from './match';
 import { initOnline, onlineDuel, reconnectOnline } from './online';
 import { initPicker, picked } from './picker';
-import { initSocial, openInvite, sendAnswer, type RecordedOpponent } from './social';
+import { initSocial, myFace, openInvite, sendAnswer, type RecordedOpponent } from './social';
 
 type Screen = 'intro' | 'setup' | DuelPhase | 'result';
 
@@ -50,7 +53,9 @@ const ui = {
   sideOpp: $<HTMLDivElement>('side-opp'),
   scoreMe: $<HTMLSpanElement>('score-me'),
   scoreOpp: $<HTMLSpanElement>('score-opp'),
-  oppAvatar: $<HTMLSpanElement>('opp-avatar'),
+  meFace: $<HTMLElement>('me-face'),
+  meName: $<HTMLSpanElement>('me-name'),
+  oppFace: $<HTMLElement>('opp-face'),
   oppName: $<HTMLSpanElement>('opp-name'),
   clock: $<HTMLSpanElement>('clock'),
   hudEx: $<HTMLSpanElement>('hud-ex'),
@@ -62,8 +67,12 @@ const ui = {
   resultTitle: $<HTMLHeadingElement>('result-title'),
   resultMe: $<HTMLSpanElement>('result-me'),
   resultOpp: $<HTMLSpanElement>('result-opp'),
+  resultMeFace: $<HTMLElement>('result-me-face'),
+  resultMeName: $<HTMLElement>('result-me-name'),
+  resultOppFace: $<HTMLElement>('result-opp-face'),
   resultOppName: $<HTMLElement>('result-opp-name'),
   resultNote: $<HTMLParagraphElement>('result-note'),
+  resultAward: $<HTMLParagraphElement>('result-award'),
   inviteOpen: $<HTMLButtonElement>('invite-open'),
 };
 $<HTMLAnchorElement>('home').href = import.meta.env.BASE_URL;
@@ -95,6 +104,7 @@ let wakeLock: { release(): Promise<void> } | null = null;
 
 // ——— Выбор упражнения, времени и бота ———
 initPicker(params, () => undefined);
+initLadder();
 
 // ——— Вызовы друзьям (E-25) ———
 void initSocial({
@@ -106,12 +116,20 @@ void initSocial({
     if (engine) toSetup();
     else void startEngine();
   },
-  accountChanged: () => reconnectOnline(),
+  accountChanged(why) {
+    reconnectOnline(why === 'out');
+    paintMe();
+  },
+  rankChanged() {
+    paintMe();
+  },
 });
 
 // ——— Онлайн-дуэль (E-26): время боя и итог — от сервера ———
 /** Итог раунда уже объявлен голосом (объявляем по серверу, а не по своему счёту). */
 let announced = false;
+/** Раунд, для которого уже показали кубки. Повтор комнаты тот же раунд не стирает строку. */
+let awardRound = -1;
 initOnline({
   enterRoom() {
     opponent = null;
@@ -121,6 +139,14 @@ initOnline({
   },
   countdown: startOnlineMatch,
   over: onlineResult,
+  award(a) {
+    if (!onlineDuel.active() || a.round !== onlineDuel.round()) return;
+    awardRound = a.round;
+    ui.resultAward.textContent = describeAward(a);
+    const opp = onlineDuel.opponent();
+    paintMe();
+    if (opp) paintOpp(opp.name, opp.frame, opp.title);
+  },
   leftRoom() {
     if (screen === 'intro') return;
     match = null;
@@ -151,21 +177,21 @@ function show(next: Screen): void {
 function currentMode(): { exercise: DuelExercise; durationMs: number; meta: string } {
   if (onlineDuel.active()) {
     const ms = onlineDuel.durationMs();
-    return { exercise: onlineDuel.exercise(), durationMs: ms, meta: `${durationLabel(ms)} · онлайн` };
+    return { exercise: onlineDuel.exercise(), durationMs: ms, meta: `${formatName(ms)} · онлайн` };
   }
   if (opponent) {
     const ms = opponent.durationMs;
     return {
       exercise: opponent.exercise,
       durationMs: ms,
-      meta: `${durationLabel(ms)} · против записи ${opponent.name}`,
+      meta: `${formatName(ms)} · против записи ${opponent.name}`,
     };
   }
   const p = picked();
   return {
     exercise: p.exercise,
     durationMs: p.durationMs,
-    meta: `${durationLabel(p.durationMs)} · против бота «${p.bot.name}»`,
+    meta: `${formatName(p.durationMs)} · против бота «${p.bot.name}»`,
   };
 }
 
@@ -277,14 +303,31 @@ function onEvent(e: EngineEvent): void {
 }
 
 // ——— Бой ———
+/** Буква и рамка свои: титул мог прийти уже после старта боя. */
+function paintMe(): void {
+  const mine = myFace();
+  setFace(ui.meFace, mine.name, mine.frame, mine.title);
+  ui.meName.textContent = mine.name;
+  setFace(ui.resultMeFace, mine.name, mine.frame, mine.title);
+  ui.resultMeName.textContent = mine.name;
+}
+
+function paintOpp(name: string, frame: string | null, title: string | null): void {
+  setFace(ui.oppFace, name, frame, title);
+  ui.oppName.textContent = name;
+  setFace(ui.resultOppFace, name, frame, title);
+  ui.resultOppName.textContent = name;
+}
+
 /** Общая подготовка табло к отсчёту — для любого соперника. */
 function prepareBoard(exercise: DuelExercise, durationMs: number, oppName: string): void {
   currentExercise = exercise;
   currentDurationMs = durationMs;
   engineTarget = Math.max(ENGINE_TARGET, Math.ceil(durationMs / minGapMs(exercise)) + 10);
   shown = { me: -1, opp: -1, second: -1, lastTen: false };
-  ui.oppAvatar.textContent = oppName.slice(0, 1).toUpperCase();
-  ui.oppName.textContent = oppName;
+  const liveOpp = onlineDuel.active() ? onlineDuel.opponent() : undefined;
+  paintMe();
+  paintOpp(oppName, liveOpp?.frame ?? null, liveOpp?.title ?? null);
   ui.hudEx.textContent = exerciseTitle(exercise);
   ui.countdownText.textContent = `${exerciseTitle(exercise)} — ${isFloor(exercise) ? 'ложись в упор' : 'встань в кадр'}`;
   ui.hint.textContent = '';
@@ -369,8 +412,12 @@ function onlineResult(v: RoomView): void {
           ? 'Поражение'
           : 'Ничья';
   fillResult(v.exercise, v.durationMs, title, me?.reps ?? 0, opp?.reps ?? 0, opp?.name ?? 'Соперник');
+  paintMe();
+  paintOpp(opp?.name ?? 'Соперник', opp?.frame ?? null, opp?.title ?? null);
+  if (awardRound !== v.round) ui.resultAward.textContent = '';
   app.dataset.outcome = outcome;
-  ui.resultNote.textContent = noteFor(outcome, me?.reps ?? 0, opp?.reps ?? 0);
+  const gaveUp = me?.gaveUp ? 'me' : opp?.gaveUp ? 'opp' : null;
+  ui.resultNote.textContent = noteFor(outcome, me?.reps ?? 0, opp?.reps ?? 0, gaveUp);
   ui.inviteOpen.hidden = true;
   if (screen !== 'result') show('result');
   if (!announced) {
@@ -415,14 +462,16 @@ function fillResult(
   opp: number,
   oppName: string,
 ): void {
-  ui.resultEx.textContent = `${exerciseTitle(exercise)} · ${durationLabel(durationMs)}`;
+  ui.resultEx.textContent = `${exerciseTitle(exercise)} · ${formatName(durationMs)}`;
   ui.resultTitle.textContent = title;
   ui.resultMe.textContent = String(me);
   ui.resultOpp.textContent = String(opp);
   ui.resultOppName.textContent = oppName;
 }
 
-function noteFor(outcome: string, me: number, opp: number): string {
+function noteFor(outcome: string, me: number, opp: number, gaveUp: 'me' | 'opp' | null = null): string {
+  if (gaveUp === 'me') return 'Сдача считается поражением.';
+  if (gaveUp === 'opp') return 'Соперник сдался — победа твоя.';
   const diff = Math.abs(me - opp);
   if (outcome === 'draw') return 'Одинаково — реванш?';
   return outcome === 'win'
@@ -436,6 +485,7 @@ function showResult(s: DuelSnapshot): void {
   if (onlineDuel.active()) {
     fillResult(currentExercise, currentDurationMs, s.gaveUp ? 'Ты сдался' : 'Время!', s.me, s.opp, oppName);
     ui.resultNote.textContent = 'Считаем итог на сервере…';
+    if (awardRound !== onlineDuel.round()) ui.resultAward.textContent = '';
     app.dataset.outcome = '';
     ui.inviteOpen.hidden = true;
     show('result');
@@ -449,17 +499,24 @@ function showResult(s: DuelSnapshot): void {
         ? 'Поражение'
         : 'Ничья';
   fillResult(currentExercise, currentDurationMs, title, s.me, s.opp, oppName);
-  ui.resultNote.textContent = noteFor(s.outcome ?? 'draw', s.me, s.opp);
+  ui.resultNote.textContent = noteFor(s.outcome ?? 'draw', s.me, s.opp, s.gaveUp ? 'me' : null);
   app.dataset.outcome = s.outcome ?? '';
   // Звать друга есть смысл с настоящим результатом.
   ui.inviteOpen.hidden = s.gaveUp || s.me === 0;
   if (opponent && match) {
     const opp = opponent;
     const note = ui.resultNote.textContent;
+    ui.resultAward.textContent = '';
     ui.resultNote.textContent = `${note} Отправляю ответ…`;
-    void sendAnswer(opp, match.myTimeline()).then((msg) => {
-      if (screen === 'result') ui.resultNote.textContent = `${note} ${msg}`;
+    void sendAnswer(opp, match.myTimeline()).then((res) => {
+      if (screen !== 'result') return;
+      ui.resultNote.textContent = `${note} ${res.note}`;
+      ui.resultAward.textContent = res.awardText;
+      paintMe();
+      if (res.rival) paintOpp(opp.name, res.rival.frame, res.rival.title);
     });
+  } else {
+    ui.resultAward.textContent = 'Тренировка с ботом — кубки не меняются.';
   }
   show('result');
   if (s.outcome === 'win') sfx.fanfare();

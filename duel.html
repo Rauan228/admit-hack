@@ -35,7 +35,8 @@
           <div class="intro__head">
             <h1 class="intro__title">Дуэль</h1>
             <p class="intro__lead">
-              Кто больше за время боя. Выбери упражнение и соперника — повторы считает камера.
+              Кто больше за время боя. Пуля, блиц и рапид — у каждого разряда свой рейтинг. Повторы считает
+              камера.
             </p>
           </div>
 
@@ -55,14 +56,15 @@
               <section class="panel panel--time" aria-labelledby="dur-title">
                 <div class="panel__head">
                   <h2 class="panel__title" id="dur-title">Время боя</h2>
+                  <span class="panel__aside">Свой рейтинг у каждого</span>
                 </div>
-                <div class="seg" id="dur-pick" role="radiogroup" aria-labelledby="dur-title"></div>
+                <div class="seg seg--3" id="dur-pick" role="radiogroup" aria-labelledby="dur-title"></div>
               </section>
 
               <section class="panel panel--online online" id="online" aria-labelledby="online-title">
                 <div class="panel__head">
-                  <h2 class="panel__title" id="online-title">Живой соперник</h2>
-                  <span class="panel__aside">Бой в одно время</span>
+                  <h2 class="panel__title" id="online-title">Соревнование</h2>
+                  <span class="panel__aside">Только с аккаунтом</span>
                 </div>
                 <div class="account" id="account"></div>
                 <input
@@ -102,6 +104,17 @@
               <section class="panel panel--inbox inbox" id="inbox"></section>
             </aside>
           </div>
+
+          <section class="panel panel--ladder" id="ladder" aria-labelledby="ladder-title">
+            <div class="panel__head">
+              <h2 class="panel__title" id="ladder-title">Таблица арены</h2>
+              <span class="panel__aside">Кубки, не повторы</span>
+            </div>
+            <div class="seg seg--4" id="ladder-format" role="group" aria-label="Разряд"></div>
+            <div class="chips" id="ladder-ex" role="group" aria-label="Упражнение"></div>
+            <p class="ladder__rule" id="ladder-rule"></p>
+            <ol class="ladder" id="ladder-rows"></ol>
+          </section>
         </div>
       </section>
 
@@ -138,7 +151,10 @@
       <!-- ——— Табло: отсчёт и бой ——— -->
       <header class="hud hud-panel" data-for="countdown battle">
         <div class="hud__side hud__side--me" id="side-me">
-          <span class="hud__who">Ты</span>
+          <span class="hud__who">
+            <span class="face" id="me-face"><span class="face__disc" id="me-avatar">Я</span></span>
+            <span class="hud__name" id="me-name">Ты</span>
+          </span>
           <span class="hud__score"
             ><span class="hud__num" id="score-me">0</span
             ><span class="hud__plus" aria-hidden="true">+1</span></span
@@ -149,10 +165,10 @@
           <span class="hud__ex" id="hud-ex">Отжимания</span>
         </div>
         <div class="hud__side hud__side--opp" id="side-opp">
-          <span class="hud__who"
-            ><span class="hud__avatar" id="opp-avatar" aria-hidden="true">А</span
-            ><span class="hud__name" id="opp-name">Атлет</span></span
-          >
+          <span class="hud__who">
+            <span class="face" id="opp-face"><span class="face__disc" id="opp-avatar">А</span></span>
+            <span class="hud__name" id="opp-name">Атлет</span>
+          </span>
           <span class="hud__num" id="score-opp">0</span>
         </div>
         <div class="tug" aria-hidden="true"><div class="tug__me" id="tug-me"></div></div>
@@ -176,16 +192,19 @@
           <h2 class="result__title" id="result-title">Победа</h2>
           <div class="result__score">
             <div class="result__col result__col--me">
+              <span class="face" id="result-me-face"><span class="face__disc">Я</span></span>
               <span class="result__num" id="result-me">0</span>
-              <span class="result__who">Ты</span>
+              <span class="result__who" id="result-me-name">Ты</span>
             </div>
             <span class="result__sep" aria-hidden="true">:</span>
             <div class="result__col result__col--opp">
+              <span class="face" id="result-opp-face"><span class="face__disc">А</span></span>
               <span class="result__num" id="result-opp">0</span>
               <span class="result__who" id="result-opp-name">Атлет</span>
             </div>
           </div>
           <p class="result__note" id="result-note"></p>
+          <p class="result__award" id="result-award"></p>
           <div class="result__actions">
             <button class="btn btn--primary btn--lg" id="again" type="button">Реванш</button>
             <button class="btn btn--lg" id="invite-open" type="button">Вызвать друга</button>

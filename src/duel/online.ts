@@ -3,12 +3,15 @@
 // Время боя назначает сервер; страница только переводит его часы в свои (Live.toLocal).
 // Все имена — через textContent: ники и имена гостей приходят от других людей.
 
+import { cupsLabel, type AwardView } from '../shared/arena';
 import type { DuelExercise } from '../shared/duel';
 import type { RoomView, ServerMsg } from '../shared/duelRoom';
 import { api, type Player } from './api';
-import { durationLabel, exerciseTitle } from './labels';
+import { face } from './face';
+import { exerciseTitle, formatName } from './labels';
 import { Live } from './live';
 import { picked, roomDuration } from './picker';
+import { openLogin, refreshRank } from './social';
 
 export interface OnlineHooks {
   /** Вошли в комнату — нужна камера (экран подготовки). */
@@ -17,6 +20,8 @@ export interface OnlineHooks {
   countdown(startLocal: number, durationMs: number, countdownMs: number): void;
   /** Бой окончен по серверу (приходит и повторно — если поздний повтор изменил счёт). */
   over(view: RoomView): void;
+  /** Кубки этого раунда — после окна поздних повторов. */
+  award(a: AwardView & { round: number }): void;
   /** Вышли из комнаты. */
   leftRoom(): void;
 }
@@ -44,7 +49,9 @@ const el = {
 
 let hooks: OnlineHooks;
 let live: Live;
+/** null и до приветствия, и у гостя. meKnown отличает «ещё не знаем» от «аккаунта нет». */
 let me: string | null = null;
+let meKnown = false;
 let online: string[] = [];
 let view: RoomView | null = null;
 let entered: string | null = null;
@@ -52,7 +59,6 @@ let countdownRound = 0;
 /** Кого позвать, как только комната будет создана. */
 let pendingInvite: string | null = null;
 let toastRoom: { room: string; from: string } | null = null;
-let guestName = '';
 /** Все игроки приложения (поиск по нику) — звать можно любого, не только тех, кто в сети. */
 let players: Player[] = [];
 /** Кого уже позвали в эту комнату: ник (нижний регистр) → пришло сразу / ждёт, когда он откроет дуэль. */
@@ -61,6 +67,10 @@ let sending: string | null = null;
 
 /** Создать комнату с тем, что выбрано на вступлении: упражнение и время боя (E-29, E-30). */
 function createRoom(): void {
+  if (meKnown && !me) {
+    openLogin();
+    return;
+  }
   live.create(picked().exercise, roomDuration());
 }
 
@@ -79,6 +89,11 @@ export function initOnline(h: OnlineHooks): void {
     debounce = window.setTimeout(() => void loadPlayers(), 250);
   });
   el.toastAccept.addEventListener('click', () => {
+    if (meKnown && !me) {
+      hideToast();
+      openLogin();
+      return;
+    }
     if (toastRoom) live.join(toastRoom.room);
     hideToast();
   });
@@ -91,7 +106,17 @@ export function initOnline(h: OnlineHooks): void {
 }
 
 /** Вошёл или вышел на странице — переподключиться, чтобы сервер узнал игрока. */
-export function reconnectOnline(): void {
+export function reconnectOnline(leave = false): void {
+  if (leave) {
+    me = null;
+    meKnown = true;
+    live.dropRoom();
+    called.clear();
+    view = entered = null;
+    countdownRound = 0;
+    renderLobby();
+    hooks.leftRoom();
+  }
   live.reconnect();
 }
 
@@ -102,6 +127,9 @@ export const onlineDuel = {
   oppReps: () => (view ? (view.players[1 - view.you]?.reps ?? 0) : 0),
   exercise: (): DuelExercise => view?.exercise ?? 'push_up',
   durationMs: () => view?.durationMs ?? 60_000,
+  round: () => view?.round ?? 0,
+  me: () => (view ? view.players[view.you] : undefined),
+  opponent: () => (view ? view.players[1 - view.you] : undefined),
   ready: () => live.send({ t: 'ready', ready: true }),
   rep: () => live.send({ t: 'rep' }),
   giveUp: () => live.send({ t: 'giveup' }),
@@ -111,8 +139,10 @@ export const onlineDuel = {
 function onMessage(m: ServerMsg): void {
   switch (m.t) {
     case 'hello':
+      meKnown = true;
       me = m.me;
       online = m.online;
+      showRoomCard();
       return void loadPlayers();
     case 'presence': {
       online = m.online;
@@ -136,6 +166,9 @@ function onMessage(m: ServerMsg): void {
       countdownRound = 0;
       renderLobby();
       return hooks.leftRoom();
+    case 'award':
+      refreshRank();
+      return hooks.award(m);
     case 'invited':
       return showToast(m.room, m.from, m.exercise, m.durationMs);
     case 'declined':
@@ -228,12 +261,12 @@ function renderList(): void {
         createRoom();
       }
     });
-    const who = text('span', 'person__who', '');
-    who.append(
-      text('span', 'person__nick', p.nick),
-      text('span', 'person__note', on ? 'в сети' : 'не в сети'),
+    const bits = [p.title, p.cups ? cupsLabel(p.cups) : '', on ? 'в сети' : 'не в сети'].filter(
+      (part): part is string => !!part,
     );
-    li.append(dot, who, call);
+    const who = text('span', 'person__who', '');
+    who.append(text('span', 'person__nick', p.nick), text('span', 'person__note', bits.join(' · ')));
+    li.append(dot, face(p.nick, p.frame ?? null, 32), who, call);
     el.list.append(li);
   }
 }
@@ -245,23 +278,30 @@ function showRoomCard(): void {
   el.card.hidden = !id || entered === id;
   if (!id || entered === id) return;
   el.card.append(text('p', 'callout__title', 'Тебя зовут на дуэль онлайн'));
+  if (!meKnown) {
+    el.card.append(text('p', 'callout__text', 'Подключаемся…'));
+    return;
+  }
+  if (!me) {
+    el.card.append(
+      text(
+        'p',
+        'callout__text',
+        'Соревновательная дуэль открыта после регистрации. Бой с ботом — без аккаунта.',
+      ),
+    );
+    const go = text('button', 'btn btn--primary callout__go', 'Зарегистрироваться') as HTMLButtonElement;
+    go.type = 'button';
+    go.addEventListener('click', () => openLogin());
+    el.card.append(go);
+    return;
+  }
   el.card.append(
     text('p', 'callout__text', 'Бой на двоих в одно время: каждый твой повтор соперник видит сразу.'),
   );
-  if (!me) {
-    const label = text('label', 'field', 'Как тебя подписать');
-    const input = document.createElement('input');
-    input.maxLength = 20;
-    input.placeholder = 'Гость';
-    input.setAttribute('autocomplete', 'nickname');
-    input.value = guestName;
-    input.addEventListener('input', () => (guestName = input.value.trim()));
-    label.append(input);
-    el.card.append(label);
-  }
   const go = text('button', 'btn btn--primary callout__go', 'Войти в дуэль') as HTMLButtonElement;
   go.type = 'button';
-  go.addEventListener('click', () => live.join(id, me ? undefined : guestName || undefined));
+  go.addEventListener('click', () => live.join(id));
   el.card.append(go);
 }
 
@@ -276,10 +316,10 @@ function renderLobby(): void {
   el.lobbyLink.hidden = el.lobbyLink.hidden || !host || !!opp;
   // Двое в комнате: кто в сети и кто готов — точкой и словом.
   el.lobbyPlayers.replaceChildren(
-    playerRow('Ты', you?.ready ? 'ready' : 'here'),
+    playerRow(you?.name ?? 'Ты', you?.ready ? 'ready' : 'here', you?.frame ?? null, you?.title ?? null),
     opp
-      ? playerRow(opp.name, !opp.online ? 'off' : opp.ready ? 'ready' : 'here')
-      : playerRow('Соперник', 'wait'),
+      ? playerRow(opp.name, !opp.online ? 'off' : opp.ready ? 'ready' : 'here', opp.frame, opp.title)
+      : playerRow('Соперник', 'wait', null, null),
   );
   if (!opp) {
     el.lobbyOpp.textContent = 'Ждём соперника — позови игрока из списка или отправь ссылку.';
@@ -295,10 +335,17 @@ function renderLobby(): void {
 
 const STATE_TEXT = { ready: 'готов', here: 'не готов', off: 'не в сети', wait: 'ещё не пришёл' } as const;
 
-function playerRow(name: string, state: keyof typeof STATE_TEXT): HTMLLIElement {
+function playerRow(
+  name: string,
+  state: keyof typeof STATE_TEXT,
+  frameId: string | null,
+  title: string | null,
+): HTMLLIElement {
   const li = text('li', 'lobby__player', '');
   li.dataset.state = state;
-  li.append(text('span', 'lobby__dot', ''), text('span', 'lobby__name', name));
+  const avatar = face(name, frameId, 28);
+  if (title) avatar.title = title;
+  li.append(text('span', 'lobby__dot', ''), avatar, text('span', 'lobby__name', name));
   li.append(text('span', 'lobby__state', STATE_TEXT[state]));
   return li;
 }
@@ -323,7 +370,7 @@ function showToast(room: string, from: string, exercise: DuelExercise, durationM
   if (el.app.dataset.screen === 'countdown' || el.app.dataset.screen === 'battle') return;
   toastRoom = { room, from };
   el.toastFrom.textContent = from;
-  el.toastEx.textContent = `${exerciseTitle(exercise)} · ${durationLabel(durationMs)}`;
+  el.toastEx.textContent = `${exerciseTitle(exercise)} · ${formatName(durationMs)}`;
   el.toast.hidden = false;
 }
 
@@ -335,6 +382,7 @@ function hideToast(): void {
 function showError(message: string): void {
   sending = null;
   renderList();
+  if (/Войди/.test(message)) openLogin();
   if (view) el.lobbyOpp.textContent = message;
   else el.note.textContent = message;
 }
