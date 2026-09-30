@@ -17,8 +17,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { specMotion } from './ghost-spec.mjs';
-import { spec3dMotion } from './ghost-spec3d.mjs';
-import { videoMotion } from './ghost-video.mjs';
+import * as kin from './ghost-kin.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FRAMES = 60; // кадров на цикл
@@ -415,6 +414,7 @@ function pack(frames, durationMs, source) {
 
 const out = {};
 let stand = null;
+let squatMotion = null;
 for (const [exercise, cfg] of Object.entries(SOURCES)) {
   const raw = load(cfg.file);
   const frames = smooth(raw, 3);
@@ -429,7 +429,10 @@ for (const [exercise, cfg] of Object.entries(SOURCES)) {
     `${exercise}: ${cfg.file} кадры ${rep.l}–${rep.r} (${(seg[0].t / 1000).toFixed(1)}–${(seg.at(-1).t / 1000).toFixed(1)} с), ` +
       `амплитуда ${rep.amp.toFixed(3)}, видимость ${rep.vis.toFixed(2)}`,
   );
-  if (exercise === 'squat') stand = motion[0];
+  if (exercise === 'squat') {
+    stand = motion[0];
+    squatMotion = motion;
+  }
 }
 
 const body = canonical(stand);
@@ -443,33 +446,24 @@ out.arm_raise = pack(armRaise(body, FRAMES), 2600, 'кинематика: пря
 // Бёрпи — по спецификации движения (motion-specs/burpee.json, разбор ролика покадрово).
 const burpee = JSON.parse(readFileSync(resolve(root, 'motion-specs/burpee.json'), 'utf8'));
 out.burpee = pack(specMotion(burpee, body, 240), burpee.cycle_ms, 'motion-specs/burpee.json');
-// Эталоны из записи движения (как присед): позы MediaPipe по роликам упражнений, motion-specs/poses/<id>.json.
-// ms — один проход ролика (для mirror — одна сторона), near — ближняя к камере сторона бокового ролика.
-const VIDEO = {
-  side_lunge: { ms: 2400, mirror: true },
-  boxing: { ms: 1200, mirror: true },
-  arm_circles: { ms: 3200, smoothK: 2 },
-  side_bend: { ms: 2600, mirror: true },
-  side_leg_raise: { ms: 2200, mirror: true, smoothK: 2 },
-  plank: { ms: 4000, near: 'right', prone: true, trim: [0.12, 0.88], smoothK: 6 },
-  calf_raise: { ms: 3000, near: 'right' },
-  jump_squat: { ms: 3200, jump: true, smoothK: 2 },
+// Остальные упражнения — чистая кинематика на ровном теле (scripts/ghost-kin.mjs), как выпады и подъём рук:
+// ролики (motion-specs/poses, разбор Grok) — только образец позы и темпа. Приседы с вариациями — из записанного приседа.
+const r50 = (ms) => Math.round((ms / 1000) * 50);
+const KIN = {
+  jump_squat: [3200, (n) => kin.jumpSquat(squatMotion, n)],
+  squat_press: [3400, (n) => kin.squatPress(squatMotion, n)],
+  side_lunge: [4800, (n) => kin.sideLunge(body, n)],
+  calf_raise: [3000, (n) => kin.calfRaise(body, n)],
+  side_leg_raise: [4400, (n) => kin.sideLegRaise(body, n)],
+  boxing: [2400, (n) => kin.boxing(body, n)],
+  arm_circles: [4800, (n) => kin.armCircles(body, n)],
+  side_bend: [5600, (n) => kin.sideBend(body, n)],
+  knee_to_elbow: [3600, (n) => kin.kneeToElbow(body, n)],
+  push_up: [2800, (n) => kin.pushUp(body, n)],
+  plank: [4000, (n) => kin.plank(body, n)],
 };
-for (const [id, opts] of Object.entries(VIDEO)) {
-  const data = JSON.parse(readFileSync(resolve(root, `motion-specs/poses/${id}.json`), 'utf8'));
-  const m = videoMotion(data, opts);
-  out[id] = pack(m.frames, m.durationMs, `motion-specs/poses/${id}.json`);
-}
-// По спецификации (3D-кинематика): локоть к колену — в ролике лёжа, а у нас стоя; отжимания — на боковом
-// ролике MediaPipe занижает плечи внизу (тело уходит под пол), углы спецификации сверены с тем же роликом.
-for (const id of ['knee_to_elbow', 'push_up']) {
-  const spec = JSON.parse(readFileSync(resolve(root, `motion-specs/${id}.json`), 'utf8'));
-  out[id] = pack(
-    spec3dMotion(spec, body, Math.round(spec.cycle_ms / 25)),
-    spec.cycle_ms,
-    `motion-specs/${id}.json`,
-  );
-}
+for (const [id, [ms, make]] of Object.entries(KIN))
+  out[id] = pack(make(r50(ms)), ms, 'кинематика: scripts/ghost-kin.mjs');
 
 const target = resolve(root, 'src/ui/lib/athleteMotion.json');
 writeFileSync(target, JSON.stringify(out));

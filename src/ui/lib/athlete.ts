@@ -123,7 +123,7 @@ export function athletePose(exercise: GhostId, tMs: number): (V3 | null)[] {
  */
 const boundsCache = new Map<string, { w: number; h: number }>();
 /** Эталоны со своим масштабом: бёрпи с планкой в полтора метра уменьшил бы всех остальных атлетов. */
-const OWN_BOUNDS = new Set<GhostId>(['burpee', 'push_up', 'plank']);
+const OWN_BOUNDS = new Set<GhostId>(['burpee', 'push_up', 'plank', 'jump_squat']);
 
 export function athleteBounds(exercise?: GhostId): { w: number; h: number } {
   const own = exercise && OWN_BOUNDS.has(exercise);

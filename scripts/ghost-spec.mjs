@@ -16,28 +16,38 @@ function rot(v, deg) {
   return { x: v.x, y: v.y * c + v.z * s, z: v.z * c - v.y * s };
 }
 
-const EASE = {
-  linear: (u) => u,
-  ease_in: (u) => u * u,
-  ease_out: (u) => 1 - (1 - u) * (1 - u),
-  ease_in_out: (u) => u * u * (3 - 2 * u),
-};
-
-/** Значения ключевых кадров в момент u (0..1) с плавностью фазы, в которую попадает u. */
+/**
+ * Значения ключевых кадров в момент u (0..1): сплайн Катмулла–Рома по всем кадрам цикла — скорость
+ * непрерывна, движение не «замирает» на каждом ключевом кадре (раньше плавность шла отдельно на каждом отрезке).
+ * Опора — по фазе, в которую попадает u.
+ */
 function sample(spec, u) {
   const kf = spec.keyframes;
+  const last = kf.length - 1; // последний кадр = первый (цикл)
   let i = 0;
-  while (i < kf.length - 2 && u > kf[i + 1].t) i += 1;
+  while (i < last - 1 && u > kf[i + 1].t) i += 1;
   const A = kf[i];
   const B = kf[i + 1];
+  const P = kf[i === 0 ? last - 1 : i - 1];
+  const N = kf[i + 1 >= last ? 1 : i + 2];
   const phase = spec.phases.find((p) => A.t >= p.start - 1e-6 && A.t < p.end - 1e-6);
-  const ease = EASE[phase?.easing] ?? EASE.ease_in_out;
-  const k = ease(Math.max(0, Math.min(1, (u - A.t) / (B.t - A.t || 1))));
+  const k = Math.max(0, Math.min(1, (u - A.t) / (B.t - A.t || 1)));
+  const k2 = k * k;
+  const k3 = k2 * k;
   const out = {};
   for (const [key, a] of Object.entries(A)) {
     const b = B[key];
-    if (typeof a === 'number' && typeof b === 'number') out[key] = a + (b - a) * k;
-    else if (Array.isArray(a) && Array.isArray(b)) out[key] = a.map((v, j) => v + (b[j] - v) * k);
+    const p0 = typeof P[key] === 'number' ? P[key] : a;
+    const p3 = typeof N[key] === 'number' ? N[key] : b;
+    if (typeof a === 'number' && typeof b === 'number') {
+      // Неравномерные отрезки: касательные масштабируем на длину текущего отрезка.
+      const dt = B.t - A.t || 1;
+      const dtP = A.t - (i === 0 ? kf[last - 1].t - 1 : P.t) || dt;
+      const dtN = (i + 1 >= last ? kf[1].t + 1 : N.t) - B.t || dt;
+      const m0 = ((b - p0) / (dt + dtP)) * dt;
+      const m1 = ((p3 - a) / (dt + dtN)) * dt;
+      out[key] = (2 * k3 - 3 * k2 + 1) * a + (k3 - 2 * k2 + k) * m0 + (-2 * k3 + 3 * k2) * b + (k3 - k2) * m1;
+    } else if (Array.isArray(a) && Array.isArray(b)) out[key] = a.map((v, j) => v + (b[j] - v) * k);
     else out[key] = k < 0.5 ? a : b;
   }
   out.contact = phase?.ground_contact ?? 'both';

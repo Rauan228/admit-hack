@@ -21,20 +21,9 @@ const VIEWS: { label: string; yaw: number | null }[] = [
 
 const SOURCE: Partial<Record<GhostId, string>> = {
   squat: 'запись человека',
-  jumping_jack: 'кинематика',
-  lunge: 'кинематика',
-  arm_raise: 'кинематика',
-  burpee: 'описание Grok',
-  side_lunge: 'из видео',
-  boxing: 'из видео',
-  arm_circles: 'из видео',
-  side_bend: 'из видео',
-  side_leg_raise: 'из видео',
-  plank: 'из видео',
-  calf_raise: 'из видео',
-  jump_squat: 'из видео',
-  push_up: 'описание Grok',
-  knee_to_elbow: 'описание Grok',
+  jump_squat: 'присед + прыжок',
+  squat_press: 'присед + руки вверх',
+  burpee: 'описание Grok, сплайн',
 };
 
 function loadNotes(): Record<string, string> {
