@@ -146,7 +146,11 @@ export class RepCounter {
       case 'up':
         if (p < th.startMax || returned) {
           this.returnSince ??= t;
-          if (returned || t - this.returnSince >= th.returnHoldMs) {
+          // Кадр — это отрезок времени, а не миг: на 15 FPS два кадра в исходном положении покрывают ~130 мс,
+          // а разница их меток — 67. Без поправки на длину кадра быстрый возврат (наклоны в ритм) на редких
+          // кадрах не успевал подтвердиться, и два повтора сливались в один. После провала кадров не добавляем.
+          const step = t - prevT <= GAP_MS ? t - prevT : 0;
+          if (returned || t - this.returnSince + step >= th.returnHoldMs) {
             this.returnSince = null;
             if (t - this.startT >= th.minRepMs) ev.push({ kind: 'rep', summary: this.summary(t) });
             this.go('start', t, ev);

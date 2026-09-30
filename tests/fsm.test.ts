@@ -125,6 +125,20 @@ describe('счётчик повторений', () => {
     expect(kinds(ev, 'rep')).toHaveLength(1);
   });
 
+  it('15 FPS: три кадра в исходном положении подтверждают возврат (кадр длится 67 мс, а не миг)', () => {
+    const th = { ...TH, returnHoldMs: 150 };
+    // Наклоны в ритм: «прямо» между повторами — три кадра, ~200 мс. По меткам кадров это 134 мс < 150,
+    // и два повтора сливались в один.
+    const one = [...ramp(0.3, 1.2, 8), ...ramp(1.2, 0.3, 8), 0.05, 0.05, 0.05];
+    const c = new RepCounter(th);
+    const ev = [...one, ...one].flatMap((p, i) => c.update(p, i * 67));
+    expect(kinds(ev, 'rep')).toHaveLength(2);
+    // А после провала кадров один кадр внизу подтверждением не считается.
+    const g = new RepCounter(th);
+    const gap = [...ramp(0.3, 1.2, 8), ...ramp(1.2, 0.3, 8)].flatMap((p, i) => g.update(p, i * 67));
+    expect(kinds([...gap, ...g.update(0.05, 15 * 67 + 400)], 'rep')).toHaveLength(0);
+  });
+
   it('NaN игнорируется', () => {
     const c = new RepCounter(TH);
     expect(c.update(NaN, 0)).toEqual([]);
