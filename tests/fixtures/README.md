@@ -41,6 +41,8 @@
 | `side-lunge-toe-touch.json` | 5 боковых выпадов с касанием стопы рукой, корпус наклонён к стопе | анфас, в парке | 5, ошибка «спину ровнее» | [Pexels 5025957](https://www.pexels.com/video/5025957/) | Pexels License |
 | `squat-band-half.json` | 2 полуприседа с резинкой и удержанием внизу, третий обрезан концом ролика | анфас | 2, ошибка «сядь глубже» | [Pexels 4838220](https://www.pexels.com/video/4838220/) | Pexels License |
 | `boxing-shadow-side.json` | бой с тенью с передвижением, ~13 прямых ударов за 20 с, часть сериями | сбоку-вполоборота, в полный рост, силуэт против окна | 13 ± 3 | [Pexels 7187515](https://www.pexels.com/video/7187515/), RDNE Stock project | Pexels License |
+| `burpee-side-deck.json` | ролик начинается в упоре лёжа (первое бёрпи обрезано); 4 полных бёрпи с отжиманием и прыжком | сбоку, в полный рост | 4, 0 ошибок | [Pexels 8858142](https://www.pexels.com/video/8858142/), Pavel Danilyuk | Pexels License |
+| `side-bend-stretch-hold.json` | 2 наклона с долгим удержанием; первый — с уходом корпуса вперёд | анфас-вполоборота, руки над головой | 2, ошибка «наклон вперёд» | [Pexels 3048925](https://www.pexels.com/video/3048925/), fauxels | Pexels License |
 
 Файлы, полученные из материалов под CC BY-SA, распространяются на тех же условиях (CC BY-SA 4.0)
 с указанием авторов выше. Ролики Pexels — Pexels License (бесплатно, атрибуция не обязательна; авторы всё
