@@ -100,6 +100,13 @@ function initialScreen(): Screen {
   }
 }
 
+/**
+ * Компьютер с мышью: курсор-рука — только в режиме «Жесты» (кнопка в шапке). Иначе, пока человек сидит у экрана,
+ * поднятая рука сама «нажимает» кнопки удержанием. Телефон в 2–3 м (без мыши) управляется рукой как раньше.
+ */
+const HAS_MOUSE =
+  typeof matchMedia === 'function' && matchMedia('(hover: hover) and (pointer: fine)').matches;
+
 export function App() {
   const [screen, setScreen] = useState<Screen>(initialScreen);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -300,7 +307,7 @@ export function App() {
   };
 
   return (
-    <DwellProvider hand={!mock}>
+    <DwellProvider hand={!mock && (gestures || !HAS_MOUSE)}>
       <video ref={setVideo} className="camera-source" playsInline muted aria-hidden="true" />
       {screen.name !== 'landing' && !camera && !mock && <div className="app-grid" aria-hidden="true" />}
       {screen.name !== 'landing' && (camera || mock) && <Stage video={mock ? null : video} />}

@@ -83,7 +83,6 @@ export function Calibration({ onDone }: { onDone: () => void }) {
   return (
     <main className="screen calib">
       {/* Мягкая скруглённая рамка-ориентир: куда встать. Зелёная, когда всё хорошо. */}
-      <div className={`calib__frame ${ok ? 'is-ok' : status ? 'is-bad' : ''}`} aria-hidden="true" />
 
       <header className="calib__head">
         <h1 className="calib__title">Встань так, чтобы тебя было видно целиком</h1>
