@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createExercise } from '../src/engine/exercises';
 import { ExerciseSession } from '../src/engine/session';
 import type { ExerciseId } from '../src/engine/types';
+import { engineEvents } from './helpers/engineReplay';
 import { loadFixture } from './helpers/replay';
 import { fixtureFrames, runSession } from './helpers/session';
 
@@ -72,6 +73,13 @@ describe('записи поз из tests/fixtures', () => {
           expect(reps.flatMap((e) => (e.type === 'rep' || e.type === 'half_rep' ? e.errors : []))).toEqual(
             [],
           );
+      });
+
+      it('весь движок, как в приложении (присутствие, пауза, сброс): тот же счёт', async () => {
+        const unit = createExercise(meta.exercise)!.sideOf ? 'half_rep' : 'rep';
+        const n = (await engineEvents(file, meta.exercise)).filter((e) => e.type === unit).length;
+        expect(n).toBeGreaterThanOrEqual(meta.expected.reps - tol);
+        expect(n).toBeLessThanOrEqual(meta.expected.reps + tol);
       });
     });
   }
