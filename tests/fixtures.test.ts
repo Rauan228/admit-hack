@@ -5,6 +5,8 @@
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createExercise } from '../src/engine/exercises';
+import type { ExerciseDef } from '../src/engine/exercises/types';
+import type { PoseFrame } from '../src/engine/geometry';
 import { ExerciseSession } from '../src/engine/session';
 import type { ExerciseId } from '../src/engine/types';
 import { engineEvents } from './helpers/engineReplay';
@@ -22,6 +24,18 @@ interface Expected {
    * ~3 кадра на повтор — такой частоты у камеры не бывает, этот прогон не проверяем.
    */
   sped?: boolean;
+}
+
+/**
+ * Повторы через ExerciseSession, как в приложении. Упражнения на две стороны (выпады) засчитывают повтор
+ * парой ног; в записях размечено каждое движение, поэтому считаем одиночные движения — события half_rep.
+ */
+function sessionReps(def: ExerciseDef, frames: (PoseFrame | null)[]): { errors: string[] }[] {
+  const session = new ExerciseSession(def, 1000, 0);
+  const unit = def.sideOf ? 'half_rep' : 'rep';
+  return frames
+    .flatMap((f, i) => session.update(f, f?.t ?? i * 33))
+    .flatMap((e) => (e.type === unit && (e.type === 'rep' || e.type === 'half_rep') ? [{ errors: e.errors }] : []));
 }
 
 const dir = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -52,27 +66,22 @@ describe('записи поз из tests/fixtures', () => {
         if (every > 1 && meta.expected.sped) return;
         const def = createExercise(meta.exercise);
         expect(def).not.toBeNull();
-        const res = runSession(fixtureFrames(file, every), def!);
-        expect(res.reps.length).toBeGreaterThanOrEqual(meta.expected.reps - tol);
-        expect(res.reps.length).toBeLessThanOrEqual(meta.expected.reps + tol);
-        if (meta.expected.noErrors) expect(res.reps.flatMap((r) => r.errors)).toEqual([]);
+        // Упражнение на время (планка) считает секунды удержания только в ExerciseSession — у счётчика
+        // повторов его нет; прореженные кадры для него гоним через сессию.
+        const reps = def!.hold
+          ? sessionReps(def!, fixtureFrames(file, every))
+          : runSession(fixtureFrames(file, every), def!).reps;
+        expect(reps.length).toBeGreaterThanOrEqual(meta.expected.reps - tol);
+        expect(reps.length).toBeLessThanOrEqual(meta.expected.reps + tol);
+        if (meta.expected.noErrors) expect(reps.flatMap((r) => r.errors)).toEqual([]);
       });
 
       it('боевой путь (ExerciseSession с фильтром правдоподобия): тот же счёт и те же ошибки', () => {
         const def = createExercise(meta.exercise)!;
-        const session = new ExerciseSession(def, 1000, 0);
-        // Упражнения на две стороны (выпады) засчитывают повтор парой ног; в записях размечено каждое
-        // движение, поэтому сверяем одиночные движения — события half_rep.
-        const unit = def.sideOf ? 'half_rep' : 'rep';
-        const reps = fixtureFrames(file)
-          .flatMap((f, i) => session.update(f, f?.t ?? i * 33))
-          .filter((e) => e.type === unit);
+        const reps = sessionReps(def, fixtureFrames(file));
         expect(reps.length).toBeGreaterThanOrEqual(meta.expected.reps - tol);
         expect(reps.length).toBeLessThanOrEqual(meta.expected.reps + tol);
-        if (meta.expected.noErrors)
-          expect(reps.flatMap((e) => (e.type === 'rep' || e.type === 'half_rep' ? e.errors : []))).toEqual(
-            [],
-          );
+        if (meta.expected.noErrors) expect(reps.flatMap((r) => r.errors)).toEqual([]);
       });
 
       it('весь движок, как в приложении (присутствие, пауза, сброс): тот же счёт', async () => {
