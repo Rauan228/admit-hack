@@ -137,41 +137,7 @@
   font-size: 13px;
 }
 
-/* Ожидание жеста готовности: пульсирующая плашка над атлетом. */
-.intro__ready {
-  position: absolute;
-  left: 50%;
-  bottom: clamp(14px, 3%, 28px);
-  transform: translateX(-50%);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  max-width: calc(100% - 32px);
-  padding: 10px var(--s-4);
-  border-radius: var(--r-full);
-  background: var(--primary);
-  color: var(--on-primary, #fff);
-  font-weight: 700;
-  font-size: 15px;
-  white-space: nowrap;
-  box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.55);
-  animation: ready-pulse 1.6s ease-out infinite;
-}
-
-.intro__ready svg {
-  flex: none;
-}
-
-@keyframes ready-pulse {
-  from {
-    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.55);
-  }
-  to {
-    box-shadow: 0 0 0 18px rgba(249, 115, 22, 0);
-  }
-}
-
-/* «Поехали!» поверх всего (после жеста готовности). */
+/* Отсчёт 3-2-1 поверх всего. */
 .intro__count {
   position: fixed;
   inset: 0;
@@ -205,13 +171,6 @@
 .intro__count > span {
   grid-area: 1 / 1;
   font-variant-numeric: tabular-nums;
-}
-
-.intro__count--go {
-  font-size: clamp(56px, 12vw, 160px);
-  letter-spacing: -0.02em;
-  text-align: center;
-  padding: 0 16px;
 }
 
 .intro__count-ring {
@@ -264,8 +223,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .intro__count,
-  .intro__count-ring circle,
-  .intro__ready {
+  .intro__count-ring circle {
     animation: none;
   }
 }

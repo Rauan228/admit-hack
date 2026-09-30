@@ -386,10 +386,9 @@ export function App() {
           key={`${screen.plan.kind}-${screen.index}`}
           plan={screen.plan}
           index={screen.index}
-          // Без камеры «Старт» включает её (и калибровку) и возвращает сюда же — уже с ожиданием жеста готовности.
-          // Мок (демо-тур) жестов не даёт — там старт сам по таймеру.
+          // Без камеры «Старт» включает её (и калибровку) и возвращает сюда же — отсчёт 3-2-1 уже с камерой.
           onGo={() => (getEngine() ? go({ ...screen, name: 'workout' }) : withCamera(screen))}
-          start={mock ? 'auto' : camera ? 'gesture' : 'button'}
+          camera={camera || mock}
           onBack={() => go({ name: 'menu' })}
         />
       )}
