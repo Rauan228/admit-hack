@@ -5,8 +5,11 @@
 import { useEffect, useState } from 'react';
 import {
   RATED_EXERCISES,
+  CHALLENGE_EXERCISES,
   boardExercise,
   boardKind,
+  challengeBoard,
+  challengeExercise,
   type Board,
   type RatedExercise,
 } from '../../shared/rating';
@@ -64,6 +67,7 @@ export function Leaderboard({
 
   const kind = boardKind(board);
   const exercise = boardExercise(board);
+  const challengeEx = challengeExercise(board);
   const unit = boardUnit(board);
   const loading = !data || data.key !== key;
   const d = !loading && data && 'd' in data ? data.d : null;
@@ -96,7 +100,17 @@ export function Leaderboard({
               <DwellButton
                 key={k.kind}
                 className={`pill board__pill ${kind === k.kind ? 'is-active' : ''}`}
-                onSelect={() => setBoard(k.kind === 'single' ? `single:${exercise ?? 'squat'}` : k.kind)}
+                onSelect={() =>
+                  setBoard(
+                    k.kind === 'single'
+                      ? `single:${exercise ?? challengeEx ?? 'squat'}`
+                      : k.kind === 'challenge'
+                        ? challengeBoard(
+                            challengeEx ?? (exercise && exercise !== 'plank' ? exercise : 'squat'),
+                          )
+                        : k.kind,
+                  )
+                }
               >
                 <Icon name={k.icon} size={16} className="board__pill-icon" /> {k.label}
               </DwellButton>
@@ -115,6 +129,19 @@ export function Leaderboard({
           </nav>
         </div>
 
+        {kind === 'challenge' && (
+          <nav className="pills board__pills board__chips" aria-label="Упражнение челленджа">
+            {CHALLENGE_EXERCISES.map((ex) => (
+              <DwellButton
+                key={ex}
+                className={`pill board__pill board__chip ${challengeEx === ex ? 'is-active' : ''}`}
+                onSelect={() => setBoard(challengeBoard(ex))}
+              >
+                {EXERCISE_META[ex].title}
+              </DwellButton>
+            ))}
+          </nav>
+        )}
         {kind === 'single' && (
           <nav className="pills board__pills board__chips" aria-label="Упражнение">
             {RATED_EXERCISES.map((ex: RatedExercise) => (

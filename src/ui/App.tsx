@@ -14,7 +14,8 @@ import { attachEngine, detachEngine, getEngine, setEngineMode, useEngineEvents }
 import { clearFormError, setScene } from './engine/overlay';
 import { DemoGuide } from './components/DemoGuide';
 import type { Board } from '../shared/rating';
-import { CHALLENGE_PLAN, DEMO_PLAN, QUICK_PLAN, singlePlan, type Plan } from './lib/exercises';
+import { DEMO_PLAN, QUICK_PLAN, challengePlan, singlePlan, type Plan } from './lib/exercises';
+import { challengeExercise } from '../shared/rating';
 import { currentRoute, markCalibrated, routeOf, syncUrl, wasCalibrated } from './lib/route';
 import { refreshMe, useAuth } from './store/api';
 import type { SetResult } from './lib/results';
@@ -39,7 +40,7 @@ export type Screen =
   | { name: 'error'; message: string; code: string }
   | { name: 'calibration' }
   | { name: 'menu' }
-  | { name: 'picker' }
+  | { name: 'picker'; mode?: 'single' | 'challenge' }
   | { name: 'intro'; plan: Plan; index: number; results: SetResult[] }
   | { name: 'workout'; plan: Plan; index: number; results: SetResult[] }
   | { name: 'summary'; plan: Plan; results: SetResult[]; autoSave?: boolean }
@@ -50,7 +51,8 @@ export type Screen =
 /** План тренировки для доски рейтинга («Побить рекорд» из профиля). */
 function planFor(board: Board): Plan {
   if (board === 'quick') return QUICK_PLAN;
-  if (board === 'challenge') return CHALLENGE_PLAN;
+  const ch = challengeExercise(board);
+  if (ch) return challengePlan(ch);
   return singlePlan(board.slice(7) as Parameters<typeof singlePlan>[0]);
 }
 
@@ -362,7 +364,7 @@ export function App() {
         <Menu
           onQuick={() => startPlan(QUICK_PLAN)}
           onPick={() => go({ name: 'picker' })}
-          onChallenge={() => startPlan(CHALLENGE_PLAN)}
+          onChallenge={() => go({ name: 'picker', mode: 'challenge' })}
           onRecords={() => go({ name: 'leaderboard' })}
           onRecalibrate={() =>
             getEngine() ? go({ name: 'calibration' }) : void start(undefined, { calibrate: true })
@@ -372,7 +374,12 @@ export function App() {
         />
       )}
       {screen.name === 'picker' && (
-        <Picker onPick={(ex) => startPlan(singlePlan(ex))} onBack={() => go({ name: 'menu' })} />
+        <Picker
+          key={screen.mode ?? 'single'}
+          mode={screen.mode}
+          onPick={(ex) => startPlan(screen.mode === 'challenge' ? challengePlan(ex) : singlePlan(ex))}
+          onBack={() => go({ name: 'menu' })}
+        />
       )}
       {screen.name === 'intro' && (
         <Intro

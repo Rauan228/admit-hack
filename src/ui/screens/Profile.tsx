@@ -2,7 +2,15 @@
 
 import { useEffect, useId, useState } from 'react';
 import { cupsLabel, formatById, type ArenaStanding } from '../../shared/arena';
-import { RATED_EXERCISES, boardExercise, boardKind, type Board } from '../../shared/rating';
+import {
+  CHALLENGE_EXERCISES,
+  RATED_EXERCISES,
+  boardExercise,
+  boardKind,
+  challengeBoard,
+  challengeExercise,
+  type Board,
+} from '../../shared/rating';
 import { DwellButton } from '../components/dwell';
 import { Icon, type IconName } from '../components/Icon';
 import { EXERCISE_META } from '../lib/exercises';
@@ -20,6 +28,8 @@ import {
 import './Profile.css';
 
 const BOARDS: Board[] = ['quick', 'challenge', ...RATED_EXERCISES.map((e) => `single:${e}` as Board)];
+/** Челленджи других упражнений показываем, только когда по ним уже есть результаты. */
+const EXTRA_CHALLENGES: Board[] = CHALLENGE_EXERCISES.filter((e) => e !== 'squat').map(challengeBoard);
 
 type Filter = 'all' | 'quick' | 'challenge' | 'single';
 
@@ -36,8 +46,8 @@ function exTitle(id: string): string {
 }
 
 function boardIcon(board: Board): IconName {
-  const ex = boardExercise(board);
-  if (ex) return EXERCISE_META[ex].icon;
+  const ex = boardExercise(board) ?? challengeExercise(board);
+  if (ex && board !== 'challenge') return EXERCISE_META[ex].icon;
   return board === 'quick' ? 'run' : 'timer';
 }
 
@@ -72,7 +82,9 @@ export function Profile({
 
   const [filter, setFilter] = useState<Filter>('all');
   const total = data ? Object.values(data.boards).reduce((a, b) => a + (b?.count ?? 0), 0) : 0;
-  const shown = BOARDS.filter((b) => filter === 'all' || boardKind(b) === filter);
+  const shown = [...BOARDS, ...EXTRA_CHALLENGES.filter((b) => data?.boards[b])].filter(
+    (b) => filter === 'all' || boardKind(b) === filter,
+  );
   const played = shown.filter((b) => data?.boards[b]);
   const fresh = shown.filter((b) => data && !data.boards[b]);
   const nick = user?.nick ?? 'Профиль';

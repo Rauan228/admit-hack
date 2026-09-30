@@ -5,6 +5,9 @@ import {
   BOARD_INFO,
   boardExercise,
   boardKind,
+  challengeBoard,
+  challengeExercise,
+  type ChallengeExercise,
   rate,
   type Board,
   type ResultInput,
@@ -14,6 +17,7 @@ import { totalsOf, type SetResult } from './results';
 
 export function boardOf(plan: Plan): Board {
   if (plan.kind === 'single') return `single:${plan.items[0]!.exercise as ExerciseId}` as Board;
+  if (plan.kind === 'challenge') return challengeBoard(plan.items[0]!.exercise as ChallengeExercise);
   return plan.kind;
 }
 
@@ -41,7 +45,10 @@ export function ratingOf(plan: Plan, results: SetResult[]): number {
 
 export function boardTitle(board: Board): string {
   const ex = boardExercise(board);
-  return ex ? EXERCISE_META[ex].title : BOARD_INFO[boardKind(board)].title;
+  if (ex) return EXERCISE_META[ex].title;
+  const ch = challengeExercise(board);
+  if (ch && ch !== 'squat') return `${BOARD_INFO.challenge.title} · ${EXERCISE_META[ch].title}`;
+  return BOARD_INFO[boardKind(board)].title;
 }
 
 export function boardUnit(board: Board): string {

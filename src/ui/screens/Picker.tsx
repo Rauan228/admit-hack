@@ -49,9 +49,23 @@ const ICON_PHASE: Partial<Record<string, number>> = {
   plank: 0.5,
 };
 
-export function Picker({ onPick, onBack }: { onPick: (e: ExerciseId) => void; onBack: () => void }) {
+export function Picker({
+  onPick,
+  onBack,
+  mode = 'single',
+}: {
+  onPick: (e: ExerciseId) => void;
+  onBack: () => void;
+  /** challenge — челлендж 60 с: без планки (она на время), цель — минута. */
+  mode?: 'single' | 'challenge';
+}) {
+  const challenge = mode === 'challenge';
+  const cats = CATEGORIES.map((c) => ({
+    ...c,
+    items: challenge ? c.items.filter((e) => e !== 'plank') : c.items,
+  })).filter((c) => c.items.length > 0);
   const [tab, setTab] = useState(savedTab);
-  const cat = CATEGORIES.find((c) => c.id === tab) ?? CATEGORIES[0]!;
+  const cat = cats.find((c) => c.id === tab) ?? cats[0]!;
   const choose = (id: string) => {
     setTab(id);
     try {
@@ -68,14 +82,16 @@ export function Picker({ onPick, onBack }: { onPick: (e: ExerciseId) => void; on
           <DwellButton className="picker__back" onSelect={onBack}>
             <Icon name="back" size={16} /> Назад
           </DwellButton>
-          <h1 className="page__title">Выбери упражнение</h1>
+          <h1 className="page__title">{challenge ? 'Челлендж 60 секунд' : 'Выбери упражнение'}</h1>
           <p className="page__sub">
-            {EXERCISE_COUNT} упражнений в четырёх группах. Обе руки над головой — назад.
+            {challenge
+              ? 'Сколько чистых повторений успеешь за минуту? Выбери упражнение — у каждого свой рейтинг.'
+              : `${EXERCISE_COUNT} упражнений в четырёх группах. Обе руки над головой — назад.`}
           </p>
         </header>
 
         <nav className="pills picker__tabs" aria-label="Категории">
-          {CATEGORIES.map((c) => (
+          {cats.map((c) => (
             <DwellButton
               key={c.id}
               className={`pill picker__tab ${c.id === cat.id ? 'is-active' : ''}`}
@@ -115,9 +131,11 @@ export function Picker({ onPick, onBack }: { onPick: (e: ExerciseId) => void; on
                 <span className="picker__text">
                   <b>{meta.title}</b>
                   <span className="picker__target">
-                    {ex === 'lunge'
-                      ? `${target} × 2 ноги`
-                      : `${target} ${meta.unit === 'sec' ? 'сек' : 'повт.'}`}
+                    {challenge
+                      ? '60 сек · максимум'
+                      : ex === 'lunge'
+                        ? `${target} × 2 ноги`
+                        : `${target} ${meta.unit === 'sec' ? 'сек' : 'повт.'}`}
                   </span>
                   <small className="picker__muscles">{MUSCLE_NAMES[ex].join(' · ')}</small>
                   {meta.setup && (

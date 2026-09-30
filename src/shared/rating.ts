@@ -25,7 +25,13 @@ export const RATED_EXERCISES = [
 ] as const;
 export type RatedExercise = (typeof RATED_EXERCISES)[number];
 
-export type Board = 'quick' | 'challenge' | `single:${RatedExercise}`;
+/** Упражнения челленджа 60 с — все, кроме планки (она на время, а не на повторы). */
+export type ChallengeExercise = Exclude<RatedExercise, 'plank'>;
+export const CHALLENGE_EXERCISES = RATED_EXERCISES.filter((e) => e !== 'plank') as ChallengeExercise[];
+
+/** Доски: 'challenge' — челлендж приседаний (исторически первый), остальные — challenge:<упражнение>. */
+export type Board =
+  'quick' | 'challenge' | `challenge:${Exclude<ChallengeExercise, 'squat'>}` | `single:${RatedExercise}`;
 
 /** Цель подхода в режиме «Одно упражнение» (выпады — в парах ног). */
 export const SINGLE_TARGET: Record<RatedExercise, number> = {
@@ -93,12 +99,24 @@ export const BOARD_INFO: Record<
   challenge: {
     title: 'Челлендж 60 с',
     unit: 'чистых',
-    rule: 'Сколько чистых приседаний за минуту. При равенстве — выше средняя оценка.',
+    rule: 'Сколько чистых повторений за минуту. При равенстве — выше средняя оценка.',
   },
 };
 
 export function boardKind(board: Board): 'quick' | 'single' | 'challenge' {
-  return board === 'quick' || board === 'challenge' ? board : 'single';
+  if (board === 'quick') return 'quick';
+  return board.startsWith('challenge') ? 'challenge' : 'single';
+}
+
+/** Упражнение доски челленджа: 'challenge' — приседания. Не челлендж — null. */
+export function challengeExercise(board: Board): ChallengeExercise | null {
+  if (board === 'challenge') return 'squat';
+  return board.startsWith('challenge:') ? (board.slice(10) as ChallengeExercise) : null;
+}
+
+/** Доска челленджа для упражнения (приседания — прежняя 'challenge', чтобы рекорды не потерялись). */
+export function challengeBoard(exercise: ChallengeExercise): Board {
+  return exercise === 'squat' ? 'challenge' : (`challenge:${exercise}` as Board);
 }
 
 export function boardExercise(board: Board): RatedExercise | null {
@@ -107,6 +125,8 @@ export function boardExercise(board: Board): RatedExercise | null {
 
 export function isBoard(v: unknown): v is Board {
   if (v === 'quick' || v === 'challenge') return true;
+  if (typeof v === 'string' && v.startsWith('challenge:'))
+    return v !== 'challenge:squat' && (CHALLENGE_EXERCISES as readonly string[]).includes(v.slice(10));
   return (
     typeof v === 'string' &&
     v.startsWith('single:') &&

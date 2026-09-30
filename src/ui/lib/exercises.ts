@@ -215,13 +215,18 @@ export const DEMO_PLAN: Plan = {
   ],
 };
 
-export const CHALLENGE_PLAN: Plan = {
-  kind: 'challenge',
-  label: 'Челлендж 60 с',
-  // Цель заведомо недостижима: подход заканчивает таймер, а не движок.
-  items: [{ exercise: 'squat', target: 999 }],
-  timeLimitSec: 60,
-};
+/** Челлендж 60 с на выбранном упражнении: максимум чистых повторений за минуту. */
+export function challengePlan(exercise: ExerciseId): Plan {
+  return {
+    kind: 'challenge',
+    label: exercise === 'squat' ? 'Челлендж 60 с' : `Челлендж 60 с · ${EXERCISE_META[exercise].title}`,
+    // Цель заведомо недостижима: подход заканчивает таймер, а не движок.
+    items: [{ exercise, target: 999 }],
+    timeLimitSec: 60,
+  };
+}
+
+export const CHALLENGE_PLAN: Plan = challengePlan('squat');
 
 /** Выпады — в парах ног: 6 = шесть раз правой и шесть раз левой. */
 // Цели — в общем модуле рейтинга: сервер проверяет по ним «Одно упражнение».
