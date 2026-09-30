@@ -149,9 +149,6 @@ function onEvent(e: EngineEvent): void {
     case 'gesture':
       state.gesture = `${e.name} @ ${new Date().toLocaleTimeString()}`;
       break;
-    case 'gesture_hold':
-      state.gesture = `${e.name} держу ${Math.round(e.progress * 100)}%`;
-      break;
     case 'phase':
       state.phase = e.phase;
       if (e.phase === 'start') red = new Set();
@@ -180,7 +177,7 @@ function onEvent(e: EngineEvent): void {
       state.hint = `подход закончен: ${JSON.stringify(e.stats)}`;
       break;
   }
-  if (e.type !== 'frame' && e.type !== 'pointer' && e.type !== 'gesture_hold')
+  if (e.type !== 'frame' && e.type !== 'pointer')
     log.textContent = `${e.type} ${JSON.stringify(e)}\n${log.textContent}`.slice(0, 4000);
   render();
 }

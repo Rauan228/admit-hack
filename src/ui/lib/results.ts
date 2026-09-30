@@ -1,5 +1,5 @@
 // Итоги подходов и тренировки. Обычно SetStats присылает движок (set_complete),
-// но при досрочном завершении («обе руки вверх») и в челлендже по таймеру UI собирает их сам из событий rep.
+// но в челлендже по таймеру UI собирает их сам из событий rep.
 
 import type { ExerciseId, SetStats } from '../../engine/types';
 import { errorMessage } from './exercises';
@@ -8,7 +8,6 @@ export interface SetResult {
   exercise: ExerciseId;
   target: number;
   stats: SetStats;
-  endedEarly: boolean;
 }
 
 export class SetAccumulator {

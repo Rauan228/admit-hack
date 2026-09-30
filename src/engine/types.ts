@@ -50,12 +50,6 @@ export type EngineEvent =
   | { type: 'pointer'; x: number; y: number; hand: 'left' | 'right' }
   | { type: 'pointer_lost' }
   | { type: 'gesture'; name: 'both_hands_up' }
-  /**
-   * Удержание жеста: обе руки над головой, progress 0…1 — доля времени удержания до срабатывания.
-   * Идёт каждый кадр, пока руки вверху; 0 — руки опустились раньше времени (один раз). Для крупного
-   * индикатора «держи», чтобы человек видел, что жест принят и сколько осталось. После самого gesture не шлётся.
-   */
-  | { type: 'gesture_hold'; name: 'both_hands_up'; progress: number }
   | { type: 'phase'; exercise: ExerciseId; phase: Phase }
   | { type: 'rep'; exercise: ExerciseId; count: number; score: number; errors: string[] }
   /**

@@ -152,46 +152,13 @@ describe('обе руки вверх', () => {
     p[LM.leftWrist]!.v = 0;
     p[LM.rightWrist]!.v = 0;
   });
-  const holds = (evs: GestureEvent[]) =>
-    evs.filter((e): e is Extract<GestureEvent, { type: 'gesture_hold' }> => e.type === 'gesture_hold');
-
-  it('1,2 с удержания — один жест', () => {
-    const evs = run(new GestureTracker(), repeat(up, 45));
+  it('0,8 с удержания — один жест', () => {
+    const evs = run(new GestureTracker(), repeat(up, 30));
     expect(evs.filter((e) => e.type === 'gesture')).toEqual([{ type: 'gesture', name: 'both_hands_up' }]);
   });
 
-  it('короче 1,2 с — жеста нет', () => {
-    const evs = run(new GestureTracker(), [...repeat(up, 30), ...repeat(down, 10)]);
-    expect(evs.some((e) => e.type === 'gesture')).toBe(false);
-  });
-
-  it('пока руки подняты, идёт прогресс удержания 0…1, и он доходит до 1 перед самим жестом', () => {
-    const evs = run(new GestureTracker(), repeat(up, 45));
-    const p = holds(evs).map((e) => e.progress);
-    expect(p.length).toBeGreaterThan(10);
-    expect(p[0]).toBeLessThan(0.1);
-    for (let i = 1; i < p.length; i++) expect(p[i]).toBeGreaterThanOrEqual(p[i - 1]!);
-    const gestureAt = evs.findIndex((e) => e.type === 'gesture');
-    const lastHold = evs
-      .slice(0, gestureAt)
-      .filter((e) => e.type === 'gesture_hold')
-      .at(-1);
-    expect(lastHold).toEqual({ type: 'gesture_hold', name: 'both_hands_up', progress: 1 });
-    // После жеста прогресс больше не шлём — руки всё ещё вверху, но жест уже сработал.
-    expect(evs.slice(gestureAt + 1).some((e) => e.type === 'gesture_hold')).toBe(false);
-  });
-
-  it('опустил руки раньше времени — прогресс сбрасывается в 0 один раз', () => {
-    const evs = run(new GestureTracker(), [...repeat(up, 15), ...repeat(down, 20)]);
-    const p = holds(evs).map((e) => e.progress);
-    expect(p.at(-1)).toBe(0);
-    // Первый кадр удержания — тоже 0 (старт); после роста ноль-сброс приходит ровно один раз.
-    let lastPositive = -1;
-    p.forEach((x, i) => {
-      if (x > 0) lastPositive = i;
-    });
-    expect(lastPositive).toBeGreaterThan(0);
-    expect(p.slice(lastPositive + 1)).toEqual([0]);
+  it('короче 0,8 с — жеста нет', () => {
+    const evs = run(new GestureTracker(), [...repeat(up, 20), ...repeat(down, 10)]);
     expect(evs.some((e) => e.type === 'gesture')).toBe(false);
   });
 

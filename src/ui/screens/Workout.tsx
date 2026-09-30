@@ -1,13 +1,12 @@
 // U-08 + U-09 + U-16: экран подхода. Всё, что видит человек во время упражнения:
 // счётчик и цель, оценка повтора, фаза, таймер, подсказка техники (текст + голос + сустав + стрелка),
-// пауза, если человек вышел из кадра. Итоги приходят от движка (set_complete); досрочно
-// («обе руки вверх») или по таймеру челленджа — собираем сами из событий rep.
+// пауза, если человек вышел из кадра. Итоги приходят от движка (set_complete) — подход заканчивается,
+// когда сделаны все повторы (или секунды); в челлендже по таймеру — собираем сами из событий rep.
 
 import { useEffect, useRef, useState } from 'react';
 import type { Phase, Severity, Side } from '../../engine/types';
 import { numberWord, say } from '../audio/voice';
 import { sfx } from '../audio/sfx';
-import { HoldGauge } from '../components/HoldGauge';
 import { Icon } from '../components/Icon';
 import { restartEngineMode, useEngineEvents } from '../engine/bus';
 import { clearFormError, flashRep, showFormError } from '../engine/overlay';
@@ -63,8 +62,6 @@ export function Workout({
   const acc = useRef(new SetAccumulator());
   const finished = useRef(false);
   const hintId = useRef(0);
-  /** Удержание «обе руки вверх» 0…1 — крупный индикатор, что подход сейчас закончится. */
-  const [hold, setHold] = useState(0);
 
   const finish = (result: SetResult) => {
     if (finished.current) return;
@@ -72,13 +69,8 @@ export function Workout({
     clearFormError();
     onDone(result);
   };
-  const finishEarly = () =>
-    finish({
-      exercise: item.exercise,
-      target: item.target,
-      stats: acc.current.stats(),
-      endedEarly: !timeLimit,
-    });
+  const finishByTimer = () =>
+    finish({ exercise: item.exercise, target: item.target, stats: acc.current.stats() });
 
   useEffect(() => {
     restartEngineMode({ exercise: item.exercise, targetReps: item.target });
@@ -89,7 +81,7 @@ export function Workout({
 
   // Челлендж: подход заканчивает таймер.
   useEffect(() => {
-    if (timeLimit && elapsed >= timeLimit) finishEarly();
+    if (timeLimit && elapsed >= timeLimit) finishByTimer();
   });
 
   // Подсказка сама гаснет.
@@ -156,8 +148,7 @@ export function Workout({
         break;
       }
       case 'set_complete':
-        if (!timeLimit)
-          finish({ exercise: e.exercise, target: item.target, stats: e.stats, endedEarly: false });
+        if (!timeLimit) finish({ exercise: e.exercise, target: item.target, stats: e.stats });
         break;
       case 'calibration':
         if (e.status === 'ok') setPaused(null);
@@ -165,13 +156,6 @@ export function Workout({
           setPaused(e.hint);
           say(e.hint, 'hint');
         }
-        break;
-      case 'gesture_hold':
-        if (meta.handsUpToFinish) setHold(e.progress);
-        break;
-      case 'gesture':
-        setHold(0);
-        if (e.name === 'both_hands_up' && meta.handsUpToFinish) finishEarly();
         break;
     }
   });
@@ -306,16 +290,7 @@ export function Workout({
             </div>
           )}
         </div>
-        {meta.handsUpToFinish && !timeLimit && (
-          <p className="wk-exit">
-            <Icon name="flag" size={18} /> Обе руки над головой — закончить
-          </p>
-        )}
       </section>
-
-      {meta.handsUpToFinish && (
-        <HoldGauge progress={hold} title="Закончить подход" hint="Держи руки вверху — подход завершится" />
-      )}
 
       {paused && (
         <div className="pause" role="alert">

@@ -449,20 +449,6 @@
   transition: transform var(--t-med) var(--ease);
 }
 
-.wk-exit {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  flex: none;
-  min-height: 52px;
-  padding: 0 var(--s-5);
-  border-radius: var(--r-full);
-  background: var(--wk-inner);
-  font-size: var(--text-sm);
-  color: var(--muted);
-  white-space: nowrap;
-}
-
 /* ——— Пауза: человек вышел из кадра ——— */
 .pause {
   position: absolute;
@@ -731,13 +717,6 @@
 
   .wk-timer span {
     font-size: 22px;
-  }
-
-  .wk-exit {
-    flex-basis: 100%;
-    justify-content: center;
-    min-height: 40px;
-    font-size: var(--text-xs);
   }
 }
 

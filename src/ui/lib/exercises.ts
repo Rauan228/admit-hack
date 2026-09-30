@@ -14,8 +14,6 @@ export interface ExerciseMeta {
   icon: IconName;
   /** Три коротких правила для экрана интро. */
   cues: [string, string, string];
-  /** «Обе руки вверх» завершает подход досрочно; в «звёздочке» и подъёме рук руки вверху — само движение. */
-  handsUpToFinish: boolean;
   /** Чем меряем подход: повторения (по умолчанию) или секунды удержания (планка). */
   unit?: 'sec';
   /** Особая установка камеры — крупная плашка в интро. */
@@ -51,14 +49,12 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
     short: 'Присед',
     icon: 'zap',
     cues: ['Ноги на ширине плеч', 'Таз назад и вниз — до параллели', 'Колени по линии носков'],
-    handsUpToFinish: true,
   },
   jumping_jack: {
     title: 'Прыжки «звёздочка»',
     short: 'Звёздочка',
     icon: 'arms',
     cues: ['Руки над головой', 'Ноги шире плеч', 'Руки и ноги — одновременно'],
-    handsUpToFinish: false,
   },
   lunge: {
     title: 'Выпады',
@@ -69,14 +65,12 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
       'Шаг вперёд, заднее колено к полу',
       'Правой, затем левой — 1 повтор',
     ],
-    handsUpToFinish: true,
   },
   arm_raise: {
     title: 'Подъём рук',
     short: 'Руки',
     icon: 'arms',
     cues: ['Руки через стороны вверх', 'Локти прямые', 'Обе руки одновременно'],
-    handsUpToFinish: false,
   },
   // E-22: базовые записи для 14 новых упражнений (тексты и иконки — черновик, дизайн за U-20).
   high_knees: {
@@ -84,84 +78,72 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
     short: 'Колени',
     icon: 'zap',
     cues: ['Лицом к камере', 'Колено до уровня таза', 'Корпус прямо'],
-    handsUpToFinish: true,
   },
   knee_to_elbow: {
     title: 'Локоть к колену',
     short: 'Локоть',
     icon: 'zap',
     cues: ['Руки за головой', 'Локоть к противоположному колену', 'Поочерёдно в обе стороны'],
-    handsUpToFinish: false,
   },
   squat_press: {
     title: 'Присед + руки вверх',
     short: 'Присед+жим',
     icon: 'arms',
     cues: ['Присед до параллели', 'Вставая — руки вверх', 'Локти прямые наверху'],
-    handsUpToFinish: false,
   },
   side_bend: {
     title: 'Наклоны в стороны',
     short: 'Наклоны',
     icon: 'arms',
     cues: ['Лицом к камере', 'Наклон строго в сторону', 'Таз на месте'],
-    handsUpToFinish: true,
   },
   side_leg_raise: {
     title: 'Отведение ноги',
     short: 'Отведение',
     icon: 'flag',
     cues: ['Руки на поясе', 'Прямая нога в сторону', 'Корпус не заваливай'],
-    handsUpToFinish: true,
   },
   side_lunge: {
     title: 'Боковые выпады',
     short: 'Бок. выпад',
     icon: 'flag',
     cues: ['Широкий шаг в сторону', 'Колено над стопой', 'Вторая нога прямая'],
-    handsUpToFinish: true,
   },
   jump_squat: {
     title: 'Присед с выпрыгиванием',
     short: 'Прыжок',
     icon: 'zap',
     cues: ['Присед до параллели', 'Мощно вверх — прыжок', 'Мягкое приземление'],
-    handsUpToFinish: true,
   },
   calf_raise: {
     title: 'Подъём на носки',
     short: 'Носки',
     icon: 'zap',
     cues: ['Стопы на ширине таза', 'Высоко на носки', 'Медленно вниз'],
-    handsUpToFinish: true,
   },
   cross_jack: {
     title: '«Звёздочка» с перекрёстом',
     short: 'Перекрёст',
     icon: 'arms',
     cues: ['Прыжок — руки и ноги в стороны', 'Назад — руки и ноги крест-накрест', 'В одном ритме'],
-    handsUpToFinish: true,
   },
   arm_circles: {
     title: 'Круги руками',
     short: 'Круги',
     icon: 'arms',
     cues: ['Руки в стороны', 'Полный круг', 'Локти прямые'],
-    handsUpToFinish: true,
   },
   boxing: {
     title: 'Бокс: джеб и кросс',
     short: 'Бокс',
     icon: 'hand',
     cues: ['Кулаки у подбородка', 'Удар до прямой руки', 'Сразу назад в защиту'],
-    handsUpToFinish: true,
   },
   push_up: {
     title: 'Отжимания',
     short: 'Отжим.',
     icon: 'arms',
     cues: ['Руки чуть шире плеч', 'Тело — прямая линия', 'Грудь к полу, локти назад'],
-    handsUpToFinish: true,
     setup: 'Положи телефон на пол перед собой, в полуметре от рук, и отжимайся лицом к камере',
   },
   plank: {
@@ -169,7 +151,6 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
     short: 'Планка',
     icon: 'timer',
     cues: ['Локти под плечами', 'Тело — прямая линия', 'Таз не проваливается'],
-    handsUpToFinish: true,
     unit: 'sec',
     setup: 'Положи телефон на пол перед собой и встань в планку лицом к камере',
   },
@@ -178,7 +159,6 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
     short: 'Бёрпи',
     icon: 'zap',
     cues: ['Лицом к камере', 'Упор лёжа — тело прямо', 'Встал и прыжок'],
-    handsUpToFinish: false,
   },
 };
 

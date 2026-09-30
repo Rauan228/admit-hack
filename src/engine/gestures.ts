@@ -6,10 +6,9 @@
 // правую руку — курсор уходит вправо, как в зеркале. Сглаживание двойное: точки уже прошли
 // One Euro, курсор проходит ещё один фильтр в координатах экрана.
 //
-// «Обе руки вверх»: запястья выше головы 1,2 с подряд (config.gestures.bothHandsHoldMs). Пока
-// руки держатся, каждый кадр идёт gesture_hold с прогрессом 0…1 — для индикатора «держи». Срабатывает
-// один раз; следующий жест — только после того, как руки опустились. Пока жест держится, курсор
-// отпущен (pointer_lost), чтобы он не скакал по кнопкам.
+// «Обе руки вверх»: запястья выше головы 0,8 с подряд. Срабатывает один раз; следующий жест —
+// только после того, как руки опустились. Пока жест держится, курсор отпущен (pointer_lost),
+// чтобы он не скакал по кнопкам.
 //
 // Запястье не видно (на телефоне руки над головой часто выходят за верх кадра) — судим по локтю:
 // локоть выше линии головы — рука вверху, локоть ниже плеча — опущена. Невидимое запястье само по себе
@@ -22,10 +21,7 @@ import { clamp, isVisible, mirrorX, torsoLength, type PoseFrame } from './geomet
 import { LM } from './hints';
 import type { EngineEvent } from './types';
 
-export type GestureEvent = Extract<
-  EngineEvent,
-  { type: 'pointer' | 'pointer_lost' | 'gesture' | 'gesture_hold' }
->;
+export type GestureEvent = Extract<EngineEvent, { type: 'pointer' | 'pointer_lost' | 'gesture' }>;
 export type Hand = 'left' | 'right';
 
 export interface GestureOptions {
@@ -88,8 +84,6 @@ export class GestureTracker {
   private bothSince: number | null = null;
   private bothLastSeen = -Infinity;
   private armed = true;
-  /** Прогресс удержания уже показан (после сброса шлём один gesture_hold с 0). */
-  private holdShown = false;
 
   constructor(private readonly cfg: GestureConfig = ENGINE_CONFIG.gestures) {
     this.fx = new OneEuroFilter(cfg.pointerFilter);
@@ -137,7 +131,6 @@ export class GestureTracker {
     this.fy.reset();
     this.bothSince = null;
     this.armed = false;
-    this.holdShown = false;
   }
 
   private releasePointer(events: GestureEvent[]): void {
@@ -193,36 +186,20 @@ export class GestureTracker {
   ): void {
     if (!enabled) {
       this.bothSince = null;
-      this.endHold(events);
       return;
     }
     if (bothUp) {
       if (this.bothSince === null || tMs - this.bothLastSeen > this.cfg.bothHandsGapMs) this.bothSince = tMs;
       this.bothLastSeen = tMs;
-      if (!this.armed) return;
-      const progress = Math.min(1, (tMs - this.bothSince) / this.cfg.bothHandsHoldMs);
-      this.holdShown = true;
-      events.push({ type: 'gesture_hold', name: 'both_hands_up', progress: round3(progress) });
-      if (progress >= 1) {
+      if (this.armed && tMs - this.bothSince >= this.cfg.bothHandsHoldMs) {
         this.armed = false;
-        this.holdShown = false;
         events.push({ type: 'gesture', name: 'both_hands_up' });
       }
       return;
     }
-    if (tMs - this.bothLastSeen > this.cfg.bothHandsGapMs) {
-      this.bothSince = null;
-      this.endHold(events);
-    }
+    if (tMs - this.bothLastSeen > this.cfg.bothHandsGapMs) this.bothSince = null;
     // Перевзвод: обе руки опущены ниже плеч.
     if (!this.armed && frame && this.handsBelowShoulders(frame)) this.armed = true;
-  }
-
-  /** Удержание сорвалось (руки опустились раньше времени или жест выключили) — индикатору сказать «0». */
-  private endHold(events: GestureEvent[]): void {
-    if (!this.holdShown) return;
-    this.holdShown = false;
-    events.push({ type: 'gesture_hold', name: 'both_hands_up', progress: 0 });
   }
 
   private handsBelowShoulders(frame: PoseFrame): boolean {

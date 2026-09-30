@@ -303,8 +303,7 @@ export function App() {
   const onSetDone = (s: Extract<Screen, { name: 'workout' }>, result: SetResult) => {
     const results = [...s.results, result];
     const next = s.index + 1;
-    if (!result.endedEarly && next < s.plan.items.length)
-      go({ name: 'intro', plan: s.plan, index: next, results });
+    if (next < s.plan.items.length) go({ name: 'intro', plan: s.plan, index: next, results });
     else go({ name: 'summary', plan: s.plan, results });
   };
 
