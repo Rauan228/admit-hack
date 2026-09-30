@@ -65,9 +65,10 @@ describe('дуэль: проверка записи повторов (общая
     ).not.toBeNull();
   });
 
-  it('длительность боя — от 10 до 120 с', () => {
+  it('длительность боя — от 10 с до 3 минут', () => {
     expect(checkTimeline([], 5000)).not.toBeNull();
-    expect(checkTimeline([], 121_000)).not.toBeNull();
+    expect(checkTimeline([], 181_000)).not.toBeNull();
+    expect(checkTimeline([], 180_000)).toBeNull();
     expect(checkTimeline([], 10_000)).toBeNull();
   });
 });

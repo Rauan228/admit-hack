@@ -129,4 +129,19 @@ describe('комната онлайн-дуэли', () => {
     expect(r.rep('ka', 6200)).toBe(true); // «звёздочка» — быстрее отжиманий
     expect(pair().view('ka', 0).exercise).toBe('push_up'); // по умолчанию — отжимания
   });
+
+  it('темп выше живого (E-29): лишние повторы за 10 с не засчитываются, дальше — снова можно', () => {
+    const r = new DuelRoom('ROOM3', { durationMs: 60_000, countdownMs: 0, exercise: 'burpee' });
+    r.join(A, 0);
+    r.join(B, 0);
+    r.setReady('ka', true, 0);
+    r.setReady('kb', true, 0);
+    r.tick(0);
+    // Бёрпи: интервал 0,6 с, но не больше 10 за 10 секунд.
+    let accepted = 0;
+    for (let t = 0; t < 10_000; t += 610) if (r.rep('ka', t)) accepted += 1;
+    expect(accepted).toBe(10);
+    expect(r.rep('ka', 10_500)).toBe(true); // первый повтор вышел из окна
+    expect(r.view('ka', 11_000).players[0]!.reps).toBe(11);
+  });
 });

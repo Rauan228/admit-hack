@@ -188,6 +188,16 @@ describe('онлайн-дуэль по WebSocket', () => {
     expect((await a.next('error')).message).toMatch(/упражнение/);
   });
 
+  it('упражнение: старый клиент без поля — отжимания; без надёжного счёта (планка) — отказ', async () => {
+    const a = await player(await cookieOf('Arslan'));
+    a.send({ t: 'create' });
+    expect((await a.next('room')).room.exercise).toBe('push_up');
+    a.send({ t: 'create', exercise: 'plank' });
+    expect((await a.next('error')).message).toMatch(/упражнение/);
+    a.send({ t: 'create', exercise: 'squat', durationMs: 15_000 });
+    expect((await a.next('room', (m) => m.room.exercise === 'squat')).room.durationMs).toBe(15_000);
+  });
+
   it('время боя (E-30): 15 с, 30 с, 1 мин, 3 мин — на выбор при создании, в приглашении видно', async () => {
     const a = await player(await cookieOf('Arslan'));
     const b = await player(await cookieOf('Rauan'));

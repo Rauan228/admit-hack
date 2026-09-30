@@ -6,7 +6,7 @@
 import { randomInt } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
-import { isDuelExercise } from '../src/shared/duel.ts';
+import { duelExerciseOf } from '../src/shared/duel.ts';
 import { DuelRoom, ROOM_DURATIONS, type ClientMsg, type ServerMsg } from '../src/shared/duelRoom.ts';
 import { RateLimiter, checkNick } from './auth.ts';
 import { acceptWebSocket, reject, type WsConn } from './ws.ts';
@@ -129,9 +129,11 @@ export function createDuelLive(
     }
   }
 
-  function create(c: Client, exercise: unknown = 'push_up', duration?: unknown): void {
+  function create(c: Client, rawExercise: unknown, duration?: unknown): void {
     if (!c.user) return fail(c, 'Войди, чтобы создать дуэль');
-    if (!isDuelExercise(exercise)) return fail(c, 'Неизвестное упражнение');
+    // Старый клиент без поля — отжимания; чужое упражнение (или без надёжного счёта) — отказ.
+    const exercise = duelExerciseOf(rawExercise);
+    if (!exercise) return fail(c, 'Неизвестное упражнение');
     // Время боя — из списка на выбор (E-30); без него — как задано серверу (в тестах короткий бой) или минута.
     if (duration !== undefined && !(typeof duration === 'number' && ROOM_DURATIONS.includes(duration)))
       return fail(c, 'Такого времени боя нет — выбери 15 с, 30 с, 1 или 3 минуты');

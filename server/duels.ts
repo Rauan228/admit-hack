@@ -4,7 +4,12 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomInt } from 'node:crypto';
-import { checkTimeline } from '../src/shared/duel.ts';
+import {
+  DEFAULT_DUEL_EXERCISE,
+  checkTimeline,
+  duelExerciseOf,
+  type DuelExercise,
+} from '../src/shared/duel.ts';
 import { RateLimiter, checkNick } from './auth.ts';
 import type { Db } from './db.ts';
 
@@ -26,6 +31,7 @@ interface ChallengeRow {
   from_nick: string;
   to_user: number | null;
   to_nick: string | null;
+  exercise: DuelExercise;
   duration_ms: number;
   reps: number;
   timeline: string;
@@ -45,6 +51,7 @@ const SCHEMA = `
     id          TEXT PRIMARY KEY,
     from_user   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     to_user     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    exercise    TEXT NOT NULL DEFAULT 'push_up',
     duration_ms INTEGER NOT NULL,
     reps        INTEGER NOT NULL,
     timeline    TEXT NOT NULL,
@@ -70,7 +77,7 @@ const SCHEMA = `
 `;
 
 const CHALLENGE_COLUMNS = `c.id, c.from_user, f.nick AS from_nick, c.to_user, t.nick AS to_nick,
-  c.duration_ms, c.reps, c.timeline, c.created_at
+  c.exercise, c.duration_ms, c.reps, c.timeline, c.created_at
   FROM duel_challenges c JOIN users f ON f.id = c.from_user LEFT JOIN users t ON t.id = c.to_user`;
 
 const ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -79,6 +86,12 @@ const MINUTE = 60_000;
 export function duelRoutes(ctx: DuelContext): Record<string, Handler> {
   const { db, now, fail } = ctx;
   db.exec(SCHEMA);
+  // E-29: база до дуэлей на разных упражнениях — старые вызовы были на отжиманиях.
+  const cols = db.prepare('PRAGMA table_info(duel_challenges)').all() as { name: string }[];
+  if (!cols.some((col) => col.name === 'exercise'))
+    db.exec(
+      `ALTER TABLE duel_challenges ADD COLUMN exercise TEXT NOT NULL DEFAULT '${DEFAULT_DUEL_EXERCISE}'`,
+    );
   const challengeLimit = new RateLimiter(20, 10 * MINUTE);
   const answerLimit = new RateLimiter(30, 10 * MINUTE);
   const socialLimit = new RateLimiter(120, MINUTE);
@@ -86,8 +99,8 @@ export function duelRoutes(ctx: DuelContext): Record<string, Handler> {
   const q = {
     userByNick: db.prepare('SELECT id, nick FROM users WHERE nick = ?'),
     insertChallenge: db.prepare(
-      `INSERT INTO duel_challenges (id, from_user, to_user, duration_ms, reps, timeline, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO duel_challenges (id, from_user, to_user, exercise, duration_ms, reps, timeline, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ),
     challenge: db.prepare(`SELECT ${CHALLENGE_COLUMNS} WHERE c.id = ?`),
     incoming: db.prepare(
@@ -137,7 +150,9 @@ export function duelRoutes(ctx: DuelContext): Record<string, Handler> {
       const u = signedIn(req, 'Войди, чтобы бросить вызов');
       if (!challengeLimit.allow(String(u.id), now())) fail(429, 'Слишком много вызовов — подожди немного');
       const b = await ctx.readJson(req);
-      const bad = checkTimeline(b.timeline, b.durationMs);
+      // Старый клиент без поля — отжимания; чужое упражнение — отказ.
+      const exercise = duelExerciseOf(b.exercise) ?? fail(400, 'Неизвестное упражнение');
+      const bad = checkTimeline(b.timeline, b.durationMs, exercise);
       if (bad) fail(400, bad);
       let to: number | null = null;
       if (b.to !== undefined && b.to !== null && b.to !== '') {
@@ -151,6 +166,7 @@ export function duelRoutes(ctx: DuelContext): Record<string, Handler> {
         id,
         u.id,
         to,
+        exercise,
         b.durationMs as number,
         timeline.length,
         JSON.stringify(timeline),
@@ -182,7 +198,8 @@ export function duelRoutes(ctx: DuelContext): Record<string, Handler> {
         if (u.id !== c.to_user) return fail(403, 'Этот вызов адресован другому игроку');
       }
       if (u && u.id === c.from_user) fail(400, 'Нельзя ответить на свой вызов');
-      const bad = checkTimeline(b.timeline, c.duration_ms);
+      // Ответ — в том же упражнении, что и вызов: запись проверяем по его правилам.
+      const bad = checkTimeline(b.timeline, c.duration_ms, c.exercise);
       if (bad) fail(400, bad);
       if (!answerLimit.allow(u ? `u${u.id}` : ctx.ip(req), now()))
         fail(429, 'Слишком часто — подожди немного');
@@ -241,6 +258,7 @@ function challengeView(c: ChallengeRow) {
     id: c.id,
     from: c.from_nick,
     to: c.to_nick,
+    exercise: duelExerciseOf(c.exercise) ?? DEFAULT_DUEL_EXERCISE,
     reps: c.reps,
     durationMs: c.duration_ms,
     createdAt: c.created_at,

@@ -185,6 +185,86 @@ describe('API дуэлей', () => {
     expect((await client()('POST', '/api/duel/answer', { id: data.id, timeline: [1, 2] })).status).toBe(400);
   });
 
+  it('упражнение вызова (E-29): сохраняется, видно в ссылке и входящих, ответ проверяется по нему', async () => {
+    const arslan = await user('Arslan');
+    const rauan = await user('Rauan');
+    // 150 «звёздочек» раз в 0,3 с — для отжиманий слишком быстро, для «звёздочки» — нормально.
+    const jacks = Array.from({ length: 150 }, (_, i) => 400 + i * 300);
+    expect((await arslan('POST', '/api/duel/challenge', { timeline: jacks, durationMs: MIN })).status).toBe(
+      400,
+    );
+    const made = await arslan('POST', '/api/duel/challenge', {
+      timeline: jacks,
+      durationMs: MIN,
+      exercise: 'jumping_jack',
+      to: 'Rauan',
+    });
+    expect(made.status).toBe(200);
+    const seen = await rauan('GET', `/api/duel/challenge?id=${made.data.id}`);
+    expect(seen.data.challenge).toMatchObject({ exercise: 'jumping_jack', reps: 150, forMe: true });
+    const inbox = await rauan('GET', '/api/duel/inbox');
+    expect(inbox.data.incoming[0]).toMatchObject({ id: made.data.id, exercise: 'jumping_jack' });
+    // Ответ — тоже «звёздочки»: темп, недопустимый для отжиманий, принимается.
+    const answer = await rauan('POST', '/api/duel/answer', {
+      id: made.data.id,
+      timeline: jacks.slice(0, 140),
+    });
+    expect(answer.data).toMatchObject({ reps: 140, outcome: 'lose' });
+    const out = await arslan('GET', '/api/duel/inbox');
+    expect(out.data.outgoing[0]).toMatchObject({ exercise: 'jumping_jack', answers: [{ reps: 140 }] });
+  });
+
+  it('упражнение вызова: без поля — отжимания (старый клиент), чужое — отказ', async () => {
+    const arslan = await user('Arslan');
+    const old = await arslan('POST', '/api/duel/challenge', { timeline: TIMELINE, durationMs: MIN });
+    expect((await client()('GET', `/api/duel/challenge?id=${old.data.id}`)).data.challenge.exercise).toBe(
+      'push_up',
+    );
+    for (const exercise of ['plank', 'moonwalk', 42]) {
+      const r = await arslan('POST', '/api/duel/challenge', {
+        timeline: TIMELINE,
+        durationMs: MIN,
+        exercise,
+      });
+      expect(r.status, String(exercise)).toBe(400);
+      expect(r.data.error).toMatch(/упражнение/);
+    }
+    // Темп выше живого: 40 отжиманий за 12 с при честном интервале 0,3 с.
+    const spam = Array.from({ length: 40 }, (_, i) => 500 + i * 300);
+    const r = await arslan('POST', '/api/duel/challenge', { timeline: spam, durationMs: MIN });
+    expect(r.status).toBe(400);
+    expect(r.data.error).toMatch(/темп/);
+  });
+
+  it('вызов после боя на 3 минуты принимается', async () => {
+    const arslan = await user('Arslan');
+    const long = Array.from({ length: 60 }, (_, i) => 1000 + i * 2900);
+    const r = await arslan('POST', '/api/duel/challenge', {
+      timeline: long,
+      durationMs: 180_000,
+      exercise: 'squat',
+    });
+    expect(r.status).toBe(200);
+  });
+
+  it('база до E-29 (без колонки упражнения) — дополняется, старые вызовы — отжимания', async () => {
+    const db = openDb(':memory:');
+    db.exec(`CREATE TABLE duel_challenges (
+      id TEXT PRIMARY KEY, from_user INTEGER NOT NULL, to_user INTEGER,
+      duration_ms INTEGER NOT NULL, reps INTEGER NOT NULL, timeline TEXT NOT NULL, created_at INTEGER NOT NULL)`);
+    db.exec(
+      `INSERT INTO users (id, email, nick, pass, created_at) VALUES (1, 'old@forma.kz', 'Old', 'x', 0)`,
+    );
+    db.exec(`INSERT INTO duel_challenges VALUES ('OLD0000001', 1, NULL, 60000, 1, '[1000]', 0)`);
+    const handle = createApp(db, { now: () => clock });
+    const old = createServer((req, res) => void handle(req, res));
+    await new Promise<void>((r) => old.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${(old.address() as AddressInfo).port}/api/duel/challenge?id=OLD0000001`;
+    const r = (await (await fetch(url)).json()) as { challenge: { exercise: string; reps: number } };
+    await new Promise<void>((done) => old.close(() => done()));
+    expect(r.challenge).toMatchObject({ exercise: 'push_up', reps: 1 });
+  });
+
   it('частые вызовы упираются в лимит', async () => {
     const arslan = await user('Arslan');
     let last = 0;

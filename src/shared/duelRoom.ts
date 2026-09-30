@@ -4,7 +4,7 @@
 // Импорты — только из src/shared/ и с расширением .ts: на VPS копируются лишь server/ и src/shared/,
 // а Node там только стирает типы.
 
-import { minGapMs, type DuelExercise } from './duel.ts';
+import { DEFAULT_DUEL_EXERCISE, minGapMs, paceAllows, type DuelExercise } from './duel.ts';
 
 export type RoomPhase = 'lobby' | 'countdown' | 'battle' | 'over';
 
@@ -88,7 +88,7 @@ export class DuelRoom {
   // Без параметров-свойств: на VPS Node только стирает типы (см. tests/server-strip.test.ts).
   constructor(id: string, opts: { durationMs?: number; countdownMs?: number; exercise?: DuelExercise } = {}) {
     this.id = id;
-    this.exercise = opts.exercise ?? 'push_up';
+    this.exercise = opts.exercise ?? DEFAULT_DUEL_EXERCISE;
     this.durationMs = opts.durationMs ?? 60_000;
     this.countdownMs = opts.countdownMs ?? 5000;
   }
@@ -129,7 +129,7 @@ export class DuelRoom {
     return this.phase !== before;
   }
 
-  /** Повтор игрока. Только в бою (и чуть после финиша по времени), не чаще, чем позволяет упражнение. */
+  /** Повтор игрока. Только в бою (и чуть после финиша по времени), не чаще и не быстрее, чем позволяет упражнение. */
   rep(key: string, now: number): boolean {
     this.tick(now);
     const p = this.find(key);
@@ -139,6 +139,8 @@ export class DuelRoom {
     if (!p || !inTime || p.gaveUp) return false;
     const t = now - this.startsAt;
     if (t - (p.reps.at(-1) ?? -Infinity) < minGapMs(this.exercise)) return false;
+    // Темп выше живого (скрипт шлёт повторы) — не засчитываем.
+    if (!paceAllows(p.reps, t, this.exercise)) return false;
     p.reps.push(t);
     this.touched = now;
     return true;
