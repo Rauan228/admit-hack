@@ -75,6 +75,16 @@ describe('«звёздочка»: ошибки', () => {
     expect(res.shown.find((e) => e.code === 'not_synced')?.message).toBe('Руки и ноги — одновременно');
   });
 
+  it('противофаза (руки вверх — ноги вместе, руки вниз — ноги врозь): каждый цикл по рукам, с not_synced, без «шире ноги»', () => {
+    for (const fps of [30, 15]) {
+      const res = run(jackFrames({ reps: 8, periodMs: 1200, legLagMs: 600, fps }));
+      expect(res.reps.length).toBeGreaterThanOrEqual(7);
+      expect(share(res, 'not_synced')).toBeGreaterThan(0.8);
+      expect(share(res, 'feet_narrow')).toBeLessThan(0.2);
+      expect(res.shown.map((e) => e.code)).toContain('not_synced');
+    }
+  });
+
   it('небольшое естественное запаздывание (0,1 с) — не ошибка', () => {
     const res = run(jackFrames({ reps: 6, legLagMs: 100 }));
     expect(share(res, 'not_synced')).toBe(0);

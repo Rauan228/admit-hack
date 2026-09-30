@@ -36,6 +36,8 @@ export interface JumpingJackMetrics extends BaseMetrics {
   legs: number | null;
   /** Расстояние между щиколотками / ширина плеч. */
   stance: number | null;
+  /** Руки и ноги ходят в противофазе (руки вверх — ноги вместе, руки вниз — ноги врозь) за последние секунды. */
+  antiPhase: boolean;
 }
 
 class JumpingJackMeter implements ExerciseMeter<JumpingJackMetrics> {
@@ -45,6 +47,9 @@ class JumpingJackMeter implements ExerciseMeter<JumpingJackMetrics> {
    * и ни одна «звёздочка» не засчиталась бы.
    */
   private readonly restStance: SlidingMin;
+  /** Руки и ноги за последние syncWindowMs — для проверки противофазы. */
+  private recent: { t: number; arms: number; legs: number }[] = [];
+  private anti = false;
 
   constructor(private readonly cfg: JackConfig) {
     this.restStance = new SlidingMin(cfg.baselineWindowMs);
@@ -87,12 +92,68 @@ class JumpingJackMeter implements ExerciseMeter<JumpingJackMetrics> {
       }
     }
     if (arms === null && legs === null) return null;
-    const progress = arms !== null && legs !== null ? (arms + legs) / 2 : ((arms ?? legs) as number);
-    return { progress, t: frame.t, armL, armR, arms, legs, stance };
+    const antiPhase = this.antiPhase(frame.t, arms, legs);
+    // В противофазе считаем по рукам: как «звёздочка» одними руками — повтор засчитан, но с ошибкой.
+    const progress =
+      antiPhase && arms !== null
+        ? arms
+        : arms !== null && legs !== null
+          ? (arms + legs) / 2
+          : ((arms ?? legs) as number);
+    return { progress, t: frame.t, armL, armR, arms, legs, stance, antiPhase };
   }
 
   reset(): void {
     this.restStance.reset();
+    this.recent = [];
+    this.anti = false;
+  }
+
+  /**
+   * «Звёздочка» в противофазе: руки вверх, когда ноги вместе, и вниз, когда врозь. Среднее рук и ног тогда
+   * стоит около половины и не возвращается к нулю — счёт молчал, а в редкие «повторы» попадали кадры
+   * с ногами вместе, и подсказка «шире ноги» была ложной. Признак — корреляция рук и ног за пару секунд:
+   * у правильной «звёздочки» около +1, в противофазе около −1 (реальные ролики: +0,93…+0,98 и −0,8…−0,97).
+   */
+  private antiPhase(t: number, arms: number | null, legs: number | null): boolean {
+    const cfg = this.cfg;
+    if (arms !== null && legs !== null) this.recent.push({ t, arms, legs });
+    while (this.recent.length > 0 && (this.recent[0] as { t: number }).t < t - cfg.syncWindowMs) this.recent.shift();
+    const n = this.recent.length;
+    if (n < cfg.syncMinFrames) return (this.anti = false);
+    let sa = 0;
+    let sl = 0;
+    let minA = Infinity;
+    let maxA = -Infinity;
+    let minL = Infinity;
+    let maxL = -Infinity;
+    for (const r of this.recent) {
+      sa += r.arms;
+      sl += r.legs;
+      minA = Math.min(minA, r.arms);
+      maxA = Math.max(maxA, r.arms);
+      minL = Math.min(minL, r.legs);
+      maxL = Math.max(maxL, r.legs);
+    }
+    // Руки стоят — прыжков нет. Ноги стоят, а руки ходят — сравнить не с чем: решение не меняем, иначе
+    // счёт на полуцикле переключился бы с рук на среднее, и повтор склеился бы со следующим.
+    if (maxA - minA < cfg.syncMinTravel) return (this.anti = false);
+    if (maxL - minL < cfg.syncMinTravel) return this.anti;
+    const ma = sa / n;
+    const ml = sl / n;
+    let cov = 0;
+    let va = 0;
+    let vl = 0;
+    for (const r of this.recent) {
+      cov += (r.arms - ma) * (r.legs - ml);
+      va += (r.arms - ma) ** 2;
+      vl += (r.legs - ml) ** 2;
+    }
+    const corr = cov / Math.sqrt(va * vl);
+    // Гистерезис: включаем при явной противофазе, выключаем, только когда руки и ноги снова вместе.
+    if (corr <= cfg.antiPhaseCorr) this.anti = true;
+    else if (corr >= -cfg.antiPhaseCorr) this.anti = false;
+    return this.anti;
   }
 
   /** Наклон корпуса: по 3D-точкам, если есть, иначе 2D-угол таз → плечи. */
@@ -144,6 +205,7 @@ export function jumpingJackRules(
       kind: 'rep',
       on: ['rep', 'attempt'],
       check: (c) => {
+        if (c.frames.some((m) => m.antiPhase)) return null;
         // Смотрим на нижнюю руку: одна рука над головой, другая у плеча — тоже ошибка.
         const best = (pick: (m: JumpingJackMetrics) => number | null) =>
           Math.max(-Infinity, ...c.frames.map((m) => pick(m) ?? -Infinity));
@@ -163,6 +225,8 @@ export function jumpingJackRules(
       kind: 'rep',
       on: ['rep', 'attempt'],
       check: (c) => {
+        // В противофазе ноги расходятся, когда руки внизу: беда в синхронности, а не в ширине.
+        if (c.frames.some((m) => m.antiPhase)) return null;
         const widest = Math.max(-Infinity, ...c.frames.map((m) => m.stance ?? -Infinity));
         return Number.isFinite(widest) && widest < cfg.feetMinRatio ? {} : null;
       },
@@ -172,6 +236,7 @@ export function jumpingJackRules(
       kind: 'rep',
       on: ['rep'],
       check: (c) => {
+        if (c.frames.some((m) => m.antiPhase)) return {};
         // Синхронность имеет смысл, только если обе части стартовали из исходного положения:
         // встал из бёрпи с уже расставленными ногами — это не «ноги отстали».
         const first = c.frames[0];
@@ -185,6 +250,12 @@ export function jumpingJackRules(
         }
         return lags.some((lag) => lag > cfg.syncLagMs) ? {} : null;
       },
+    },
+    {
+      // Противофазу видно по ходу движения — говорим сразу, не дожидаясь конца повтора.
+      code: 'not_synced',
+      kind: 'frame',
+      check: (m) => (m.antiPhase ? {} : null),
     },
   ];
 }
