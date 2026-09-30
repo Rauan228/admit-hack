@@ -3,6 +3,9 @@ import { join, resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
+/** Куда проксировать /api в dev и preview: API_PORT — если локальный API запущен не на 8787. */
+const API = `http://127.0.0.1:${process.env.API_PORT ?? 8787}`;
+
 export default defineConfig({
   // Сайт в корне; если выкладывать в подпапку — BASE_PATH=/подпапка/.
   base: process.env.BASE_PATH ?? '/',
@@ -19,8 +22,8 @@ export default defineConfig({
   ],
   // API аккаунтов и рейтинга (server/) — локально: npm run api; в dev-сервере проксируем /api туда
   // вместе с WebSocket онлайн-дуэли (/api/duel/ws, E-26).
-  server: { proxy: { '/api': { target: 'http://127.0.0.1:8787', ws: true } } },
-  preview: { proxy: { '/api': { target: 'http://127.0.0.1:8787', ws: true } } },
+  server: { proxy: { '/api': { target: API, ws: true } } },
+  preview: { proxy: { '/api': { target: API, ws: true } } },
   build: {
     rollupOptions: {
       input: {

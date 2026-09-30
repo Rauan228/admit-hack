@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "api": "node --experimental-strip-types --no-warnings server/index.ts",
+    "api": "node --experimental-strip-types --no-warnings --env-file-if-exists=.env server/index.ts",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",

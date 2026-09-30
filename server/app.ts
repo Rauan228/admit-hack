@@ -22,6 +22,7 @@ import {
   verifyPassword,
 } from './auth.ts';
 import { createArena } from './arena.ts';
+import { coachRoutes } from './coach.ts';
 import type { Db } from './db.ts';
 import { createDuelLive, type LiveOptions } from './duelLive.ts';
 import { duelRoutes } from './duels.ts';
@@ -41,6 +42,8 @@ export interface AppOptions {
   now?: () => number;
   /** E-26: длительности онлайн-дуэли (в тестах — короткие). */
   duel?: Omit<LiveOptions, 'now'>;
+  /** ИИ-конструктор плана: ключ и модель OpenAI; complete — подмена модели в тестах. */
+  coach?: { apiKey?: string; model?: string; complete?: (body: Record<string, unknown>) => Promise<unknown> };
 }
 
 interface User {
@@ -302,6 +305,22 @@ export function createApp(db: Db, opts: AppOptions = {}) {
       readJson,
       ip,
       arena,
+      fail: (status, message) => {
+        throw new HttpError(status, message);
+      },
+    }),
+  );
+
+  // ИИ-конструктор плана тренировок (server/coach.ts).
+  Object.assign(
+    routes,
+    coachRoutes({
+      db,
+      now,
+      currentUser,
+      readJson,
+      ip,
+      ...opts.coach,
       fail: (status, message) => {
         throw new HttpError(status, message);
       },
