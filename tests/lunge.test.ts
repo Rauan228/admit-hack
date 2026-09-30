@@ -14,13 +14,14 @@ describe('выпады: глубина по заднему колену', () => 
   it('стоя прогресс ~0, внизу выпада > 1, задняя нога определяется сама', () => {
     const meter = lunge.createMeter();
     const stand = meter.measure(lungeFrame({ depth: 0, back: 'right' }, 0), 'start');
-    const bottom = meter.measure(lungeFrame({ depth: 1, back: 'right' }, 33), 'bottom');
+    // Через секунду: колено не опускается в выпад за один кадр (сбой модели отбрасывается).
+    const bottom = meter.measure(lungeFrame({ depth: 1, back: 'right' }, 1000), 'bottom');
     expect(stand?.progress).toBeCloseTo(0, 1);
     expect(bottom?.progress).toBeGreaterThan(1);
     expect(bottom?.back).toBe('right');
     const other = lunge.createMeter();
     other.measure(lungeFrame({ depth: 0, back: 'left' }, 0), 'start');
-    expect(other.measure(lungeFrame({ depth: 1, back: 'left' }, 33), 'bottom')?.back).toBe('left');
+    expect(other.measure(lungeFrame({ depth: 1, back: 'left' }, 1000), 'bottom')?.back).toBe('left');
   });
 });
 

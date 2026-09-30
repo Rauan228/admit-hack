@@ -43,6 +43,11 @@ class LungeMeter implements ExerciseMeter<LungeMetrics> {
   private readonly base: Record<Side, SlidingQuantile>;
   /** Последний замер внизу выпада — держим его, пока передняя нога внизу, а задняя не видна. */
   private lastLow: LungeMetrics | null = null;
+  /** Последнее принятое отношение по каждой ноге и с какого момента держится «скачок». */
+  private lastKnee: Record<Side, { t: number; v: number } | null> = { left: null, right: null };
+  private kneeJumpSince: Record<Side, number | null> = { left: null, right: null };
+  /** Когда нога была видна в прошлый раз (принятый кадр или отброшенный). */
+  private kneeSeenT: Record<Side, number | null> = { left: null, right: null };
 
   constructor(private readonly cfg: LungeConfig) {
     // Медиана, а не максимум: в силуэте против света отношение стоя скачет 0,9…1,4, и максимум завышал эталон.
@@ -68,7 +73,8 @@ class LungeMeter implements ExerciseMeter<LungeMetrics> {
       if ((phase === 'start' && upright !== false) || base.value === null) base.push(ratio, frame.t);
       else base.expire(frame.t);
       const standing = base.value;
-      return standing && standing > 0 ? ratio / standing : null;
+      if (!(standing && standing > 0)) return null;
+      return this.plausibleKnee(side, ratio / standing, frame.t);
     };
     const kneeL = knee('left');
     const kneeR = knee('right');
@@ -117,10 +123,36 @@ class LungeMeter implements ExerciseMeter<LungeMetrics> {
     return m;
   }
 
+  /**
+   * Колено не опускается быстрее, чем человек может сесть в выпад: живой спуск — 1,5–3 «отношения» в секунду,
+   * сбой модели в силуэте против окна — ~27 (0,67 → −0,34 за кадр и обратно за 0,1 с), и счётчик засчитывал
+   * его как выпад. Такой кадр для этой ноги не учитываем; «скачок» держится дольше kneeSettleMs — принимаем.
+   */
+  private plausibleKnee(side: Side, v: number, t: number): number | null {
+    const prev = this.lastKnee[side];
+    const seenT = this.kneeSeenT[side];
+    this.kneeSeenT[side] = t;
+    if (prev) {
+      // Допуск — от прошлого кадра, а не от последнего принятого: иначе за время сбоя он «набегал»,
+      // и хвост сбоя проходил.
+      const dt = Math.max(0, t - (seenT ?? prev.t)) / 1000;
+      if (Math.abs(v - prev.v) > this.cfg.maxKneeRate * dt + this.cfg.kneeRateSlack) {
+        this.kneeJumpSince[side] ??= t;
+        if (t - this.kneeJumpSince[side]! < this.cfg.kneeSettleMs) return null;
+      }
+    }
+    this.kneeJumpSince[side] = null;
+    this.lastKnee[side] = { t, v };
+    return v;
+  }
+
   reset(): void {
     this.base.left.reset();
     this.base.right.reset();
     this.lastLow = null;
+    this.lastKnee = { left: null, right: null };
+    this.kneeJumpSince = { left: null, right: null };
+    this.kneeSeenT = { left: null, right: null };
   }
 
   /** Бедро почти вертикально (по 3D-точкам): true/false, null — 3D-точек нет. */
