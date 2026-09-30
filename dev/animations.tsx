@@ -52,12 +52,15 @@ function Card({ id, note, onNote }: { id: GhostId; note: string; onNote: (v: str
   const [paused, setPaused] = useState(false);
   const [phase, setPhase] = useState(0);
   // Часы атлета: своё время карточки с учётом скорости и паузы.
-  const st = useRef({ t: 0, last: performance.now(), speed: 1, paused: false });
-  st.current.speed = speed;
-  st.current.paused = paused;
+  const st = useRef({ t: 0, last: 0, speed: 1, paused: false });
+  useEffect(() => {
+    st.current.speed = speed;
+    st.current.paused = paused;
+  }, [speed, paused]);
   const [clock] = useState(() => () => {
     const s = st.current;
     const now = performance.now();
+    if (!s.last) s.last = now;
     if (!s.paused) s.t += (now - s.last) * s.speed;
     s.last = now;
     return s.t;
