@@ -24,8 +24,30 @@ function savedTab(): string {
   }
 }
 
-/** Упор лёжа: фигура вытянута по горизонтали — в превью не увеличиваем, иначе обрежется. */
-const LYING = new Set<string>(['push_up', 'plank']);
+/** Упор лёжа и бёрпи: фигура вытянута по горизонтали — в превью не увеличиваем, иначе обрежется. */
+const LYING = new Set<string>(['push_up', 'plank', 'burpee']);
+
+/** Самая узнаваемая поза каждого упражнения для превью (доля цикла). */
+const ICON_PHASE: Partial<Record<string, number>> = {
+  squat: 0.5,
+  lunge: 0.19,
+  side_lunge: 0.25,
+  jump_squat: 0.4,
+  calf_raise: 0.4,
+  side_leg_raise: 0.25,
+  jumping_jack: 0.26,
+  cross_jack: 0.2,
+  high_knees: 0.25,
+  burpee: 0.5,
+  boxing: 0.08,
+  arm_raise: 0.26,
+  arm_circles: 0.5,
+  squat_press: 0.64,
+  side_bend: 0.27,
+  knee_to_elbow: 0.23,
+  push_up: 0.3,
+  plank: 0.5,
+};
 
 export function Picker({ onPick, onBack }: { onPick: (e: ExerciseId) => void; onBack: () => void }) {
   const [tab, setTab] = useState(savedTab);
@@ -82,6 +104,7 @@ export function Picker({ onPick, onBack }: { onPick: (e: ExerciseId) => void; on
                   <Ghost
                     exercise={ex}
                     still
+                    phase={ICON_PHASE[ex] ?? 0.3}
                     className={
                       hasRecordedMotion(ex) && !LYING.has(ex)
                         ? 'picker__ghost picker__ghost--3d'

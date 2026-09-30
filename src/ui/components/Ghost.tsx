@@ -36,6 +36,8 @@ export interface GhostProps {
   onReady?: () => void;
   /** Один кадр — поза из середины движения (превью в карточках): рисуем раз и больше не крутим цикл. */
   still?: boolean;
+  /** Для still: доля цикла, в которой взять позу (по умолчанию 0.3). */
+  phase?: number;
 }
 
 const MOBILE = isMobileDevice();
@@ -56,6 +58,7 @@ export function Ghost({
   anatomyOnly = false,
   onReady,
   still = false,
+  phase = 0.3,
 }: GhostProps) {
   const yaw = yawProp ?? PREFERRED_YAW[exercise];
   const ref = useRef<HTMLCanvasElement>(null);
@@ -118,7 +121,7 @@ export function Ghost({
       if (canvas.width !== Math.round(W * dpr)) canvas.width = Math.round(W * dpr);
       if (canvas.height !== Math.round(H * dpr)) canvas.height = Math.round(H * dpr);
       // При reduced motion — статичная середина движения (самая информативная поза).
-      const t = still ? durationOf(exercise) * 0.3 : reduced ? 1300 : (clk.current?.() ?? now - start);
+      const t = still ? durationOf(exercise) * phase : reduced ? 1300 : (clk.current?.() ?? now - start);
       const y = sway && !reduced ? yaw + Math.sin(now / 2400) * 0.3 : yaw;
       if (stick) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -175,7 +178,7 @@ export function Ghost({
       io?.disconnect();
       document.removeEventListener('visibilitychange', kick);
     };
-  }, [exercise, yaw, sway, anatomyOnly, still]);
+  }, [exercise, yaw, sway, anatomyOnly, still, phase]);
 
   return <canvas ref={ref} className={className} aria-hidden="true" />;
 }
