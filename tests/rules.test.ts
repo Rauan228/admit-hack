@@ -197,6 +197,23 @@ describe('движок правил: конфигурация', () => {
     expect(e.repErrors).toEqual([]);
   });
 
+  it('нарушение, которое идёт и в исходном положении, и в движении, — ошибка нового повтора сразу', () => {
+    // Круги руками: «руки ниже плеч» ловится вверху круга (для счётчика — исходное положение).
+    const cat = [def('a', 1, ['start', 'down', 'bottom', 'up'])];
+    const e = new RuleEngine<M>('arm_circles', RULES.slice(0, 1), cat, CFG);
+    frames(e, { a: true }, 10, 0, 'start');
+    e.beginRep();
+    e.onFrame({ ...M0, a: true }, 'down', 330);
+    expect(e.repErrors).toEqual(['a']);
+    // Исправился к началу движения — прошлое нарушение новому повтору не достаётся.
+    const f = new RuleEngine<M>('arm_circles', RULES.slice(0, 1), cat, CFG);
+    frames(f, { a: true }, 10, 0, 'start');
+    f.beginRep();
+    f.onFrame(M0, 'down', 330);
+    frames(f, { a: true }, 2, 363);
+    expect(f.repErrors).toEqual([]);
+  });
+
   it('reset забывает и кулдауны', () => {
     const e = engine();
     frames(e, { a: true }, 20, 0);

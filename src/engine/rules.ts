@@ -94,12 +94,17 @@ export class RuleEngine<M> {
     return [...this.errors].sort((a, b) => this.priority(a) - this.priority(b));
   }
 
-  /** Новый повтор: ошибки и «уже сказанное» обнуляются, кулдауны фраз — нет. */
+  /**
+   * Новый повтор: ошибки и «уже сказанное» обнуляются, кулдауны фраз — нет. Идущие нарушения (правила,
+   * которые работают и в исходном положении) не сбрасываем: если нарушение продолжается и в движении, это
+   * ошибка и нового повтора. Иначе у кругов руками «руки ниже плеч», пойманное вверху круга (для счётчика
+   * это исходное положение), звучало, а повтор получал 100 и «Отлично». Исправился — серия оборвётся
+   * на первом же чистом кадре.
+   */
   beginRep(): void {
     this.errors.clear();
     this.pending.clear();
     this.shownThisRep.clear();
-    this.streaks.clear();
   }
 
   /** Кадр в фазе phase. Возвращает подсказку, если её пора показать. */
@@ -136,6 +141,7 @@ export class RuleEngine<M> {
 
   reset(): void {
     this.beginRep();
+    this.streaks.clear();
     this.lastShown.clear();
     this.lastAnyAt = -Infinity;
     this.lastAnyPriority = Infinity;
