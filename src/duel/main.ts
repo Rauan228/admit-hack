@@ -7,6 +7,7 @@ import '../ui/styles/global.css';
 import './duel.css';
 import { CameraError } from '../engine/camera';
 import { createEngine } from '../engine/createEngine';
+import { prefetchPoseAssetsWhenIdle } from '../engine/pose';
 import type { Engine, EngineEvent, Landmark, Phase } from '../engine/types';
 import { sfx, unlockAudio } from '../ui/audio/sfx';
 import { numberWord, say, unlockVoice } from '../ui/audio/voice';
@@ -656,3 +657,5 @@ window.addEventListener('pagehide', () => {
 
 show('intro');
 requestAnimationFrame(frame);
+// E-34: пока выбирают соперника — подкачать модель позы и wasm, «Включить камеру» стартует сразу.
+if (!params.has('mock')) prefetchPoseAssetsWhenIdle();
