@@ -6,6 +6,7 @@ const V = (x, y, z) => ({ x, y, z });
 const add = (a, b, k = 1) => V(a.x + b.x * k, a.y + b.y * k, a.z + b.z * k);
 const sub = (a, b) => V(a.x - b.x, a.y - b.y, a.z - b.z);
 const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const len = (a) => Math.hypot(a.x, a.y, a.z);
 const norm = (a) => {
   const l = len(a) || 1;
@@ -117,6 +118,18 @@ function kit(body) {
   return { S, stand, pelvis, foot, leg, armTo, armDir, handsOnHips, upper };
 }
 
+/** Талия: изгибы корпуса — от неё, а не от тазобедренного сустава (иначе верх «перекручивается» доской). */
+const waist = (body, dx = 0, dy = 0) => V(dx, body.hipY - 0.2 + dy, 0);
+
+/** Прямая рука в сагиттальной плоскости под углом a от «вниз» (вперёд — +, назад — −), длины как в приседе. */
+function sagArm(pts, sh, el, wr, fing, a) {
+  const s = pts[sh];
+  const d = V(0, Math.cos(a), -Math.sin(a));
+  pts[el] = add(s, d, 0.3);
+  pts[wr] = add(s, d, 0.57);
+  for (const j of fing) pts[j] = add(s, d, 0.65);
+}
+
 /** Кадр позы в момент u (0..1) из функции pose(u) — n кадров цикла. */
 const cycle = (n, pose) => Array.from({ length: n }, (_, k) => pose(k / n));
 
@@ -146,38 +159,71 @@ function squatBottom(sq) {
 }
 
 /**
- * Присед с выпрыгиванием: тот же присед, взрывной выход вверх, полёт с вытянутыми носками, мягкое
- * приземление с амортизацией и снова стойка.
+ * Присед с выпрыгиванием: тот же присед; внизу руки уходят назад, на выходе — мах вперёд-вверх и тройное
+ * разгибание (таз, колени, голеностоп), полёт по параболе с вытянутыми носками и лёгким подбором коленей,
+ * приземление с носка в амортизацию и снова стойка.
  */
 export function jumpSquat(sq, n) {
   const bot = squatBottom(sq);
-  const HOP = 0.22;
+  const HOP = 0.24;
+  const L1 = dist(sq[0][23], sq[0][25]);
+  const L2 = dist(sq[0][25], sq[0][27]);
   return cycle(n, (u) => {
     let pts;
     let lift = 0;
-    let point = 0; // носки вниз в полёте
-    if (u < 0.48) pts = squatAt(sq, bot * ease(u / 0.48));
-    else if (u < 0.6) pts = squatAt(sq, bot + (1 - bot) * seg(u, 0.48, 0.6, (x) => x * (2 - x)));
-    else if (u < 0.84) {
-      const t = (u - 0.6) / 0.24;
+    let point = 0; // носки вниз
+    let tuck = 0; // подбор коленей в полёте
+    let arm; // угол рук, град
+    if (u < 0.42) {
+      const k = ease(u / 0.42);
+      pts = squatAt(sq, bot * k);
+      arm = lerp(15, -38, k);
+    } else if (u < 0.54) {
+      const k = seg(u, 0.42, 0.54, (x) => x * (2 - x));
+      pts = squatAt(sq, bot + (1 - bot) * k);
+      arm = lerp(-38, 150, k);
+      point = Math.max(0, (k - 0.6) / 0.4);
+    } else if (u < 0.78) {
+      const t = (u - 0.54) / 0.24;
       pts = squatAt(sq, 0);
-      lift = HOP * Math.sin(Math.PI * t);
-      point = Math.sin(Math.PI * Math.min(1, t * 1.15));
+      lift = HOP * 4 * t * (1 - t);
+      point = 1 - 0.7 * seg(t, 0.6, 1);
+      tuck = Math.sin(Math.PI * t) ** 1.5;
+      arm = lerp(150, 60, ease(t));
+    } else if (u < 0.9) {
+      const k = Math.sin((Math.PI / 2) * seg(u, 0.78, 0.9, (x) => x));
+      pts = squatAt(sq, bot * 0.42 * k);
+      arm = lerp(60, 40, k);
+      point = 0.3 * (1 - k);
     } else {
-      // Приземление: неглубокая амортизация и выход в стойку.
-      pts = squatAt(sq, bot * 0.32 * Math.sin(Math.PI * ((u - 0.84) / 0.16)));
+      const k = seg(u, 0.9, 1, ease5);
+      pts = squatAt(sq, bot * 0.42 * (1 - k));
+      arm = lerp(40, 15, k);
     }
     pts = pts.map((p) => ({ ...p, y: p.y - lift }));
-    if (point > 0)
-      for (const [an, he, to] of [
-        [27, 29, 31],
-        [28, 30, 32],
-      ]) {
-        // Стопа вытягивается: пятка поднимается выше носка.
-        pts[he] = { ...pts[he], y: pts[he].y - 0.07 * point };
-        pts[to] = { ...pts[to], y: pts[to].y + 0.03 * point };
-        pts[an] = { ...pts[an], y: pts[an].y - 0.02 * point };
+    sagArm(pts, 11, 13, 15, [17, 19, 21], rad(arm));
+    sagArm(pts, 12, 14, 16, [18, 20, 22], rad(arm));
+    for (const [hp, kn, an, he, to] of [
+      [23, 25, 27, 29, 31],
+      [24, 26, 28, 30, 32],
+    ]) {
+      if (tuck > 0) {
+        // В полёте стопы подтягиваются к тазу, колени выходят вперёд.
+        const H = pts[hp];
+        const A0 = pts[an];
+        const A = V(A0.x, A0.y - 0.16 * tuck, A0.z + 0.05 * tuck);
+        const r = ik(H, A, L1, L2, V(0, 0, -1));
+        const off = sub(r.end, A0);
+        pts[kn] = r.mid;
+        for (const j of [an, he, to]) pts[j] = add(pts[j], off);
       }
+      if (point > 0) {
+        // Стопа вытягивается: пятка вверх, носок вниз — поворот вокруг щиколотки.
+        const A = pts[an];
+        pts[he] = V(pts[he].x, A.y - 0.02 - 0.03 * point, pts[he].z + 0.02 * point);
+        pts[to] = V(pts[to].x, lerp(pts[to].y, A.y + 0.15, point), lerp(pts[to].z, A.z - 0.08, point));
+      }
+    }
     return pts;
   });
 }
@@ -230,61 +276,52 @@ export function armCircles(body, n) {
 }
 
 /**
- * Наклоны в стороны по очереди: одна рука на поясе, другая прямая вверх; наклон в сторону руки на поясе,
- * верхняя рука уходит дугой над головой. На смене сторон руки меняются местами.
+ * Наклоны в стороны по очереди (как на примере): руки на поясе; наклон от талии в сторону — противоположная
+ * рука через сторону уходит над головой и тянется в ту же сторону, рука со стороны наклона скользит по бедру
+ * вниз; таз чуть смещается в противоположную сторону. Возврат, руки на пояс, то же в другую сторону.
  */
 export function sideBend(body, n) {
   const K = kit(body);
-  const MAX = 32;
-  const pose = (u, toward) => {
-    // toward — сторона наклона (L на поясе), вверх — другая.
-    const hipL = toward === 'l' ? K.S.l : K.S.r;
-    const upL = toward === 'l' ? K.S.r : K.S.l;
-    // 0–0.3 смена рук, 0.3–0.58 наклон, 0.58–0.68 держим, 0.68–0.92 обратно.
-    const swap = seg(u, 0, 0.3, ease5);
-    const bend =
-      u < 0.3 ? 0 : u < 0.58 ? seg(u, 0.3, 0.58, ease5) : u < 0.68 ? 1 : 1 - seg(u, 0.68, 0.92, ease5);
+  const MAX = 34;
+  const reach = body.upperArm + body.forearm;
+  const pose = (u, T, O) => {
+    // T — сторона наклона (рука скользит по бедру), O — рука над головой.
+    const d =
+      u < 0.1
+        ? 0
+        : u < 0.48
+          ? seg(u, 0.1, 0.48, ease5)
+          : u < 0.6
+            ? 1
+            : u < 0.94
+              ? 1 - seg(u, 0.6, 0.94, ease5)
+              : 0;
     const pts = K.stand();
-    const pv = V(0, body.hipY, 0);
-    const deg = MAX * bend;
-    K.upper(pts, (p) => roll(p, pv, deg, hipL.s));
-    // Рука, которая идёт на пояс: из «вверх» (прошлая сторона) → вниз вдоль тела → на пояс.
-    const onHip = () => {
-      const tmp = pts.map((p) => ({ ...p }));
-      K.handsOnHips(tmp, hipL);
-      return tmp;
-    };
-    const hipPose = onHip();
-    const downDir = V(hipL.s * 0.2, 1, 0);
-    if (swap < 1) {
-      if (swap < 0.5) {
-        // Верхняя (прошлая) рука опускается через сторону.
-        const a = rad(172 - 150 * ease(swap / 0.5));
-        K.armDir(pts, hipL, V(hipL.s * Math.sin(a), Math.cos(a), 0));
-      } else {
-        const tmp = pts.map((p) => ({ ...p }));
-        K.armDir(tmp, hipL, downDir);
-        const k = ease((swap - 0.5) / 0.5);
-        for (const j of [hipL.el, hipL.wr, ...hipL.fing]) pts[j] = lerpV(tmp[j], hipPose[j], k);
-      }
-    } else for (const j of [hipL.el, hipL.wr, ...hipL.fing]) pts[j] = hipPose[j];
-    // Рука вверх: с пояса (прошлая сторона) → вниз → через сторону вверх; в наклоне — дугой над головой.
-    // В наклоне верхняя рука продолжает линию корпуса и уходит дугой над головой.
-    const upAngle = (a0) => roll(V(upL.s * Math.sin(a0), Math.cos(a0), 0), V(0, 0, 0), deg * 1.35, hipL.s);
-    if (swap < 0.5) {
-      const tmp = pts.map((p) => ({ ...p }));
-      K.handsOnHips(tmp, upL);
-      const tmp2 = pts.map((p) => ({ ...p }));
-      K.armDir(tmp2, upL, V(upL.s * 0.2, 1, 0));
-      const k = ease(swap / 0.5);
-      for (const j of [upL.el, upL.wr, ...upL.fing]) pts[j] = lerpV(tmp[j], tmp2[j], k);
-    } else {
-      const a = rad(12 + 158 * ease((swap - 0.5) / 0.5));
-      K.armDir(pts, upL, upAngle(a));
-    }
+    const hipShift = O.s * 0.05 * d;
+    for (const p of pts) if (p.y < body.hipY + 0.01) p.x += hipShift;
+    const pv = waist(body, hipShift);
+    // Позвоночник: плечи — на полный угол, голова чуть больше.
+    for (const i of [11, 12]) pts[i] = roll(pts[i], pv, MAX * d, T.s);
+    for (const i of [0, 7, 8]) pts[i] = roll(pts[i], pv, MAX * d * 1.18, T.s);
+    // Рука со стороны наклона: с пояса скользит вниз по внешней стороне бедра.
+    const onHip = pts.map((q) => ({ ...q }));
+    K.handsOnHips(onHip, T);
+    const kneeOut = V(pts[T.kn].x + T.s * 0.07, pts[T.kn].y - 0.08, pts[T.kn].z - 0.02);
+    const Wt = lerpV(onHip[T.wr], kneeOut, 0.62 * d);
+    K.armTo(pts, T, Wt, V(T.s, -0.2, 0.4), V(0, 1, -0.1));
+    // Рука над головой: с пояса (0) — через сторону вверх и дальше за голову в сторону наклона.
+    const hipPose = pts.map((q) => ({ ...q }));
+    K.handsOnHips(hipPose, O);
+    const a = rad(lerp(40, 198, d)); // от «вниз» на стороне O; > 180 — за голову к стороне T
+    const dir = roll(V(O.s * Math.sin(a), Math.cos(a), 0), V(0, 0, 0), MAX * d, T.s);
+    const Wo = add(pts[O.sh], dir, reach * 0.96);
+    const mid = pts.map((q) => ({ ...q }));
+    K.armTo(mid, O, Wo, V(-O.s * 0.2, -1, 0.35), dir);
+    const k = seg(d, 0, 0.3); // сначала рука отрывается от пояса, потом идёт дугой
+    for (const j of [O.el, O.wr, ...O.fing]) pts[j] = lerpV(hipPose[j], mid[j], k);
     return pts;
   };
-  return cycle(n, (u) => (u < 0.5 ? pose(u * 2, 'l') : pose(u * 2 - 1, 'r')));
+  return cycle(n, (u) => (u < 0.5 ? pose(u * 2, K.S.r, K.S.l) : pose(u * 2 - 1, K.S.l, K.S.r)));
 }
 
 // ——— Стоя: ноги ———
@@ -404,101 +441,213 @@ export function sideLunge(body, n) {
 }
 
 /**
- * Бокс: стойка (левая нога впереди, колени мягкие), кулаки у подбородка, локти внизу. Джеб левой — прямая рука
- * вперёд, правая у подбородка; кросс правой — разворот корпуса и пятки, левая у подбородка. Лёгкое пружинение.
+ * Бокс (как на примере): боковая стойка — левая нога впереди, колено согнуто, правая отставлена назад,
+ * корпус развёрнут левым плечом к цели. Защита: кулаки у подбородка, локти вниз и прижаты. Джеб — левая рука
+ * прямо к цели на высоте плеча, правый кулак у щеки; кросс — правая прямо вперёд с разворотом корпуса и правой
+ * пятки, левый кулак возвращается к подбородку. Лёгкое пружинение.
  */
 export function boxing(body, n) {
   const K = kit(body);
+  const L = K.S.l;
+  const R = K.S.r;
+  const reach = body.upperArm + body.forearm;
   return cycle(n, (u) => {
-    const jab = u < 0.08 ? seg(u, 0, 0.08, (x) => x * (2 - x)) : u < 0.2 ? 1 - seg(u, 0.08, 0.2) : 0;
-    const cross =
-      u < 0.4 ? 0 : u < 0.5 ? seg(u, 0.4, 0.5, (x) => x * (2 - x)) : u < 0.64 ? 1 - seg(u, 0.5, 0.64) : 0;
-    const bounce = 0.012 * Math.sin(2 * Math.PI * 2 * u);
+    const out = (x) => 1 - (1 - x) ** 3;
+    const jab = u < 0.09 ? out(u / 0.09) : u < 0.24 ? 1 - seg(u, 0.09, 0.24) : 0;
+    const cross = u < 0.38 ? 0 : u < 0.5 ? out((u - 0.38) / 0.12) : u < 0.68 ? 1 - seg(u, 0.5, 0.68) : 0;
+    const bounce = 0.012 * (0.5 - 0.5 * Math.cos(2 * Math.PI * 2 * u));
     const pts = K.stand();
-    const DROP = 0.06 + bounce;
-    for (const p of pts) if (p.y < body.hipY + 0.01) p.y += DROP;
-    const pv = V(0, body.hipY + DROP, 0);
-    // Корпус: базовый разворот правым плечом назад, на кроссе — вперёд.
-    const twist = 18 - 40 * cross + 6 * jab;
-    K.upper(pts, (p) => yaw(p, pv, -twist, body.side));
-    // Ноги: левая впереди, правая сзади; на кроссе правая пятка поднимается.
-    const L = K.S.l;
-    const R = K.S.r;
-    const aL = V(L.s * 0.14, -body.ankleH, -0.24);
-    const aR = V(R.s * 0.17, -body.ankleH - 0.03 * cross, 0.22);
-    K.leg(pts, L, aL, 0.2);
-    K.leg(pts, R, aR, 0.3);
-    K.foot(pts, L, aL, 20);
-    K.foot(pts, R, aR, 45, 0.06 * cross + 0.02);
-    // Руки: у подбородка — кулак перед подбородком, локоть вниз.
-    const chin = add(pts[0], V(0, 0.12, 0.02));
-    const guard = (S) => add(chin, V(S.s * 0.08, 0.02, -0.08));
-    const target = V(0, pts[0].y + 0.12, -0.8);
-    for (const [S, k] of [
-      [L, jab],
-      [R, cross],
-    ]) {
-      const G = guard(S);
-      const reach = body.upperArm + body.forearm;
-      const T = add(pts[S.sh], norm(sub(target, pts[S.sh])), reach * 0.995);
+    // Стойка: таз ниже (колени согнуты), между стоп, развёрнут левым боком вперёд.
+    const drop = 0.08 + bounce;
+    const pz = 0.02;
+    const hipYaw = -28 + 22 * cross;
+    const chestYaw = -42 + 58 * cross - 6 * jab;
+    const pv = V(0, body.hipY + drop, pz);
+    for (const p of pts)
+      if (p.y < body.hipY + 0.01) {
+        p.y += drop;
+        p.z += pz;
+      }
+    for (const i of [23, 24]) pts[i] = yaw(pts[i], pv, hipYaw, body.side);
+    const wv = waist(body, 0, drop);
+    for (const i of UPPER) pts[i] = yaw(pts[i], V(wv.x, wv.y, pz), chestYaw, body.side);
+    // Подбородок чуть вниз, к груди.
+    for (const i of [0, 7, 8]) pts[i] = add(pts[i], V(0, 0.02, 0.01));
+    // Ноги: левая впереди (носок почти к цели), правая сзади (носок наружу, на кроссе пятка вверх).
+    const aL = V(L.s * 0.1, -body.ankleH, -0.32);
+    const aR = V(R.s * 0.2, -body.ankleH - 0.035 * cross, 0.28);
+    K.leg(pts, L, aL, 0.3);
+    K.leg(pts, R, aR, 0.45);
+    K.foot(pts, L, aL, 12);
+    K.foot(pts, R, aR, 50 - 25 * cross, 0.03 + 0.07 * cross);
+    // Защита: левый кулак впереди подбородка, правый — у правой щеки; локти вниз к корпусу.
+    const chin = add(lerpV(pts[7], pts[8], 0.5), V(0, 0.15, -0.02));
+    const fwd = V(0, 0, -1);
+    const guardL = add(chin, V(L.s * 0.05, 0.02, -0.2));
+    const guardR = add(chin, V(R.s * 0.09, -0.01, -0.08));
+    const punch = (S, k, G) => {
+      const Sh = pts[S.sh];
+      const tgt = V(Sh.x * 0.25, Sh.y + 0.02, -0.95);
+      const T = add(Sh, norm(sub(tgt, Sh)), reach * 0.99);
       const W = lerpV(G, T, k);
-      K.armTo(pts, S, W, V(S.s * 0.4, 1, 0.25), sub(W, pts[S.sh]));
+      K.armTo(pts, S, W, V(S.s * 0.35, 1, 0.3), k > 0.5 ? fwd : V(0, -1, -0.4));
+    };
+    punch(L, jab, guardL);
+    punch(R, cross, guardR);
+    return pts;
+  });
+}
+
+/**
+ * Локоть к колену стоя (как на примере): руки за головой, локти широко в стороны. Правое колено высоко вверх
+ * и чуть к центру, корпус от талии скручивается и сгибается — левый локоть навстречу колену; потом левое
+ * колено и правый локоть. Опорная нога прямая, таз чуть к опорной ноге.
+ */
+export function kneeToElbow(body, n) {
+  const K = kit(body);
+  const pose = (u, knee, elbow) => {
+    const w =
+      u < 0.08
+        ? 0
+        : u < 0.42
+          ? seg(u, 0.08, 0.42, ease5)
+          : u < 0.52
+            ? 1
+            : u < 0.9
+              ? 1 - seg(u, 0.52, 0.9, ease5)
+              : 0;
+    const pts = K.stand();
+    const stand = knee === K.S.r ? K.S.l : K.S.r;
+    const shift = stand.s * 0.03 * w;
+    for (const p of pts) if (p.y < body.hipY + 0.01) p.x += shift;
+    const pv = waist(body, shift);
+    // Корпус от талии: скручивание локтем к колену, наклон вперёд и вбок к колену.
+    const twist = 26 * w * (elbow === K.S.l ? -1 : 1);
+    K.upper(pts, (p) => {
+      let q = yaw(p, pv, twist, body.side);
+      q = pitch(q, pv, 16 * w);
+      return roll(q, pv, 12 * w, knee.s);
+    });
+    // Опорная нога прямая.
+    const aS = V(body.pts[stand.an].x, -body.ankleH, 0);
+    K.leg(pts, stand, aS);
+    K.foot(pts, stand, aS);
+    // Рабочая нога: бедро вперёд-вверх до ~110° и к центру, голень почти вертикально, носок вниз.
+    const H = pts[knee.hp];
+    const fl = rad(110 * w);
+    const ad = rad(14 * w);
+    const thighDir = norm(V(-knee.s * Math.sin(ad), Math.cos(fl), -Math.sin(fl) * Math.cos(ad)));
+    const Kn = add(H, thighDir, body.thigh);
+    const shinDir = norm(V(-knee.s * 0.04 * w, 1, 0.22 * w));
+    const A = add(Kn, shinDir, body.shin);
+    pts[knee.kn] = Kn;
+    pts[knee.an] = A;
+    pts[knee.to] = add(A, V(0, body.ankleH * (1 - 0.3 * w) + 0.05 * w, -0.16 + 0.07 * w));
+    pts[knee.he] = add(A, V(0, body.ankleH - 0.03 * w, 0.05));
+    // Руки за головой: ладони на затылке, локти широко в стороны.
+    const back = add(lerpV(pts[7], pts[8], 0.5), V(0, 0.01, 0.09));
+    for (const S of [K.S.l, K.S.r]) {
+      const Wr = add(back, V(S.s * 0.05, 0, 0));
+      K.armTo(pts, S, Wr, V(S.s, -0.15, -0.25), V(-S.s, 0.2, 0.3));
+    }
+    return pts;
+  };
+  return cycle(n, (u) => (u < 0.5 ? pose(u * 2, K.S.r, K.S.l) : pose(u * 2 - 1, K.S.l, K.S.r)));
+}
+
+/**
+ * Высокие колени: бег на месте — колени по очереди до уровня пояса, опорная нога на носке, лёгкое
+ * пружинение; руки согнуты под 90° и работают как при беге — навстречу колену противоположная рука.
+ */
+export function highKnees(body, n) {
+  const K = kit(body);
+  return cycle(n, (u) => {
+    const ph = 2 * Math.PI * u;
+    const liftL = Math.max(0, Math.sin(ph)) ** 1.2;
+    const liftR = Math.max(0, -Math.sin(ph)) ** 1.2;
+    const hop = 0.035 * Math.abs(Math.sin(2 * ph)) ** 0.8;
+    const pts = K.stand().map((p) => ({ ...p, y: p.y - hop }));
+    for (const [S, lift] of [
+      [K.S.l, liftL],
+      [K.S.r, liftR],
+    ]) {
+      const H = pts[S.hp];
+      if (lift > 0.02) {
+        const fl = rad(92 * lift);
+        const Kn = add(H, V(0, Math.cos(fl), -Math.sin(fl)), body.thigh);
+        const A = add(Kn, norm(V(0, 1, 0.3 * lift)), body.shin);
+        pts[S.kn] = Kn;
+        pts[S.an] = A;
+        pts[S.to] = add(A, V(0, body.ankleH + 0.04 * lift, -0.15 + 0.05 * lift));
+        pts[S.he] = add(A, V(0, body.ankleH - 0.02, 0.05));
+      } else {
+        // Опорная — на носке, пятка чуть поднята.
+        const A = V(H.x, -body.ankleH - hop - 0.03, 0);
+        K.leg(pts, S, A);
+        pts[S.an] = A;
+        pts[S.to] = V(A.x + S.s * 0.02, 0, -0.16);
+        pts[S.he] = V(A.x, -0.05 - hop, 0.04);
+      }
+    }
+    // Руки как в беге: правая вперёд, когда левое колено вверх.
+    for (const [S, k] of [
+      [K.S.l, Math.sin(ph + Math.PI)],
+      [K.S.r, Math.sin(ph)],
+    ]) {
+      const a = rad(10 + 38 * k);
+      const Sh = pts[S.sh];
+      const d = V(S.s * 0.08, Math.cos(a), -Math.sin(a));
+      const E = add(Sh, norm(d), body.upperArm);
+      const f = norm(V(-S.s * 0.1, -Math.sin(a) + 0.15, -Math.cos(a)));
+      pts[S.el] = E;
+      pts[S.wr] = add(E, f, body.forearm);
+      for (const j of S.fing) pts[j] = add(E, f, body.forearm + 0.07);
     }
     return pts;
   });
 }
 
 /**
- * Локоть к колену стоя: руки за головой, локти в стороны и вперёд. Правое колено вверх и чуть к центру,
- * корпус скручивается и наклоняется — левый локоть к правому колену; потом наоборот.
+ * «Звёздочка» с перекрёстом: прыжок — ноги широко, прямые руки в стороны на уровне плеч; прыжок — ноги
+ * скрещены (одна перед другой), руки скрещены перед грудью; сверху по очереди то левая, то правая.
  */
-export function kneeToElbow(body, n) {
+export function crossJack(body, n) {
   const K = kit(body);
-  const pose = (u, knee, elbow) => {
-    const w =
-      u < 0.06
-        ? 0
-        : u < 0.4
-          ? seg(u, 0.06, 0.4, ease5)
-          : u < 0.5
-            ? 1
-            : u < 0.88
-              ? 1 - seg(u, 0.5, 0.88, ease5)
-              : 0;
-    const pts = K.stand();
-    const pv = V(0, body.hipY, 0);
-    const stand = knee === K.S.r ? K.S.l : K.S.r;
-    // Корпус: наклон вперёд, вбок к колену и поворот локтем к колену.
-    K.upper(pts, (p) => {
-      let q = pitch(p, pv, 20 * w);
-      q = roll(q, pv, 14 * w, knee.s);
-      return yaw(q, pv, 32 * w * (elbow === K.S.l ? -1 : 1), body.side);
-    });
-    // Опорная нога прямая.
-    const aS = V(body.pts[stand.an].x, -body.ankleH, 0);
-    K.leg(pts, stand, aS);
-    K.foot(pts, stand, aS);
-    // Рабочая: бедро вперёд-вверх до ~95° и к центру, голень вниз.
-    const H = pts[knee.hp];
-    const fl = rad(95 * w);
-    const ad = rad(18 * w);
-    const thighDir = norm(V(-knee.s * Math.sin(ad), Math.cos(fl), -Math.sin(fl)));
-    const Kn = add(H, thighDir, body.thigh);
-    const shinDir = norm(V(-knee.s * 0.05 * w, 1, 0.15 * w));
-    const A = add(Kn, shinDir, body.shin);
-    pts[knee.kn] = Kn;
-    pts[knee.an] = A;
-    pts[knee.to] = add(A, V(0, body.ankleH * (1 - 0.6 * w), -0.16 + 0.05 * w));
-    pts[knee.he] = add(A, V(0, body.ankleH, 0.05));
-    // Руки за головой: кисти на затылке, локти в стороны и вперёд.
-    const head = pts[0];
+  const OUT = 0.32;
+  const HOP = 0.07;
+  const reach = body.upperArm + body.forearm;
+  return cycle(n, (u) => {
+    const half = u < 0.5 ? 0 : 1; // какая сторона сверху при скрещивании
+    const v = (u * 2) % 1;
+    // 0–0.4 прыжок в стороны, 0.4–0.5 широко, 0.5–0.9 прыжок в скрест, 0.9–1 скрещено.
+    const spread = v < 0.5 ? ease(v / 0.4) : 1 - ease((v - 0.5) / 0.4);
+    const flight =
+      v < 0.4
+        ? Math.sin((Math.PI * v) / 0.4)
+        : v >= 0.5 && v < 0.9
+          ? Math.sin((Math.PI * (v - 0.5)) / 0.4)
+          : 0;
+    const up = HOP * flight;
+    const pts = K.stand().map((p) => ({ ...p, y: p.y - up }));
+    const top = half ? K.S.r : K.S.l;
     for (const S of [K.S.l, K.S.r]) {
-      const Wr = add(head, V(S.s * 0.07, -0.02, 0.16));
-      K.armTo(pts, S, Wr, V(S.s, 0.1, -0.7), V(-S.s, 0, 0));
+      // Ноги: от скреста (стопа за линию центра) до широко.
+      const cx = -S.s * 0.09;
+      const ax = lerp(cx, S.s * (body.hipHalf + OUT), spread);
+      const az = S === top ? -0.08 * (1 - spread) : 0.08 * (1 - spread);
+      const A = V(ax, -body.ankleH - up, az);
+      K.leg(pts, S, A, 0.1);
+      pts[S.an] = A;
+      pts[S.to] = V(ax + S.s * 0.03 * spread, -up, az - 0.16);
+      pts[S.he] = V(ax, -up, az + 0.05);
+      // Руки: горизонтально — от «в стороны» до скреста перед грудью (верхняя рука выше).
+      const h = rad(lerp(118, 0, spread));
+      const dir = V(S.s * Math.cos(h), S === top ? -0.06 * (1 - spread) : 0.03 * (1 - spread), -Math.sin(h));
+      K.armDir(pts, S, dir);
+      void reach;
     }
     return pts;
-  };
-  return cycle(n, (u) => (u < 0.5 ? pose(u * 2, K.S.r, K.S.l) : pose(u * 2 - 1, K.S.l, K.S.r)));
+  });
 }
 
 // ——— Упор лёжа ———
@@ -556,23 +705,27 @@ export function pushUp(body, n) {
   });
 }
 
-/** Планка на предплечьях: локти под плечами, предплечья на полу вперёд, тело прямое, еле заметное дыхание. */
+/**
+ * Планка на предплечьях (как на примере): локти под плечами, предплечья параллельно вперёд, кулаки рядом;
+ * тело одной линией от пяток до головы, взгляд в пол; еле заметное дыхание.
+ */
 export function plank(body, n) {
   const base = lying(body, 0);
   const s = base.pts[11];
   const shDist = Math.hypot(s.y - base.pivot.y, s.z - base.pivot.z);
-  const alpha = (Math.asin((body.upperArm + 0.03) / shDist) * 180) / Math.PI;
+  const alpha = (Math.asin((body.upperArm + 0.04) / shDist) * 180) / Math.PI;
   return cycle(n, (u) => {
     const breath = 0.5 - 0.5 * Math.cos(2 * Math.PI * u);
-    const { K, pts } = lying(body, alpha + 0.4 * breath);
+    const { K, pts } = lying(body, alpha + 0.35 * breath);
     proneFeet(K, pts, body);
     for (const L of [K.S.l, K.S.r]) {
       const Sh = pts[L.sh];
-      const E = V(Sh.x, -0.035, Sh.z);
-      const W = V(Sh.x * 0.55, -0.03, Sh.z - body.forearm * 0.97);
+      const E = V(Sh.x * 0.95, -0.04, Sh.z + 0.01);
+      const W = V(Sh.x * 0.62, -0.04, Sh.z - body.forearm * 0.96);
       pts[L.el] = E;
       pts[L.wr] = W;
-      for (const j of L.fing) pts[j] = V(W.x - L.s * 0.02, -0.03, W.z - 0.07);
+      // Кулак: «пальцы» вперёд, чуть внутрь.
+      for (const j of L.fing) pts[j] = V(W.x - L.s * 0.02, -0.04, W.z - 0.07);
     }
     return pts;
   });

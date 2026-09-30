@@ -353,26 +353,36 @@ const PART_JOINTS: Record<string, [number, number]> = {
 // ——— Разворот ладоней ———
 
 const DOWN = new Vector3(0, -1, 0);
+/** Кисть ниже — опирается на пол (м над полом). */
+const FLOOR_HAND = 0.1;
 /** Какую долю скручивания берёт сегмент: плечо — частично (ротация в плечевом суставе), предплечье и кисть — всё. */
 const TWIST_SHARE: Record<string, number> = { arm: 0.35, forearm: 1, hand: 1 };
+
+/** Опора кистью на пол: куда смотрят пальцы (кисть → указательный) и лежит ли на полу предплечье (планка). */
+interface HandSupport {
+  fingers: Vector3;
+  forearm: boolean;
+}
 
 /**
  * Поворот вокруг оси сегмента, после которого ладонь смотрит туда, куда смотрит у человека:
  * рука горизонтально (вперёд или в сторону) — вниз; рука вертикально (вдоль тела, на поясе, над головой) —
- * к середине тела.
+ * к середине тела. Кисть на полу (отжимания, упор): ладонь плоско вниз, пальцы вперёд — предплечье смотрит
+ * ладонной стороной туда же, куда пальцы; на предплечьях (планка) — кулаки ладонями друг к другу.
  */
-function palmTwist(b: BoneDef, R: Matrix4, dir: Vector3, center: Vector3, i: number): Matrix4 {
-  void i;
-  const share = TWIST_SHARE[b.name.split('.')[0]!] ?? 0;
+function palmTwist(b: BoneDef, R: Matrix4, dir: Vector3, support: HandSupport | null): Matrix4 {
+  const part = b.name.split('.')[0]!;
+  const share = TWIST_SHARE[part] ?? 0;
   if (!share) return new Matrix4();
   const side = b.name.endsWith('.l') ? 1 : -1;
   const palm = new Vector3(0, 0, 1).applyMatrix4(new Matrix4().extractRotation(R)); // в покое — вперёд
   const horiz = Math.sqrt(Math.max(0, 1 - dir.y * dir.y)); // 1 — рука горизонтально
   const inward = new Vector3(-side, 0, 0); // к середине тела (модель: левая сторона — +x)
-  void center;
-  const want = DOWN.clone()
+  let want = DOWN.clone()
     .multiplyScalar(horiz)
-    .add(inward.multiplyScalar(1 - horiz));
+    .add(inward.clone().multiplyScalar(1 - horiz));
+  if (support && part !== 'arm')
+    want = support.forearm ? inward : part === 'hand' ? DOWN.clone() : support.fingers.clone();
   const proj = (v: Vector3) =>
     v
       .clone()
@@ -476,6 +486,16 @@ export class ZAthleteView {
   }
 
   /** Ставит кости по позе: поворот + растяжение сегментов, торс — по базису плеч и таза. */
+  /** Кисть этой руки на полу (упор): тогда ладонь кладём плоско — см. palmTwist. */
+  private support(name: string, P: (i: number) => Vector3 | null): HandSupport | null {
+    const left = name.endsWith('.l');
+    const W = P(left ? 15 : 16);
+    const F = P(left ? 19 : 20);
+    const E = P(left ? 13 : 14);
+    if (!W || !F || !E || W.y > FLOOR_HAND) return null;
+    return { fingers: F.clone().sub(W).setY(0).normalize(), forearm: E.y < FLOOR_HAND };
+  }
+
   private pose(pose: (V3 | null)[], highlight?: ReadonlySet<number>): boolean {
     // Данные: y вниз, лицом к зрителю −z → three: Y вверх, к камере +Z.
     const P = (i: number) => {
@@ -572,7 +592,7 @@ export class ZAthleteView {
           const R = new Matrix4()
             .makeRotationFromQuaternion(new Quaternion().setFromUnitVectors(d0t, d.clone().normalize()))
             .multiply(Rt);
-          if (i >= 9) R.premultiply(palmTwist(b, R, d.clone().normalize(), shMid, i));
+          if (i >= 9) R.premultiply(palmTwist(b, R, d.clone().normalize(), this.support(b.name, P)));
           M = new Matrix4()
             .makeTranslation(A.x, A.y, A.z)
             .multiply(R)
