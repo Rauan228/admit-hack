@@ -41,6 +41,8 @@ const MIN_THIGH = 0.01;
 
 class LungeMeter implements ExerciseMeter<LungeMetrics> {
   private readonly base: Record<Side, SlidingQuantile>;
+  /** Последний замер внизу выпада — держим его, пока передняя нога внизу, а задняя не видна. */
+  private lastLow: LungeMetrics | null = null;
 
   constructor(private readonly cfg: LungeConfig) {
     // Медиана, а не максимум: в силуэте против света отношение стоя скачет 0,9…1,4, и максимум завышал эталон.
@@ -87,6 +89,11 @@ class LungeMeter implements ExerciseMeter<LungeMetrics> {
     // прогресс считался по одной передней ноге, выходил «встал», и выпад рвался на куски.
     if (kneeL === null || kneeR === null) {
       const seen = (kneeL ?? kneeR) as number;
+      // Передняя нога внизу выпада (бедро горизонтально), задняя в тени или за передней: человек держит
+      // низ выпада (реальная запись: удержание 11 и 13 с с гирей над головой, задняя щиколотка видна на 0,2–0,4).
+      // Держим прошлый замер внизу — иначе «не видно ног» 10 с, пауза «встань целиком» и сброс выпада.
+      if (seen === Infinity && phase !== 'start' && this.lastLow)
+        return { ...this.lastLow, lean: this.lean(frame) };
       if (!(seen <= this.cfg.oneLegMaxRatio)) return null;
     }
     const l = kneeL ?? Infinity;
@@ -97,7 +104,7 @@ class LungeMeter implements ExerciseMeter<LungeMetrics> {
     // Наклон за гирей или полуприсед сгибают обе ноги одинаково — такое движение выпадом не считаем.
     const split = clamp((other - lowest) / this.cfg.splitSpan, 0, 1);
     const back: Side = l <= r ? 'left' : 'right';
-    return {
+    const m: LungeMetrics = {
       progress: clamp(((1 - lowest) / (1 - this.cfg.kneeDownRatio)) * split, -0.5, 2),
       kneeL: finite(kneeL),
       kneeR: finite(kneeR),
@@ -105,11 +112,15 @@ class LungeMeter implements ExerciseMeter<LungeMetrics> {
       kneeAheadOfToe: this.kneeAhead(frame, back === 'left' ? 'right' : 'left'),
       lean: this.lean(frame),
     };
+    this.lastLow =
+      phase !== 'start' && m.progress >= this.cfg.fsm.downMin ? m : phase === 'start' ? null : this.lastLow;
+    return m;
   }
 
   reset(): void {
     this.base.left.reset();
     this.base.right.reset();
+    this.lastLow = null;
   }
 
   /** Бедро почти вертикально (по 3D-точкам): true/false, null — 3D-точек нет. */
