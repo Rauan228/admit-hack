@@ -2,10 +2,16 @@
   margin-bottom: var(--s-5);
 }
 
-/* Главная карточка: текст слева, атлет справа на тёплом свете. */
+/* Два главных входа: тренировка и арена — рядом, большими карточками. */
+.menu__heroes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
 .menu__hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   align-items: stretch;
   width: 100%;
   min-height: 300px;
@@ -30,7 +36,8 @@
   align-items: flex-start;
   justify-content: center;
   gap: var(--s-3);
-  padding: clamp(24px, 4vw, 48px);
+  padding: clamp(22px, 3vw, 36px);
+  z-index: 1;
 }
 
 .menu__badge {
@@ -42,27 +49,47 @@
   font-weight: 600;
 }
 
+.menu__badge--arena {
+  background: rgba(96, 165, 250, 0.14);
+  color: #93c5fd;
+}
+
 .menu__hero-text b {
-  font-size: clamp(28px, 3.2vw, 44px);
+  font-size: clamp(26px, 2.6vw, 38px);
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.05;
 }
 
 .menu__hero-text small {
-  max-width: 38ch;
+  max-width: 34ch;
   color: var(--muted);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 400;
   line-height: 1.5;
+}
+
+.menu__formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.menu__formats span {
+  padding: 5px 10px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .menu__go {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-top: var(--s-3);
-  min-height: 52px;
+  gap: 8px;
+  margin-top: var(--s-2);
+  min-height: 50px;
   padding: 0 var(--s-5) 0 var(--s-6);
   border-radius: var(--r-full);
   background: var(--primary);
@@ -72,61 +99,120 @@
   transition: background var(--t-fast) var(--ease);
 }
 
+.menu__go--light {
+  padding: 0 var(--s-5);
+  background: var(--fg);
+  color: #09090b;
+}
+
 .menu__hero:hover .menu__go,
 .menu__hero.is-hover .menu__go {
   background: var(--primary-2);
+}
+
+.menu__hero:hover .menu__go--light,
+.menu__hero.is-hover .menu__go--light {
+  background: #fff;
 }
 
 .menu__hero-art {
   position: relative;
   overflow: hidden;
   border-radius: 0 var(--r-xl) var(--r-xl) 0;
-  background: radial-gradient(60% 70% at 55% 60%, rgba(249, 115, 22, 0.22), transparent 70%);
+  background: radial-gradient(60% 70% at 55% 62%, rgba(249, 115, 22, 0.22), transparent 70%);
 }
 
 .menu__hero-ghost {
   position: absolute;
-  left: -20%;
-  top: -32%;
-  width: 140%;
+  left: -22%;
+  top: -30%;
+  width: 144%;
   height: 150%;
 }
 
-/* Режимы — мягкие плитки без рамок. */
-.menu__grid {
+/* Арена: два бойца друг напротив друга и «VS» между ними, холодный свет против тёплого. */
+.menu__versus {
+  background:
+    radial-gradient(45% 60% at 22% 62%, rgba(249, 115, 22, 0.2), transparent 70%),
+    radial-gradient(45% 60% at 80% 62%, rgba(96, 165, 250, 0.2), transparent 70%);
+}
+
+.menu__fighter {
+  position: absolute;
+  top: -12%;
+  width: 70%;
+  height: 120%;
+}
+
+.menu__fighter--a {
+  left: -8%;
+}
+
+.menu__fighter--b {
+  right: -8%;
+  transform: scaleX(-1);
+}
+
+.menu__versus i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(30px, 3vw, 44px);
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--fg);
+  text-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
+}
+
+/* Режимы тренировки — две широкие строки, дальше — три компактные. */
+.menu__modes,
+.menu__more {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--s-3);
   margin-top: var(--s-3);
 }
 
-.menu__tile {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s-6);
-  min-height: 156px;
-  padding: var(--s-5);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  text-decoration: none;
+.menu__modes {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.menu__tile .dwell__label {
+.menu__more {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.menu__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 92px;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  text-align: left;
+}
+
+.menu__row .dwell__label {
   display: contents;
 }
 
-.menu__tile:hover,
-.menu__tile.is-hover {
+.menu__row:hover,
+.menu__row.is-hover {
   background: var(--surface-2);
+}
+
+.menu__row--small {
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 80px;
 }
 
 .menu__icon {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: var(--surface-3);
   color: var(--fg);
@@ -135,11 +221,12 @@
 .menu__text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
+  min-width: 0;
 }
 
 .menu__text b {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -148,6 +235,19 @@
   color: var(--muted);
   font-size: 14px;
   font-weight: 400;
+}
+
+.menu__chev {
+  color: var(--faint);
+  transition:
+    transform var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.menu__row:hover .menu__chev,
+.menu__row.is-hover .menu__chev {
+  color: var(--fg);
+  transform: translateX(3px);
 }
 
 /* Сводка — одна широкая карточка с крупными цифрами. */
@@ -179,12 +279,25 @@
   font-size: 14px;
 }
 
-@media (max-width: 960px) {
-  .menu__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 1100px) {
+  .menu__heroes {
+    grid-template-columns: 1fr;
   }
 }
 
+@media (max-width: 760px) {
+  .menu__modes,
+  .menu__more {
+    grid-template-columns: 1fr;
+    gap: var(--s-2);
+    margin-top: var(--s-2);
+  }
+  .menu__heroes {
+    gap: var(--s-2);
+  }
+}
+
+/* Телефон: картинка сверху карточки, под ней текст и кнопка на всю ширину. */
 @media (max-width: 620px) {
   .menu__hero {
     grid-template-columns: 1fr;
@@ -193,7 +306,7 @@
 
   .menu__hero-art {
     order: -1;
-    height: 200px;
+    height: 190px;
     border-radius: var(--r-xl) var(--r-xl) 0 0;
   }
 
@@ -206,23 +319,23 @@
     justify-content: center;
   }
 
-  .menu__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--s-2);
+  .menu__row,
+  .menu__row--small {
+    min-height: 72px;
+    padding: var(--s-3) var(--s-4);
   }
 
-  .menu__tile {
-    min-height: 132px;
-    gap: var(--s-4);
-    padding: var(--s-4);
+  .menu__row--small {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .menu__icon {
+    width: 42px;
+    height: 42px;
   }
 
   .menu__text b {
     font-size: 16px;
-  }
-
-  .menu__text small {
-    font-size: 13px;
   }
 
   .menu__stats {
