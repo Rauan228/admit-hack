@@ -29,6 +29,8 @@ export default defineConfig({
         engine: resolve(import.meta.dirname, 'dev/engine.html'),
         // E-24: дуэль на отжиманиях — отдельная страница /duel.html.
         duel: resolve(import.meta.dirname, 'duel.html'),
+        // E-36: бокс с ботом (файтинг, телефон горизонтально) — /fight.html.
+        fight: resolve(import.meta.dirname, 'fight.html'),
       },
     },
   },

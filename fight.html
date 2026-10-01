@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#09090b" />
+    <meta
+      name="description"
+      content="FORMA — бокс с ботом: бой как в файтинге, телефон горизонтально. Удары считает камера: бей прямые, закрывайся и уклоняйся."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800;900&display=swap"
+    />
+    <title>FORMA — бокс с ботом</title>
+  </head>
+  <body>
+    <main id="app" class="fight" data-screen="menu" data-phase="">
+      <!-- ——— Ринг: слева ты (камера), справа бот (3D-атлет) ——— -->
+      <div class="ring" id="ring" data-for="setup arena">
+        <div class="ring__me" id="side-me">
+          <video id="video" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+          <div class="floaters" id="float-me" aria-hidden="true"></div>
+          <div class="ring__flash" aria-hidden="true"></div>
+          <span class="guard-pill" id="guard-pill" hidden>🛡 Защита</span>
+        </div>
+        <div class="ring__bot" id="side-bot">
+          <div class="ring__floor" aria-hidden="true"></div>
+          <div class="ring__ghost" id="bot-ghost" aria-hidden="true"></div>
+          <div class="warn" id="warn" aria-hidden="true">!</div>
+          <div class="floaters" id="float-bot" aria-hidden="true"></div>
+          <div class="ring__flash" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <!-- ——— Табло: здоровье, раунды, время ——— -->
+      <header class="hud" data-for="arena">
+        <div class="hud__side hud__side--me">
+          <div class="hud__row">
+            <span class="hud__name" id="hud-me">Ты</span>
+            <span class="pips" id="pips-me" aria-label="Выигранные раунды"></span>
+          </div>
+          <div class="hp" aria-label="Твоё здоровье">
+            <span class="hp__ghost" id="hp-me-ghost"></span><span class="hp__fill" id="hp-me"></span>
+          </div>
+        </div>
+        <div class="hud__mid">
+          <span class="hud__clock" id="clock" aria-label="Осталось времени">0:45</span>
+          <span class="hud__round" id="round-label">Раунд 1</span>
+        </div>
+        <div class="hud__side hud__side--bot">
+          <div class="hud__row">
+            <span class="pips" id="pips-bot" aria-label="Раунды бота"></span>
+            <span class="hud__name" id="hud-bot">Атлет</span>
+          </div>
+          <div class="hp hp--bot" aria-label="Здоровье бота">
+            <span class="hp__ghost" id="hp-bot-ghost"></span><span class="hp__fill" id="hp-bot"></span>
+          </div>
+        </div>
+      </header>
+
+      <div class="combo" id="combo" data-for="arena" aria-live="polite" hidden>
+        <b id="combo-num">×3</b><span>комбо</span>
+      </div>
+
+      <!-- Большие надписи боя: отсчёт, «Раунд 1», «Бой!», «Нокаут!» -->
+      <div class="banner" id="banner" data-for="arena" aria-live="assertive" hidden>
+        <b class="banner__big" id="banner-big"></b>
+        <span class="banner__sub" id="banner-sub"></span>
+      </div>
+
+      <!-- Подготовка: 5 секунд, что делать -->
+      <ul class="tips" id="tips" data-for="arena" hidden>
+        <li><span class="tips__icon">🥊</span>Кулаки у подбородка</li>
+        <li><span class="tips__icon">➡</span>Бей прямые в камеру</li>
+        <li><span class="tips__icon">!</span>Бот замахнулся — закройся или уклонись</li>
+      </ul>
+
+      <div class="hint" id="hint-box" data-for="arena" data-kind="ok" role="status" hidden>
+        <b id="hint"></b>
+      </div>
+
+      <div class="arena-foot" data-for="arena">
+        <button class="btn btn--sm btn--giveup" id="give-up" type="button">Сдаться</button>
+      </div>
+
+      <!-- ——— Меню: выбор бота ——— -->
+      <section class="menu" data-for="menu">
+        <header class="bar">
+          <a class="bar__logo" id="home">FORMA</a>
+          <a class="bar__link" id="arena-link">В арену дуэлей</a>
+        </header>
+        <div class="menu__inner">
+          <div class="menu__hero">
+            <p class="menu__kicker">Файтинг с камерой</p>
+            <h1 class="menu__title">Бокс с ботом</h1>
+            <p class="menu__lead">
+              Телефон — горизонтально, ты слева, бот справа. Прямые удары снимают ему здоровье, его замах —
+              твой сигнал закрыться или уклониться. До двух побед в раундах по 45 секунд.
+            </p>
+            <div class="menu__ghost" id="menu-ghost" aria-hidden="true"></div>
+          </div>
+          <div class="menu__pick">
+            <h2 class="menu__sub">Соперник</h2>
+            <div class="bots" id="bots" role="radiogroup" aria-label="Соперник"></div>
+            <button class="btn btn--primary btn--lg menu__go" id="camera-on" type="button">Начать бой</button>
+            <p class="menu__error" id="intro-error" role="alert" hidden></p>
+            <p class="menu__tip">
+              Встань в 1,5–2 метрах лицом к камере: в кадре — голова, плечи, руки и пояс. Чистый удар — до
+              прямой руки, вторая рука у подбородка.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ——— Подготовка камеры ——— -->
+      <div class="setup" data-for="setup">
+        <div class="setup__card">
+          <button class="back" id="setup-back" type="button">Назад</button>
+          <p class="setup__ex">Бокс с ботом</p>
+          <p class="setup__meta" id="setup-meta"></p>
+          <p class="setup__status" id="setup-status" data-state="wait" role="status">Загружаю модель…</p>
+          <p class="setup__how">В кадре — голова, плечи, руки и пояс. Кулаки к подбородку.</p>
+        </div>
+        <div class="setup__foot">
+          <button class="btn btn--primary btn--lg setup__start" id="start" type="button" disabled>
+            К бою
+          </button>
+          <p class="setup__gesture">или подними обе руки</p>
+        </div>
+      </div>
+
+      <!-- ——— Итог ——— -->
+      <section class="result" data-for="result" aria-live="polite">
+        <div class="result__card">
+          <p class="result__ex" id="result-ex">Бокс с ботом</p>
+          <h2 class="result__title" id="result-title">Победа</h2>
+          <div class="result__score">
+            <div class="result__col result__col--me">
+              <span class="result__num" id="result-me">0</span>
+              <span class="result__who">Ты</span>
+            </div>
+            <span class="result__sep" aria-hidden="true">:</span>
+            <div class="result__col result__col--bot">
+              <span class="result__num" id="result-bot">0</span>
+              <span class="result__who" id="result-bot-name">Атлет</span>
+            </div>
+          </div>
+          <p class="result__note" id="result-note"></p>
+          <dl class="result__stats" id="result-stats"></dl>
+          <div class="result__actions">
+            <button class="btn btn--primary btn--lg" id="again" type="button">Реванш</button>
+            <button class="btn btn--lg" id="change" type="button">Другой соперник</button>
+            <a class="btn btn--lg btn--ghost" id="result-arena">В арену</a>
+          </div>
+          <p class="result__gesture">Или подними обе руки — реванш.</p>
+        </div>
+      </section>
+
+      <!-- Телефон вертикально — просим повернуть -->
+      <div class="rotate" id="rotate" role="status">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <rect x="22" y="8" width="20" height="36" rx="4" />
+          <path d="M14 52c6 6 30 6 36 0M46 48l4 4-4 4M18 48l-4 4 4 4" />
+        </svg>
+        <b>Поверни телефон горизонтально</b>
+        <span>Бой идёт на широком экране: ты слева, бот справа.</span>
+      </div>
+    </main>
+    <script type="module" src="/src/fight/main.ts"></script>
+  </body>
+</html>

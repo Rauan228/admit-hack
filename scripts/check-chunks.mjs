@@ -11,7 +11,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const dist = process.argv[2] ?? 'dist';
-const PAGES = ['duel.html', 'dev/engine.html'];
+const PAGES = ['duel.html', 'fight.html', 'dev/engine.html'];
 const assets = join(dist, 'assets');
 const entry = readdirSync(assets).find((f) => /^main-[\w-]+\.js$/.test(f));
 if (!entry) {

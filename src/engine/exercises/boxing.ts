@@ -97,5 +97,7 @@ export function createBoxing(cfg: BoxingConfig = ENGINE_CONFIG.exercises.boxing)
     fsm: cfg.fsm,
     createMeter: () => new BoxingMeter(cfg),
     rules: boxingRules(cfg),
+    // Бокс меряется по корпусу: ноги не нужны, но пояс в кадре быть должен (E-36, бой по пояс на телефоне боком).
+    lostHint: 'Отойди чуть дальше — в кадре должны быть голова, плечи, руки и пояс',
   };
 }

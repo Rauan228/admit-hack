@@ -123,6 +123,8 @@ $<HTMLAnchorElement>('home').href = import.meta.env.BASE_URL;
 $<HTMLAnchorElement>('menu-link').href = `${import.meta.env.BASE_URL}app`;
 $<HTMLAnchorElement>('nav-train').href = `${import.meta.env.BASE_URL}app`;
 $<HTMLAnchorElement>('nav-rating').href = `${import.meta.env.BASE_URL}app/rating`;
+// E-36: бокс с ботом как файтинг — своя страница.
+$<HTMLAnchorElement>('boxing-link').href = `${import.meta.env.BASE_URL}fight.html`;
 
 /** Во что идёт текущий бой и сколько он длится — по режиму: бот, запись друга или онлайн-комната. */
 let currentExercise: DuelExercise = 'push_up';
