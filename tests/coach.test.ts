@@ -204,3 +204,50 @@ describe('API /api/coach/plan', () => {
     expect(got.profile.weightKg).toBe(96);
   });
 });
+
+describe('ИИ-тренер: потолок на сервер', () => {
+  it('сверх дневного потолка — 429, модель не зовём', async () => {
+    let calls = 0;
+    const handle = createApp(openDb(':memory:'), {
+      coach: {
+        dailyMax: 2,
+        complete: async () => {
+          calls += 1;
+          return {
+            title: 'П',
+            summary: '',
+            insights: [],
+            warnings: [],
+            excluded: [],
+            sessions: [
+              {
+                day: 'Пн',
+                title: 'Н',
+                focus: '',
+                items: [{ exercise: 'squat', sets: 2, target: 10, restSec: 30, note: '' }],
+              },
+            ],
+            progression: '',
+            tips: [],
+          };
+        },
+      },
+    });
+    const srv = createServer((req, res) => void handle(req, res));
+    await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${(srv.address() as AddressInfo).port}/api/coach/plan`;
+    const codes: number[] = [];
+    // Разные «IP» через X-Real-IP: лимит по адресу не мешает, срабатывает именно общий потолок.
+    for (const ip of ['1.1.1.1', '2.2.2.2', '3.3.3.3']) {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-real-ip': ip },
+        body: JSON.stringify({ profile: PROFILE }),
+      });
+      codes.push(r.status);
+    }
+    await new Promise<void>((r) => srv.close(() => r()));
+    expect(codes).toEqual([200, 200, 429]);
+    expect(calls).toBe(2);
+  });
+});

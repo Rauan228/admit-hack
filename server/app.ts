@@ -43,7 +43,13 @@ export interface AppOptions {
   /** E-26: длительности онлайн-дуэли (в тестах — короткие). */
   duel?: Omit<LiveOptions, 'now'>;
   /** ИИ-конструктор плана: ключ и модель OpenAI; complete — подмена модели в тестах. */
-  coach?: { apiKey?: string; model?: string; complete?: (body: Record<string, unknown>) => Promise<unknown> };
+  coach?: {
+    apiKey?: string;
+    model?: string;
+    complete?: (body: Record<string, unknown>) => Promise<unknown>;
+    dailyMax?: number;
+    maxInFlight?: number;
+  };
 }
 
 interface User {

@@ -28,6 +28,10 @@ export interface CoachContext {
   model?: string;
   /** Подмена запроса к модели в тестах: получает тело запроса, отдаёт JSON плана. */
   complete?: (body: Record<string, unknown>) => Promise<unknown>;
+  /** Потолок планов на весь сервер за сутки (защита счёта OpenAI, если лимиты по IP обходят с многих адресов). */
+  dailyMax?: number;
+  /** Сколько запросов к модели может идти одновременно. */
+  maxInFlight?: number;
 }
 
 type Handler = (req: IncomingMessage, res: ServerResponse, url: URL) => unknown;
@@ -49,6 +53,12 @@ export function coachRoutes(ctx: CoachContext): Record<string, Handler> {
   // Запрос к модели стоит денег: гостю — 4 плана за 10 минут, вошедшему — 8.
   const guestLimit = new RateLimiter(4, 600_000);
   const userLimit = new RateLimiter(8, 600_000);
+  // Сверх лимитов по IP — общий потолок за сутки и не больше maxInFlight запросов к модели сразу.
+  const dailyMax = ctx.dailyMax ?? 400;
+  const maxInFlight = ctx.maxInFlight ?? 6;
+  let day = -1;
+  let usedToday = 0;
+  let inFlight = 0;
   const q = {
     save: ctx.db.prepare(
       `INSERT INTO coach_plans (user_id, profile, plan, created_at) VALUES (?, ?, ?, ?)
@@ -98,6 +108,15 @@ export function coachRoutes(ctx: CoachContext): Record<string, Handler> {
       if (!allowed.length)
         ctx.fail(422, 'С такими ограничениями в каталоге не осталось безопасных упражнений');
 
+      const today = Math.floor(ctx.now() / 86_400_000);
+      if (today !== day) {
+        day = today;
+        usedToday = 0;
+      }
+      if (usedToday >= dailyMax) ctx.fail(429, 'ИИ-тренер на сегодня занят — попробуй завтра');
+      if (inFlight >= maxInFlight) ctx.fail(429, 'ИИ-тренер сейчас занят — попробуй через минуту');
+      usedToday += 1;
+      inFlight += 1;
       const raw = await complete({
         model,
         reasoning_effort: 'low',
@@ -109,6 +128,8 @@ export function coachRoutes(ctx: CoachContext): Record<string, Handler> {
           type: 'json_schema',
           json_schema: { name: 'workout_plan', strict: true, schema: planSchema(allowed) },
         },
+      }).finally(() => {
+        inFlight -= 1;
       });
       const plan: CoachPlan = normalizePlan(raw, profile, hard, { now: ctx.now(), model });
       if (!plan.sessions.length) ctx.fail(502, 'ИИ-тренер не собрал ни одной тренировки — попробуй ещё раз');

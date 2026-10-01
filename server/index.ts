@@ -1,6 +1,6 @@
 // Запуск API: node --experimental-strip-types server/index.ts
 // Переменные: PORT (8787), DB_PATH (./data/forma.db), SECURE_COOKIES=1 на проде за https,
-// OPENAI_API_KEY (+ OPENAI_MODEL) — для ИИ-конструктора плана.
+// OPENAI_API_KEY (+ OPENAI_MODEL, COACH_DAILY_MAX — планов в сутки, 400) — для ИИ-конструктора плана.
 
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -14,7 +14,11 @@ mkdirSync(dirname(dbPath), { recursive: true });
 
 const handle = createApp(openDb(dbPath), {
   secureCookies: process.env.SECURE_COOKIES === '1',
-  coach: { apiKey: process.env.OPENAI_API_KEY, model: process.env.OPENAI_MODEL || undefined },
+  coach: {
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL || undefined,
+    dailyMax: Number(process.env.COACH_DAILY_MAX) || undefined,
+  },
 });
 const server = createServer((req, res) => void handle(req, res));
 // E-26: онлайн-дуэль — WebSocket на /api/duel/ws (nginx пробрасывает Upgrade только для этого пути).
