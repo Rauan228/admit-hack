@@ -289,7 +289,7 @@ export function armCircles(body, n) {
  */
 export function sideBend(body, n) {
   const K = kit(body);
-  const MAX = 34;
+  const MAX = 44;
   const reach = body.upperArm + body.forearm;
   const pose = (u, T, O) => {
     // T — сторона наклона (рука скользит по бедру), O — рука над головой.
@@ -529,20 +529,20 @@ export function kneeToElbow(body, n) {
     for (const p of pts) if (p.y < body.hipY + 0.01) p.x += shift;
     const pv = waist(body, shift);
     // Корпус от талии: скручивание локтем к колену, наклон вперёд и вбок к колену.
-    const twist = 26 * w * (elbow === K.S.l ? -1 : 1);
+    const twist = 34 * w * (elbow === K.S.l ? 1 : -1);
     K.upper(pts, (p) => {
       let q = yaw(p, pv, twist, body.side);
-      q = pitch(q, pv, 16 * w);
-      return roll(q, pv, 12 * w, knee.s);
+      q = pitch(q, pv, 28 * w);
+      return roll(q, pv, 16 * w, knee.s);
     });
     // Опорная нога прямая.
     const aS = V(body.pts[stand.an].x, -body.ankleH, 0);
     K.leg(pts, stand, aS);
     K.foot(pts, stand, aS);
-    // Рабочая нога: бедро вперёд-вверх до ~110° и к центру, голень почти вертикально, носок вниз.
+    // Рабочая нога: бедро вперёд-вверх до ~115° и к центру, голень почти вертикально, носок вниз.
     const H = pts[knee.hp];
-    const fl = rad(110 * w);
-    const ad = rad(14 * w);
+    const fl = rad(115 * w);
+    const ad = rad(22 * w);
     const thighDir = norm(V(-knee.s * Math.sin(ad), Math.cos(fl), -Math.sin(fl) * Math.cos(ad)));
     const Kn = add(H, thighDir, body.thigh);
     const shinDir = norm(V(-knee.s * 0.04 * w, 1, 0.22 * w));
@@ -551,11 +551,14 @@ export function kneeToElbow(body, n) {
     pts[knee.an] = A;
     pts[knee.to] = add(A, V(0, body.ankleH * (1 - 0.3 * w) + 0.05 * w, -0.16 + 0.07 * w));
     pts[knee.he] = add(A, V(0, body.ankleH - 0.03 * w, 0.05));
-    // Руки за головой: ладони на затылке, локти широко в стороны.
+    // Руки за головой: ладони на затылке, локти широко в стороны; рабочий локоть на касании смотрит
+    // вниз-вперёд, к поднятому колену (движок засчитывает касание, когда локоть и колено сошлись).
     const back = add(lerpV(pts[7], pts[8], 0.5), V(0, 0.01, 0.09));
     for (const S of [K.S.l, K.S.r]) {
       const Wr = add(back, V(S.s * 0.05, 0, 0));
-      K.armTo(pts, S, Wr, V(S.s, -0.15, -0.25), V(-S.s, 0.2, 0.3));
+      const hint =
+        S === elbow ? lerpV(V(S.s, -0.15, -0.25), V(-S.s * 0.1, 1.3, -0.7), w) : V(S.s, -0.15, -0.25);
+      K.armTo(pts, S, Wr, hint, V(-S.s, 0.2, 0.3));
     }
     return pts;
   };

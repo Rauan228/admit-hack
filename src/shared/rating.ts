@@ -56,11 +56,11 @@ export const SINGLE_TARGET: Record<RatedExercise, number> = {
 };
 /** Длительность челленджа, секунды. */
 export const CHALLENGE_SEC = 60;
-/** Быстрая тренировка: сколько повторений в плане всего (8 приседаний + 12 «звёздочек» + 4 выпада). */
+/** Быстрая тренировка: сколько повторений в плане всего (10 приседаний + 8 отжиманий + 6 бёрпи). */
 export const QUICK_TOTAL_REPS = 24;
 /** Бонус за темп в быстрой тренировке: полный — если уложился в эту длительность, к 0 — за QUICK_SLOW_SEC. */
-const QUICK_FAST_SEC = 90;
-const QUICK_SLOW_SEC = 240;
+const QUICK_FAST_SEC = 120;
+const QUICK_SLOW_SEC = 300;
 const QUICK_TEMPO_MAX = 40;
 
 export interface ResultInput {

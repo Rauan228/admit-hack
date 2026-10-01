@@ -89,6 +89,12 @@ export function Intro({
               <Icon name="target" size={16} /> {goal}
             </span>
             {plan.timeLimitSec && <span className="intro__chip">максимум чистых</span>}
+            {item.set && item.set.of > 1 && (
+              <span className="intro__chip">
+                Подход {item.set.n} из {item.set.of}
+              </span>
+            )}
+            {item.set && item.set.n > 1 && <span className="intro__chip">Отдых ~{item.set.restSec} с</span>}
           </div>
 
           <ol className="intro__cues">

@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { ExerciseId } from '../../engine/types';
 import { SINGLE_TARGET } from '../../shared/rating';
 import { DwellButton } from '../components/dwell';
+import { ICON_PHASE, LYING } from '../lib/thumb';
 import { Ghost } from '../components/Ghost';
 import { Icon } from '../components/Icon';
 import { MUSCLE_NAMES, hasRecordedMotion } from '../lib/athlete';
@@ -23,31 +24,6 @@ function savedTab(): string {
     return CATEGORIES[0]!.id;
   }
 }
-
-/** Упор лёжа и бёрпи: фигура вытянута по горизонтали — в превью не увеличиваем, иначе обрежется. */
-const LYING = new Set<string>(['push_up', 'plank', 'burpee']);
-
-/** Самая узнаваемая поза каждого упражнения для превью (доля цикла). */
-const ICON_PHASE: Partial<Record<string, number>> = {
-  squat: 0.5,
-  lunge: 0.19,
-  side_lunge: 0.25,
-  jump_squat: 0.4,
-  calf_raise: 0.4,
-  side_leg_raise: 0.25,
-  jumping_jack: 0.26,
-  cross_jack: 0.2,
-  high_knees: 0.25,
-  burpee: 0.5,
-  boxing: 0.08,
-  arm_raise: 0.26,
-  arm_circles: 0.5,
-  squat_press: 0.64,
-  side_bend: 0.27,
-  knee_to_elbow: 0.23,
-  push_up: 0.3,
-  plank: 0.5,
-};
 
 export function Picker({
   onPick,

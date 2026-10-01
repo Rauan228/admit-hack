@@ -18,9 +18,11 @@ import { DEMO_PLAN, QUICK_PLAN, challengePlan, singlePlan, type Plan } from './l
 import { challengeExercise } from '../shared/rating';
 import { currentRoute, markCalibrated, routeOf, syncUrl, wasCalibrated } from './lib/route';
 import { refreshMe, useAuth } from './store/api';
-import type { SetResult } from './lib/results';
+import { totalsOf, type SetResult } from './lib/results';
 import { Auth } from './screens/Auth';
 import { Calibration } from './screens/Calibration';
+import { Coach } from './screens/Coach';
+import { markDone, sessionPlan } from './store/coach';
 import { DemoIntro } from './screens/DemoIntro';
 import { ErrorScreen } from './screens/ErrorScreen';
 import { Intro } from './screens/Intro';
@@ -46,6 +48,7 @@ export type Screen =
   | { name: 'summary'; plan: Plan; results: SetResult[]; autoSave?: boolean }
   | { name: 'auth'; reason: 'save' | 'progress' | 'account'; pending?: string; back: Screen; next: Screen }
   | { name: 'profile' }
+  | { name: 'coach' }
   | { name: 'leaderboard'; board?: Board };
 
 /** План тренировки для доски рейтинга («Побить рекорд» из профиля). */
@@ -71,6 +74,7 @@ const SCENE: Record<Screen['name'], [dim: number, skeleton: number]> = {
   auth: [0.88, 0.08],
   profile: [0.84, 0.1],
   leaderboard: [0.84, 0.1],
+  coach: [0.84, 0.1],
 };
 
 /** Экраны без камеры: пришли сюда — камеру выключаем (если не включены «Жесты»). */
@@ -82,6 +86,7 @@ const NO_CAMERA = new Set<Screen['name']>([
   'leaderboard',
   'profile',
   'auth',
+  'coach',
 ]);
 
 /** Экран по адресу при загрузке: обновление страницы оставляет на той же странице платформы. */
@@ -95,6 +100,8 @@ function initialScreen(): Screen {
       return { name: 'leaderboard' };
     case 'progress':
       return { name: 'profile' };
+    case 'plan':
+      return { name: 'coach' };
     case 'login':
       return { name: 'auth', reason: 'account', back: { name: 'menu' }, next: { name: 'menu' } };
     default:
@@ -229,6 +236,7 @@ export function App() {
       else if (route === 'demo') go({ name: 'demo' });
       else if (route === 'rating') go({ name: 'leaderboard' });
       else if (route === 'progress') go({ name: 'profile' });
+      else if (route === 'plan') go({ name: 'coach' });
       else if (route === 'login')
         go({ name: 'auth', reason: 'account', back: { name: 'menu' }, next: { name: 'menu' } });
       else go({ name: 'menu' });
@@ -304,7 +312,12 @@ export function App() {
     const results = [...s.results, result];
     const next = s.index + 1;
     if (next < s.plan.items.length) go({ name: 'intro', plan: s.plan, index: next, results });
-    else go({ name: 'summary', plan: s.plan, results });
+    else {
+      // День ИИ-плана: хоть что-то сделал — день засчитан (и попадает в прогресс тренера).
+      const t = totalsOf(results);
+      if (s.plan.coachDay && t.reps > 0) markDone(s.plan.coachDay, t);
+      go({ name: 'summary', plan: s.plan, results });
+    }
   };
 
   return (
@@ -364,6 +377,7 @@ export function App() {
           onQuick={() => startPlan(QUICK_PLAN)}
           onPick={() => go({ name: 'picker' })}
           onChallenge={() => go({ name: 'picker', mode: 'challenge' })}
+          onCoach={() => go({ name: 'coach' })}
           onRecords={() => go({ name: 'leaderboard' })}
           onRecalibrate={() =>
             getEngine() ? go({ name: 'calibration' }) : void start(undefined, { calibrate: true })
@@ -404,7 +418,7 @@ export function App() {
           plan={screen.plan}
           results={screen.results}
           onAgain={() => startPlan(screen.plan)}
-          onMenu={() => go({ name: 'menu' })}
+          onMenu={() => go(screen.plan.coachDay ? { name: 'coach' } : { name: 'menu' })}
           // Мок не сохраняется в рейтинг; исключение — ?mock=1 в dev-сборке (сквозные тесты сохранения).
           demo={mock && (tour || !import.meta.env.DEV)}
           onCamera={toCamera}
@@ -441,6 +455,9 @@ export function App() {
           onBoard={(board) => go({ name: 'leaderboard', board })}
           onSignedOut={() => go({ name: 'menu' })}
         />
+      )}
+      {screen.name === 'coach' && (
+        <Coach onStart={(p, i, w) => startPlan(sessionPlan(p, i, w))} onBack={() => go({ name: 'menu' })} />
       )}
       {screen.name === 'leaderboard' && (
         <Leaderboard

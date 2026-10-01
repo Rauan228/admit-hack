@@ -3,6 +3,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type { ArenaStanding } from '../../shared/arena';
+import type { CoachPlan, CoachProfile } from '../../shared/coach';
 import type { Board, ResultInput } from '../../shared/rating';
 
 export interface ApiUser {
@@ -154,4 +155,14 @@ export function fetchProgress(): Promise<ProgressData> {
 /** Кубки арены: по разрядам и по упражнениям. Гость получит 401. */
 export function fetchStanding(): Promise<ArenaStanding> {
   return call<ArenaStanding>('GET', '/duel/standing');
+}
+
+/** ИИ-конструктор: план по анкете. Долго (10–30 с) — модель думает. Вошедшему план сохраняется на сервере. */
+export function generateCoachPlan(profile: CoachProfile): Promise<{ plan: CoachPlan; saved: boolean }> {
+  return call('POST', '/coach/plan', { profile });
+}
+
+/** Последний план вошедшего пользователя (гостю — пусто). */
+export function fetchCoachPlan(): Promise<{ plan: CoachPlan | null; profile: CoachProfile | null }> {
+  return call('GET', '/coach/plan');
 }

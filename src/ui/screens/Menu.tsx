@@ -10,6 +10,7 @@ import { Ghost } from '../components/Ghost';
 import { Icon, type IconName } from '../components/Icon';
 import { order } from '../lib/motion';
 import { formatDuration } from '../lib/results';
+import { loadCoachPlan } from '../store/coach';
 import { loadTotals } from '../store/progress';
 import './Menu.css';
 
@@ -17,6 +18,7 @@ interface Props {
   onQuick: () => void;
   onPick: () => void;
   onChallenge: () => void;
+  onCoach: () => void;
   onRecords: () => void;
   onRecalibrate: () => void;
   onProgress: () => void;
@@ -26,8 +28,18 @@ interface Props {
 
 const DUEL_URL = `${import.meta.env.BASE_URL}duel.html`;
 
-export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate, onProgress, hands }: Props) {
+export function Menu({
+  onQuick,
+  onPick,
+  onChallenge,
+  onCoach,
+  onRecords,
+  onRecalibrate,
+  onProgress,
+  hands,
+}: Props) {
   const totals = loadTotals();
+  const coach = loadCoachPlan();
 
   useEffect(() => {
     if (hands) say('Подними руку и задержи курсор на кнопке');
@@ -35,7 +47,7 @@ export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate, o
 
   const modes: { icon: IconName; title: string; sub: string; onSelect: () => void }[] = [
     { icon: 'list', title: 'Одно упражнение', sub: `Выбери из ${EXERCISES.length}`, onSelect: onPick },
-    { icon: 'timer', title: 'Челлендж 60 секунд', sub: 'Максимум чистых приседаний', onSelect: onChallenge },
+    { icon: 'timer', title: 'Челлендж 60 секунд', sub: 'Максимум чистых за минуту', onSelect: onChallenge },
   ];
   const more: { icon: IconName; title: string; sub: string; onSelect: () => void }[] = [
     { icon: 'trophy', title: 'Рейтинг', sub: 'Сравни себя с другими', onSelect: onRecords },
@@ -55,12 +67,48 @@ export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate, o
           </p>
         </header>
 
+        {/* Главный вход — персональный план от ИИ: широкая карточка над тренировкой и ареной. */}
+        <DwellButton className="menu__coach rise" style={order(1)} onSelect={onCoach}>
+          <span className="menu__coach-text">
+            <span className="menu__badge">ИИ-тренер</span>
+            <b>{coach ? coach.title : 'Персональный план тренировок'}</b>
+            <small>
+              {coach
+                ? `${coach.sessions.length} тренировки в неделю · 4 недели. Продолжай — нагрузка растёт вместе с тобой.`
+                : 'Расскажи о цели, данных и здоровье — ИИ изучит анкету и соберёт план из безопасных для тебя упражнений.'}
+            </small>
+            <span className="menu__coach-steps" aria-hidden="true">
+              <span>
+                <Icon name="target" size={16} /> Цель
+              </span>
+              <span>
+                <Icon name="user" size={16} /> Данные
+              </span>
+              <span>
+                <Icon name="shield" size={16} /> Ограничения
+              </span>
+              <span>
+                <Icon name="sparkle" size={16} /> План за 15 секунд
+              </span>
+            </span>
+            <span className="menu__go">
+              {coach ? 'Продолжить план' : 'Собрать план'} <Icon name="chevron" size={18} />
+            </span>
+          </span>
+          <span className="menu__coach-art" aria-hidden="true">
+            <Ghost exercise="calf_raise" still phase={0} yaw={-0.55} className="menu__coach-ghost" />
+          </span>
+        </DwellButton>
+
         <section className="menu__heroes">
-          <DwellButton className="menu__hero rise" style={order(1)} onSelect={onQuick}>
+          <DwellButton className="menu__hero rise" style={order(2)} onSelect={onQuick}>
             <span className="menu__hero-text">
               <span className="menu__badge">Рекомендуем</span>
               <b>Быстрая тренировка</b>
-              <small>3 упражнения · около 3 минут. Тренер считает повторы и подсказывает по технике.</small>
+              <small>
+                Приседания, отжимания и бёрпи · около 4 минут. Тренер считает повторы и подсказывает по
+                технике.
+              </small>
               <span className="menu__go">
                 Начать <Icon name="chevron" size={18} />
               </span>
@@ -72,7 +120,7 @@ export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate, o
 
           <DwellButton
             className="menu__hero menu__hero--arena rise"
-            style={order(2)}
+            style={order(3)}
             onSelect={() => window.location.assign(DUEL_URL)}
           >
             <span className="menu__hero-text">
@@ -99,7 +147,7 @@ export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate, o
 
         <nav className="menu__modes" aria-label="Режимы тренировки">
           {modes.map((t, i) => (
-            <DwellButton key={t.title} className="menu__row rise" style={order(i + 3)} onSelect={t.onSelect}>
+            <DwellButton key={t.title} className="menu__row rise" style={order(i + 4)} onSelect={t.onSelect}>
               <span className="menu__icon">
                 <Icon name={t.icon} size={22} />
               </span>
@@ -117,7 +165,7 @@ export function Menu({ onQuick, onPick, onChallenge, onRecords, onRecalibrate, o
             <DwellButton
               key={t.title}
               className="menu__row menu__row--small rise"
-              style={order(i + 5)}
+              style={order(i + 6)}
               onSelect={t.onSelect}
             >
               <span className="menu__icon">

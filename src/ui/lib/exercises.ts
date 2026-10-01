@@ -165,6 +165,8 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
 export interface PlanItem {
   exercise: ExerciseId;
   target: number;
+  /** Подход n из of — в ИИ-плане одно упражнение идёт несколькими подходами подряд. */
+  set?: { n: number; of: number; restSec: number };
 }
 
 export interface Plan {
@@ -173,15 +175,17 @@ export interface Plan {
   items: PlanItem[];
   /** Ограничение по времени на подход (челлендж), секунды. */
   timeLimitSec?: number;
+  /** День ИИ-плана: после итогов отмечаем его выполненным. */
+  coachDay?: { createdAt: number; index: number; week: number };
 }
 
 export const QUICK_PLAN: Plan = {
   kind: 'quick',
   label: 'Быстрая тренировка',
   items: [
-    { exercise: 'squat', target: 8 },
-    { exercise: 'jumping_jack', target: 12 },
-    { exercise: 'lunge', target: 4 },
+    { exercise: 'squat', target: 10 },
+    { exercise: 'push_up', target: 8 },
+    { exercise: 'burpee', target: 6 },
   ],
 };
 

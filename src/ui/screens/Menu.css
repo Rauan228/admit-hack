@@ -2,6 +2,121 @@
   margin-bottom: var(--s-5);
 }
 
+/* ИИ-тренер: широкая карточка на всю ширину, атлет крупным планом в тёплом свете. */
+.menu__coach {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: stretch;
+  width: 100%;
+  min-height: 320px;
+  margin-bottom: var(--s-3);
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  background: linear-gradient(110deg, var(--surface) 40%, #1a120c);
+  text-align: left;
+}
+
+.menu__coach .dwell__label {
+  display: contents;
+}
+
+.menu__coach:hover,
+.menu__coach.is-hover {
+  background: linear-gradient(110deg, #17171b 40%, #20150d);
+}
+
+.menu__coach-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--s-3);
+  padding: clamp(24px, 3.4vw, 44px);
+  z-index: 1;
+}
+
+.menu__coach-text b {
+  max-width: 18ch;
+  font-size: clamp(30px, 3.2vw, 46px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
+}
+
+.menu__coach-text small {
+  max-width: 48ch;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.menu__coach-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.menu__coach-steps span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.menu__coach-steps svg {
+  color: var(--primary);
+}
+
+.menu__coach:hover .menu__go,
+.menu__coach.is-hover .menu__go {
+  background: var(--primary-2);
+}
+
+.menu__coach-art {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(40% 50% at 45% 50%, rgba(249, 115, 22, 0.32), transparent 75%);
+  -webkit-mask-image:
+    radial-gradient(65% 75% at 50% 45%, #000 55%, transparent 100%),
+    linear-gradient(180deg, #000 70%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    radial-gradient(65% 75% at 50% 45%, #000 55%, transparent 100%),
+    linear-gradient(180deg, #000 70%, transparent 100%);
+  mask-composite: intersect;
+}
+
+/* Холст в разы больше блока: в кадре голова, плечи и грудь; серую модель тонируем в тёмное. */
+.menu__coach-ghost {
+  position: absolute;
+  top: -48%;
+  left: -70%;
+  width: 240%;
+  height: 240%;
+  filter: grayscale(0.85) brightness(0.48) contrast(1.55);
+}
+
+.menu__coach-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    45% 45% at 42% 62%,
+    rgba(249, 115, 22, 0.85),
+    rgba(234, 88, 12, 0.35) 50%,
+    transparent 80%
+  );
+  mix-blend-mode: color-dodge;
+  pointer-events: none;
+}
+
 /* Два главных входа: тренировка и арена — рядом, большими карточками. */
 .menu__heroes {
   display: grid;
@@ -302,6 +417,25 @@
   .menu__hero {
     grid-template-columns: 1fr;
     min-height: 0;
+  }
+
+  .menu__coach {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .menu__coach-art {
+    order: -1;
+    height: 240px;
+  }
+
+  .menu__coach-text {
+    padding: 0 var(--s-5) var(--s-5);
+  }
+
+  .menu__coach .menu__go {
+    width: 100%;
+    justify-content: center;
   }
 
   .menu__hero-art {
