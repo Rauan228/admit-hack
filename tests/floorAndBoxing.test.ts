@@ -72,6 +72,39 @@ describe('бокс: прямые удары', () => {
     expect(res.reps).toHaveLength(0);
     expect(res.shown).toEqual([]);
   });
+  it('быстрая серия «раз-два»: правая летит, пока левая возвращается — два удара, а не один (E-36)', () => {
+    // Удар 320 мс, следующий начинается за 100 мс до конца предыдущего.
+    const noise = gaussian(0.003, 5);
+    const PUNCH = 320;
+    const STEP = 220;
+    const frames: PoseFrame[] = [];
+    for (let t = 0; t <= 1500 + 10 * STEP + 800; t += 33) {
+      let punchL = 0;
+      let punchR = 0;
+      for (let i = 0; i < 10; i += 1) {
+        const u = (t - 1500 - i * STEP) / PUNCH;
+        if (u < 0 || u >= 1) continue;
+        if (i % 2 === 0) punchL = Math.max(punchL, wave(u));
+        else punchR = Math.max(punchR, wave(u));
+      }
+      frames.push(synthFrame({ ...STAND, punchL, punchR }, t, noise));
+    }
+    const res = runSession(frames, def('boxing'));
+    expect(res.reps.length + res.attempts.length).toBe(10);
+    expect(res.reps.length).toBeGreaterThanOrEqual(9);
+  });
+  it('кадр по грудь — таза нет: удары считаются так же, как с тазом (E-36)', () => {
+    const file = loadFixture('boxing-front-cage.json');
+    const withHips = runSession(fixtureFrames(file), def('boxing')).reps.length;
+    const noHips = structuredClone(file);
+    // Таз и всё ниже — невидимы, как при съёмке телефоном боком с полутора метров.
+    for (const f of noHips.frames) {
+      for (let j = 23; j < 33; j += 1) f.p[j * 4 + 3] = 0;
+    }
+    const without = runSession(fixtureFrames(noHips), def('boxing')).reps.length;
+    expect(withHips).toBeGreaterThanOrEqual(15);
+    expect(without).toBe(withHips);
+  });
 });
 
 /** Подход в упоре лёжа лицом к камере: 1,5 с в упоре на прямых руках, reps циклов, 1 с в упоре. */
@@ -241,9 +274,11 @@ describe('планка — на время', () => {
     const events: EngineEvent[] = [];
     for (let t = 0; t <= 4000; t += 33) events.push(...session.update(floorFrame({ down: 0 }, t, noise), t));
     const before = events.filter((e) => e.type === 'rep').length;
-    for (let t = 4033; t <= 10000; t += 33) events.push(...session.update(floorFrame({ down: 1 }, t, noise), t));
+    for (let t = 4033; t <= 10000; t += 33)
+      events.push(...session.update(floorFrame({ down: 1 }, t, noise), t));
     const lying = events.filter((e) => e.type === 'rep').length - before;
-    for (let t = 10033; t <= 14000; t += 33) events.push(...session.update(floorFrame({ down: 0 }, t, noise), t));
+    for (let t = 10033; t <= 14000; t += 33)
+      events.push(...session.update(floorFrame({ down: 0 }, t, noise), t));
     const after = events.filter((e) => e.type === 'rep').length - before - lying;
     expect(before).toBeGreaterThanOrEqual(3);
     // Полсекунды опускания могли ещё тикнуть — но не 6 секунд лёжа.
@@ -252,7 +287,11 @@ describe('планка — на время', () => {
     expect(events.some((e) => e.type === 'form_error' && e.code === 'plank_low')).toBe(true);
   });
   it('низ отжимания с реальных записей, замерший на 6 с (грудь у пола), — не планка', () => {
-    for (const name of ['push-up-floor-front.json', 'push-up-front.json', 'push-up-front-three-quarter.json']) {
+    for (const name of [
+      'push-up-floor-front.json',
+      'push-up-front.json',
+      'push-up-front-three-quarter.json',
+    ]) {
       const frames = fixtureFrames(loadFixture(name)).filter((f): f is PoseFrame => f !== null);
       // Кадр с самыми низкими плечами — низ отжимания; держим его неподвижно.
       const shY = (f: PoseFrame) => (f.image[11]!.y + f.image[12]!.y) / 2;
@@ -261,7 +300,11 @@ describe('планка — на время', () => {
       const noise = gaussian(0.002, 13);
       let reps = 0;
       for (let t = 0; t <= 6000; t += 33) {
-        const f: PoseFrame = { ...bottom, t, image: bottom.image.map((p) => ({ ...p, x: p.x + noise(), y: p.y + noise() })) };
+        const f: PoseFrame = {
+          ...bottom,
+          t,
+          image: bottom.image.map((p) => ({ ...p, x: p.x + noise(), y: p.y + noise() })),
+        };
         reps += session.update(f, t).filter((e) => e.type === 'rep').length;
       }
       expect(reps, name).toBe(0);
