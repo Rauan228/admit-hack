@@ -13,7 +13,7 @@ import { formErrorsFor } from './hints';
 import { PoseGate } from './person';
 import { RuleEngine, type RepContext } from './rules';
 import { SetTracker } from './scoring';
-import type { EngineEvent, Side } from './types';
+import type { EngineEvent, Phase, Side } from './types';
 
 const OTHER: Record<Side, Side> = { left: 'right', right: 'left' };
 const SIDE_WORD: Record<Side, string> = { left: 'левой', right: 'правой' };
@@ -42,6 +42,7 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
   private holdPhase: 'start' | 'bottom' = 'start';
   /** Когда последний раз удалось измерить позу для этого упражнения. */
   private lastMeasuredAt: number;
+  private last: M | null = null;
 
   constructor(
     readonly def: ExerciseDef<M>,
@@ -62,6 +63,16 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
 
   get reps(): number {
     return this.count;
+  }
+
+  /** Фаза счётчика: не start — движение идёт (движку: пора проверять кисти). */
+  get phase(): Phase {
+    return this.counter.phase;
+  }
+
+  /** Метрики последнего измеренного кадра (движку: какую кисть проверять). */
+  get lastMetrics(): M | null {
+    return this.last;
   }
 
   /** Сколько мс подряд позу не удаётся измерить (человек вышел, нужные суставы не видны). */
@@ -97,6 +108,7 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
     const m = this.meter.measure(frame, this.counter.phase);
     if (!m) return [];
     this.lastMeasuredAt = t;
+    this.last = m;
     if (this.def.hold) return this.updateHold(m, t);
 
     const out: EngineEvent[] = [];
@@ -140,8 +152,14 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
         const h = this.rules.onRepMoment('attempt', this.context(e.summary), t);
         if (h) out.push(h);
       } else if (e.kind === 'rep' && this.atBottom) {
-        const hinted = out.some((x) => x.type === 'form_error');
-        out.push(...this.completeRep(this.context(e.summary), t, hinted));
+        if (this.repFrames.some((f) => f.veto)) {
+          // Измеритель запретил засчитывать (удар ладонью): для правил и человека это попытка.
+          const h = this.rules.onRepMoment('attempt', this.context(e.summary), t);
+          if (h) out.push(h);
+        } else {
+          const hinted = out.some((x) => x.type === 'form_error');
+          out.push(...this.completeRep(this.context(e.summary), t, hinted));
+        }
       }
       if (e.kind === 'rep' || e.kind === 'attempt' || e.kind === 'timeout') {
         this.repFrames = [];

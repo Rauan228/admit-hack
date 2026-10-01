@@ -29,6 +29,33 @@ export const ENGINE_CONFIG = {
     height: 480,
     frameRate: 30,
   },
+  /**
+   * Кисти (hands.ts, E-36): кулак или раскрытая ладонь по 21 точке Hand Landmarker на вырезке вокруг кисти.
+   * Только для упражнений с hands: true (бокс) и только пока идёт удар.
+   */
+  hands: {
+    enabled: true,
+    modelUrl:
+      'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+    /** Сторона вырезки — столько размеров кисти (запястье–костяшки), но не меньше minRoiPx. */
+    roiScale: 3,
+    minRoiPx: 48,
+    /** Вырезка подаётся модели квадратом такого размера. */
+    inputPx: 224,
+    minConfidence: 0.45,
+    /** Кончик пальца к запястью относительно основания: согнут ≤ curled (кулак), разогнут ≥ extended (ладонь). */
+    finger: { curled: 1.3, extended: 1.6 },
+    /**
+     * Не чаще раза в столько мс и только на подлёте (фазы down и bottom): удар длится ≥ 150 мс, двух проверок
+     * хватает, а каждая — ещё 10–25 мс главного потока (на программном GL поза падала с 29 до 18 FPS).
+     */
+    minIntervalMs: 80,
+    /**
+     * Модель кисти в среднем дольше этого на вызов (первый, прогревочный, не в счёт) — выключаем до конца
+     * подхода: сначала плавность, кулак проверять не будем (удары считаются как есть).
+     */
+    budgetMs: 40,
+  },
   pose: {
     wasmBaseUrl: `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`,
     modelUrls: {
@@ -687,6 +714,12 @@ export const ENGINE_CONFIG = {
       /** Длина руки — медиана за окно (локоть виден); без 3D-точек или локтя — ширина плеч × armPerShoulder. */
       armWindowMs: 3000,
       armPerShoulder: 1.55,
+      /**
+       * Раскрытая ладонь у бьющей руки не старше этого (мс), и не меньше openHandStreak проверок подряд, —
+       * удар не засчитывается, подсказка «сожми кулак». Одиночный сбой (перчатка, смаз) удар не отнимает.
+       */
+      handFreshMs: 500,
+      openHandStreak: 2,
       fsm: {
         startMax: 0.2,
         downMin: 0.35,

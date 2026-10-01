@@ -5,7 +5,8 @@
 // на десятки градусов. Поэтому вся 2D-геометрия идёт в «плоскости» с поправкой на аспект:
 // x' = x · (ширина / высота), y' = y. Единица длины — высота кадра.
 
-import type { Landmark } from './types';
+import type { HandSample } from './hands';
+import type { Landmark, Side } from './types';
 
 export interface Vec2 {
   x: number;
@@ -28,6 +29,11 @@ export interface PoseFrame {
   image: Landmark[];
   /** 33 точки в метрах с началом между бёдер (worldLandmarks) или null, если их нет. */
   world: Vec3[] | null;
+  /**
+   * Кисти (hands.ts, E-36): кулак или ладонь и когда это измерено — только для упражнений с hands: true,
+   * только пока идёт движение, и может отставать на кадр. Нет — кисти не проверялись.
+   */
+  hands?: Partial<Record<Side, HandSample>>;
 }
 
 export const RAD_TO_DEG = 180 / Math.PI;

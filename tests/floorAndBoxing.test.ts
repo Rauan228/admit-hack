@@ -93,6 +93,32 @@ describe('бокс: прямые удары', () => {
     expect(res.reps.length + res.attempts.length).toBe(10);
     expect(res.reps.length).toBeGreaterThanOrEqual(9);
   });
+  /** Удары через сессию движка (вето измерителя живёт в ней) с заданным состоянием кисти в каждом кадре. */
+  const sessionPunches = (state: 'fist' | 'open' | 'unknown' | null, staleMs = 0, streak = 3) => {
+    const session = new ExerciseSession(def('boxing'), 1000, 0);
+    const out: EngineEvent[] = [];
+    for (const f of punches()) {
+      if (state)
+        f.hands = { left: { state, t: f.t - staleMs, streak }, right: { state, t: f.t - staleMs, streak } };
+      out.push(...session.update(f, f.t));
+    }
+    return {
+      reps: out.filter((e) => e.type === 'rep').length,
+      hints: [
+        ...new Set(out.filter((e) => e.type === 'form_error').map((e) => (e as { code: string }).code)),
+      ],
+    };
+  };
+  it('кулак или кисть не распознана — удары считаются; раскрытая ладонь — ни одного, подсказка «сожми кулак» (E-36)', () => {
+    expect(sessionPunches(null)).toEqual({ reps: 10, hints: [] });
+    expect(sessionPunches('fist')).toEqual({ reps: 10, hints: [] });
+    expect(sessionPunches('unknown')).toEqual({ reps: 10, hints: [] });
+    expect(sessionPunches('open')).toEqual({ reps: 0, hints: ['open_hand'] });
+  });
+  it('старая проверка кисти (дольше handFreshMs назад) или одиночная «ладонь» удар не запрещает', () => {
+    expect(sessionPunches('open', 2000).reps).toBe(10);
+    expect(sessionPunches('open', 0, 1).reps).toBe(10);
+  });
   it('кадр по грудь — таза нет: удары считаются так же, как с тазом (E-36)', () => {
     const file = loadFixture('boxing-front-cage.json');
     const withHips = runSession(fixtureFrames(file), def('boxing')).reps.length;

@@ -60,6 +60,13 @@ class BoxingMeter implements ExerciseMeter<BoxingMetrics> {
     // Бьющая рука: в исходном положении — та, что вынесена больше; в движении — не меняется.
     if (phase === 'start') this.active = (punchL ?? -Infinity) >= (punchR ?? -Infinity) ? 'left' : 'right';
     const own = this.active === 'left' ? punchL : punchR;
+    // Раскрытая ладонь у бьющей руки (свежая проверка кистей) — удар не засчитывать.
+    const hand = frame.hands?.[this.active];
+    const veto =
+      !!hand &&
+      hand.state === 'open' &&
+      hand.streak >= this.cfg.openHandStreak &&
+      frame.t - hand.t <= this.cfg.handFreshMs;
     const shoulderY = (ls.y + rs.y) / 2;
     const drop = (side: Side) =>
       seen(frame, ARM[side].wrist, 0.3, 0.15) ? (pt(frame, ARM[side].wrist).y - shoulderY) / shoulderW : null;
@@ -68,8 +75,10 @@ class BoxingMeter implements ExerciseMeter<BoxingMetrics> {
       punchL,
       punchR,
       side: this.active,
+      hand: this.active,
       dropL: drop('left'),
       dropR: drop('right'),
+      ...(veto ? { veto } : {}),
     };
   }
 
@@ -123,6 +132,13 @@ export function boxingRules(cfg: BoxingConfig = ENGINE_CONFIG.exercises.boxing):
       check: (c) => (c.summary.pMax < cfg.goodProgress ? { joints: [ARM[c.atBottom.side].elbow] } : null),
     },
     {
+      // Удар раскрытой ладонью: сессия закрыла его как попытку — говорим почему.
+      code: 'open_hand',
+      kind: 'rep',
+      on: ['attempt'],
+      check: (c) => (c.frames.some((m) => m.veto) ? { joints: [ARM[c.atBottom.side].wrist] } : null),
+    },
+    {
       code: 'guard_down',
       kind: 'frame',
       check: (m) => {
@@ -144,6 +160,7 @@ export function createBoxing(cfg: BoxingConfig = ENGINE_CONFIG.exercises.boxing)
     fsm: cfg.fsm,
     createMeter: () => new BoxingMeter(cfg),
     rules: boxingRules(cfg),
+    hands: true,
     // Бокс меряется по плечам и рукам: таз и ноги не нужны (E-36, бой на телефоне боком — кадр по грудь).
     lostHint: 'Встань так, чтобы были видны голова, плечи и обе руки',
   };

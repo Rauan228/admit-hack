@@ -15,6 +15,13 @@ export interface BaseMetrics {
    * склеивало два бёрпи в одно).
    */
   returned?: boolean;
+  /**
+   * Это движение засчитывать нельзя (удар раскрытой ладонью): счётчик закроет его как попытку, а не повтор,
+   * правила на попытке скажут почему.
+   */
+  veto?: boolean;
+  /** Какую кисть проверять на кулак в этом движении (бокс — бьющую); нет — обе. */
+  hand?: Side;
 }
 
 export interface ExerciseMeter<M extends BaseMetrics> {
@@ -54,4 +61,6 @@ export interface ExerciseDef<M extends BaseMetrics = BaseMetrics> {
   ownGate?: boolean;
   /** Подсказка, когда нужных суставов не видно (по умолчанию — «встань так, чтобы тебя было видно целиком»). */
   lostHint?: string;
+  /** Упражнению нужны кисти (кулак или ладонь, hands.ts): движок проверяет их, пока идёт движение. */
+  hands?: boolean;
 }

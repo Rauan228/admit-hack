@@ -476,7 +476,7 @@ export const FORM_ERRORS: Record<ExerciseId, FormErrorDef[]> = {
       joints: [LM.leftElbow, LM.rightElbow],
       severity: 'bad',
       phases: ['bottom'],
-      priority: 1,
+      priority: 2,
       penalty: 20,
     },
     {
@@ -486,8 +486,18 @@ export const FORM_ERRORS: Record<ExerciseId, FormErrorDef[]> = {
       arrow: 'up',
       severity: 'warn',
       phases: ['down', 'bottom', 'up'],
-      priority: 2,
+      priority: 3,
       penalty: 15,
+    },
+    {
+      // Раскрытая ладонь по Hand Landmarker (hands.ts): удар не засчитан, это попытка.
+      code: 'open_hand',
+      message: 'Сожми кулак — удар ладонью не считается',
+      joints: [LM.leftWrist, LM.rightWrist],
+      severity: 'bad',
+      phases: ['bottom', 'up'],
+      priority: 1,
+      penalty: 30,
     },
   ],
   push_up: [

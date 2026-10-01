@@ -17,11 +17,13 @@ import { LandmarkSmoother, RenderSmoother, smoothPose } from './filter';
 import { FpsCounter } from './fps';
 import { torsoLength, type PoseFrame } from './geometry';
 import { GestureTracker } from './gestures';
+import { createHandDetector, handRoi, type HandDetector, type HandSample } from './hands';
 import { CALIBRATION_DETAIL_HINTS, CALIBRATION_HINTS } from './hints';
 import { AdaptivePerf } from './perf';
 import { createPoseDetector, type PoseDetection, type PoseDetector, type PoseDetectorOptions } from './pose';
 import { ExerciseSession } from './session';
-import type { Engine, EngineEvent, EngineMode } from './types';
+import { sourceSize } from './snapshot';
+import type { Engine, EngineEvent, EngineMode, Side } from './types';
 
 /** Всё, что трогает браузер, передаётся снаружи: в тестах подменяем на фейки. */
 export interface EngineDeps {
@@ -33,6 +35,8 @@ export interface EngineDeps {
   now(): number;
   /** Средняя яркость кадра 0..255 или null (для статуса «темно»). */
   measureBrightness(video: HTMLVideoElement, tMs: number): number | null;
+  /** Детектор кистей (hands.ts) для упражнений с hands: true; нет — кисти не проверяются. */
+  createHandDetector?(): Promise<HandDetector>;
 }
 
 function browserDeps(): EngineDeps {
@@ -45,6 +49,7 @@ function browserDeps(): EngineDeps {
     cancelFrame: (id) => cancelAnimationFrame(id),
     now: () => performance.now(),
     measureBrightness: (video, t) => brightness.measure(video, t),
+    createHandDetector: () => createHandDetector(),
   };
 }
 
@@ -72,6 +77,15 @@ class RealEngine implements Engine {
   private lastVideoTime = -1;
   /** Растёт на каждый start/stop: start, который пережил stop, узнаёт об этом и убирает за собой. */
   private generation = 0;
+  /** Кисти (E-36): детектор грузится при входе в упражнение с hands; off — выключен (ошибка или медленно). */
+  private hands: HandDetector | null = null;
+  private handsLoading = false;
+  private handsOff = false;
+  private handSamples: Partial<Record<Side, HandSample>> = {};
+  /** Среднее время одной проверки кисти, мс, сколько их было и когда была последняя. */
+  private handCost = 0;
+  private handChecks = 0;
+  private lastHandCheckAt = -Infinity;
 
   constructor(private readonly deps: EngineDeps) {}
 
@@ -121,6 +135,9 @@ class RealEngine implements Engine {
     this.stream = null;
     this.video = null;
     this.session = null;
+    this.hands?.close();
+    this.hands = null;
+    this.handSamples = {};
   }
 
   setMode(mode: EngineMode): void {
@@ -153,7 +170,85 @@ class RealEngine implements Engine {
       return;
     }
     this.session = new ExerciseSession(def, Math.max(1, Math.round(mode.targetReps)), t);
+    this.handSamples = {};
+    if (def.hands) this.loadHands();
     this.emitAll(this.session.begin());
+  }
+
+  /** Модель кистей — один раз на движок, в фоне; не загрузилась — удары считаются без проверки кулака. */
+  private loadHands(): void {
+    const create = this.deps.createHandDetector;
+    if (!create || !ENGINE_CONFIG.hands.enabled || this.hands || this.handsLoading || this.handsOff) return;
+    this.handsLoading = true;
+    const gen = this.generation;
+    create()
+      .then((hands) => {
+        if (gen !== this.generation) return hands.close();
+        this.hands = hands;
+      })
+      .catch((err: unknown) => {
+        this.handsOff = true;
+        console.warn('[engine] кисти не проверяем — модель не загрузилась', err);
+      })
+      .finally(() => {
+        this.handsLoading = false;
+      });
+  }
+
+  /**
+   * Кисти бьющей стороны проверяем только на подлёте удара (фазы down и bottom): в стойке и на возврате
+   * модель кисти не нужна. Результат — в кадр, измеритель решает, что с ним делать (бокс: ладонь — удар не засчитан).
+   */
+  private checkHands(frame: PoseFrame, session: ExerciseSession, video: HTMLVideoElement): void {
+    const cfg = ENGINE_CONFIG.hands;
+    if (
+      this.hands &&
+      !session.done &&
+      (session.phase === 'down' || session.phase === 'bottom') &&
+      frame.t - this.lastHandCheckAt >= cfg.minIntervalMs
+    ) {
+      this.lastHandCheckAt = frame.t;
+      const source = this.detector?.frame ?? video;
+      const { w, h } = sourceSize(source);
+      // Бьющую кисть называет измеритель; не назвал — проверяем обе.
+      const wanted = session.lastMetrics?.hand;
+      for (const side of wanted ? [wanted] : (['left', 'right'] as const)) {
+        const roi = handRoi(frame, side, w, h);
+        if (!roi) continue;
+        const t0 = this.deps.now();
+        let state: HandSample['state'] = 'unknown';
+        try {
+          state = this.hands.detect(source, roi);
+        } catch (err) {
+          console.warn('[engine] проверка кисти не удалась', err);
+        }
+        const prev = this.handSamples[side];
+        this.handSamples[side] = { state, t: frame.t, streak: prev?.state === state ? prev.streak + 1 : 1 };
+        const cost = this.deps.now() - t0;
+        // Журнал для стенда (dev/engine.html): какую кисть и что увидели, сколько стоило.
+        (
+          globalThis as { __handsLog?: { t: number; side: Side; state: string; cost: number }[] }
+        ).__handsLog?.push({
+          t: frame.t,
+          side,
+          state,
+          cost,
+        });
+        this.handChecks += 1;
+        // Первый вызов — прогрев (шейдеры), в среднее не берём.
+        if (this.handChecks > 1) this.handCost += (cost - this.handCost) / Math.min(this.handChecks - 1, 20);
+        if (this.handChecks >= 7 && this.handCost > cfg.budgetMs) {
+          console.info(
+            `[engine] кисти слишком медленно (${this.handCost.toFixed(0)} мс) — выключил проверку кулака`,
+          );
+          this.handsOff = true;
+          this.hands.close();
+          this.hands = null;
+          break;
+        }
+      }
+    }
+    frame.hands = { ...this.handSamples };
   }
 
   private readonly loop = (): void => {
@@ -242,6 +337,7 @@ class RealEngine implements Engine {
       this.emitAll(this.gestures.update(frame, t, { pointer: true, bothHandsUp: true }));
       return;
     }
+    if (frame && session.def.hands) this.checkHands(frame, session, video);
     const events = session.update(frame, t);
     const cfg = ENGINE_CONFIG.presence;
     const missing = session.unmeasuredFor(t);
