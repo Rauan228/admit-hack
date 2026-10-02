@@ -30,7 +30,11 @@ const KEY = {
   totals: 'forma.totals.v1',
   name: 'forma.name.v1',
   muted: 'forma.muted.v1',
+  days: 'forma.days.v1',
 } as const;
+
+/** Сколько дней тренировок помним (для серии хватает с запасом). */
+const MAX_DAYS = 120;
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -88,7 +92,51 @@ export function addToTotals(reps: number, cleanReps: number, seconds: number): T
     seconds: t.seconds + Math.round(seconds),
   };
   write(KEY.totals, next);
+  markTrainedToday();
   return next;
+}
+
+/** День по местному времени: «2026-10-02». */
+export function dayKey(t: number): string {
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Дни, в которые была тренировка (и дни рекордов — они были записаны раньше этого списка). */
+export function loadTrainedDays(): Set<string> {
+  const days = new Set(read<string[]>(KEY.days, []));
+  for (const r of loadRecords()) days.add(dayKey(r.date));
+  return days;
+}
+
+export function markTrainedToday(now = Date.now()): void {
+  const days = [...new Set([...read<string[]>(KEY.days, []), dayKey(now)])].sort().slice(-MAX_DAYS);
+  write(KEY.days, days);
+}
+
+/**
+ * Серия: сколько дней подряд с тренировкой, считая сегодня (если сегодня ещё нет — со вчера, серия не
+ * сгорает до конца дня), и отметки этой недели с понедельника.
+ */
+export function trainingStreak(
+  days: ReadonlySet<string>,
+  now = Date.now(),
+): { days: number; week: boolean[] } {
+  const DAY = 86_400_000;
+  const at = (k: number) => {
+    const d = new Date(now);
+    d.setHours(12, 0, 0, 0);
+    return d.getTime() + k * DAY;
+  };
+  let k = days.has(dayKey(at(0))) ? 0 : -1;
+  let n = 0;
+  while (days.has(dayKey(at(k)))) {
+    n += 1;
+    k -= 1;
+  }
+  const monday = -((new Date(now).getDay() + 6) % 7);
+  const week = Array.from({ length: 7 }, (_, i) => days.has(dayKey(at(monday + i))));
+  return { days: n, week };
 }
 
 export function lastName(): string | null {
