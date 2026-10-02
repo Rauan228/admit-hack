@@ -235,6 +235,21 @@ export function CoachWizard({
                     </div>
                   </div>
                 </div>
+                <div className="ch-row">
+                  <span className="ch-label">Есть турник?</span>
+                  <div className="ch-choice ch-choice--2">
+                    {([true, false] as const).map((v) => (
+                      <button
+                        key={String(v)}
+                        type="button"
+                        className={!!draft.hasBar === v ? 'is-active' : ''}
+                        onClick={() => onChange({ hasBar: v })}
+                      >
+                        {v ? 'Да — добавь подтягивания' : 'Нет'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <aside className="ch-aside">

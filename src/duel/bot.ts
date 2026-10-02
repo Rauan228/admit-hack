@@ -34,6 +34,7 @@ const PACE: Record<DuelExercise, readonly [number, number, number]> = {
   knee_to_elbow: [24, 44, 76],
   arm_raise: [24, 44, 80],
   boxing: [70, 130, 230],
+  pull_up: [6, 14, 30],
 };
 
 /** Сколько бот сделает за бой: темп упражнения × длительность (устаёт — уже внутри botTimeline). */

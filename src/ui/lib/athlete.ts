@@ -90,6 +90,8 @@ export const PREFERRED_YAW: Record<GhostId, number> = {
   // Упор лёжа — сбоку, как бёрпи: иначе линию тела не видно.
   push_up: 1.15,
   plank: 1.15,
+  // Подтягивания — на три четверти: видно и хват, и как поднимается корпус.
+  pull_up: 0.35,
 };
 
 /** Есть ли у упражнения настоящий эталон (запись или кинематика в athleteMotion.json). Нет — рисуем стикмен призрака движка. */
@@ -123,7 +125,7 @@ export function athletePose(exercise: GhostId, tMs: number): (V3 | null)[] {
  */
 const boundsCache = new Map<string, { w: number; h: number }>();
 /** Эталоны со своим масштабом: бёрпи с планкой в полтора метра уменьшил бы всех остальных атлетов. */
-const OWN_BOUNDS = new Set<GhostId>(['burpee', 'push_up', 'plank', 'jump_squat']);
+const OWN_BOUNDS = new Set<GhostId>(['burpee', 'push_up', 'plank', 'jump_squat', 'pull_up']);
 
 export function athleteBounds(exercise?: GhostId): { w: number; h: number } {
   const own = exercise && OWN_BOUNDS.has(exercise);
@@ -188,6 +190,8 @@ export const MUSCLES: Record<GhostId, Muscle[]> = {
   boxing: ['delts', 'traps'],
   push_up: ['pecs', 'delts'],
   plank: ['pecs', 'delts', 'glutes'],
+  // Широчайших и бицепса в модели подсветки нет — ближайшие из доступных: трапеции и дельты.
+  pull_up: ['traps', 'delts'],
 };
 
 /** Названия для подписей в интерфейсе. */
@@ -210,6 +214,7 @@ export const MUSCLE_NAMES: Record<GhostId, string[]> = {
   boxing: ['дельты', 'трицепсы', 'косые мышцы живота'],
   push_up: ['грудные', 'трицепсы', 'дельты'],
   plank: ['пресс', 'дельты', 'ягодичные'],
+  pull_up: ['широчайшие', 'бицепсы', 'трапеции'],
 };
 
 /** Радиусы частей тела в метрах: [сустав A, сустав B, r у A, r у B]. */

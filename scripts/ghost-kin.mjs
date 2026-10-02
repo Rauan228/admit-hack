@@ -751,3 +751,52 @@ export function plank(body, n) {
     }),
   );
 }
+
+// ——— Турник ———
+
+/**
+ * Подтягивания: вис на прямых руках, хват чуть шире плеч → тело поднимается, пока подбородок не выше
+ * перекладины, локти уходят вниз и в стороны → медленно обратно в вис. Кисти неподвижны на перекладине,
+ * ноги свободно висят с лёгким сгибом в коленях. Перекладину рисует сцена (zanatomy.ts) по пальцам.
+ */
+export function pullUp(body, n) {
+  const K = kit(body);
+  const reach = body.upperArm + body.forearm;
+  const stand = K.stand();
+  const sh0 = stand[11];
+  const GX = Math.abs(sh0.x) + 0.13; // хват шире плеч
+  // Высота кистей: в висе плечи ровно под ними на длину почти прямой руки.
+  const wristY = sh0.y - Math.sqrt(reach * reach * 0.98 - (GX - Math.abs(sh0.x)) ** 2);
+  const LIFT = 0.44; // наверху плечи на 44 см выше — подбородок над перекладиной
+  const HANG = 0.06; // в висе стопы чуть над полом
+  return cycle(n, (u) => {
+    const d =
+      u < 0.1
+        ? 0
+        : u < 0.45
+          ? seg(u, 0.1, 0.45, ease5)
+          : u < 0.55
+            ? 1
+            : u < 0.92
+              ? 1 - seg(u, 0.55, 0.92, ease5)
+              : 0;
+    const dy = -(HANG + LIFT * d);
+    const pts = stand.map((p) => ({ ...p, y: p.y + dy }));
+    // Наверху корпус чуть откинут назад, грудь к перекладине.
+    const pv = V(0, body.hipY + dy, 0);
+    K.upper(pts, (p) => pitch(p, pv, -8 * d));
+    for (const S of [K.S.l, K.S.r]) {
+      const W = V(S.s * GX, wristY + 0.03, -0.02);
+      // Локти — вниз и в стороны, чуть назад; пальцы обхватывают перекладину сверху вперёд.
+      K.armTo(pts, S, W, V(S.s, 0.6, 0.35), V(0, -0.55, -0.85));
+      // Ноги висят: колени чуть согнуты, стопы назад и носками вниз.
+      const H = pts[S.hp];
+      const A = add(H, norm(V(S.s * 0.02, 1, 0.12)), (body.thigh + body.shin) * 0.97);
+      K.leg(pts, S, A, -0.1);
+      pts[S.an] = A;
+      pts[S.to] = add(A, V(0, 0.06, -0.13));
+      pts[S.he] = add(A, V(0, 0.03, 0.05));
+    }
+    return pts;
+  });
+}

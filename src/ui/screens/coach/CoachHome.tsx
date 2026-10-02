@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import {
+  COACH_EXERCISES,
   GOALS,
   LIMITS,
   PROGRAM_WEEKS,
@@ -30,7 +31,7 @@ import { Spark, Thumb } from './parts';
 
 const PERKS: { icon: IconName; text: string }[] = [
   { icon: 'shield', text: 'Учитывает твои данные и ограничения' },
-  { icon: 'list', text: 'Подбирает упражнения из 18 вариантов' },
+  { icon: 'list', text: `Подбирает упражнения из ${COACH_EXERCISES.length} вариантов` },
   { icon: 'activity', text: 'Растит нагрузку неделя за неделей' },
 ];
 
@@ -39,7 +40,7 @@ const CREATE_LIST = [
   'Физические параметры',
   'Ограничения по здоровью',
   'Сколько времени есть на тренировки',
-  'Индивидуальный план из 18 упражнений',
+  `Индивидуальный план из ${COACH_EXERCISES.length} упражнений`,
 ];
 
 const TIP_ICONS: IconName[] = ['leaf', 'heart', 'droplet', 'moon'];

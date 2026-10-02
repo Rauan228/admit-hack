@@ -330,7 +330,9 @@ export function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () =
       <section id="exercises" className="lsec">
         <header className="lsec__head" data-reveal>
           <span className="lsec__eyebrow">Упражнения</span>
-          <h2>{EXERCISES.length} упражнений в 4 категориях</h2>
+          <h2>
+            {EXERCISES.length} упражнений в {CATEGORIES.length} категориях
+          </h2>
         </header>
         <div className="cats">
           {CATEGORIES.map((c, i) => (

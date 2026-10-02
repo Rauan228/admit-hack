@@ -23,4 +23,5 @@ export const ICON_PHASE: Partial<Record<string, number>> = {
   knee_to_elbow: 0.23,
   push_up: 0.3,
   plank: 0.5,
+  pull_up: 0.5,
 };

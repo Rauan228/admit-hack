@@ -103,7 +103,7 @@ export function coachRoutes(ctx: CoachContext): Record<string, Handler> {
       const bad = checkProfile(b.profile);
       if (bad) ctx.fail(400, bad);
       const profile = b.profile as CoachProfile;
-      const hard = hardExclusions(profile.limits);
+      const hard = hardExclusions(profile.limits, profile.hasBar);
       const allowed = COACH_EXERCISES.filter((e) => !hard.has(e));
       if (!allowed.length)
         ctx.fail(422, 'С такими ограничениями в каталоге не осталось безопасных упражнений');

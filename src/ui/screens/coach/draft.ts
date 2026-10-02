@@ -23,6 +23,7 @@ export const EMPTY_DRAFT: Draft = {
   daysPerWeek: 3,
   minutesPerSession: 20,
   limits: [],
+  hasBar: false,
   notes: '',
 };
 

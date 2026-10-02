@@ -21,8 +21,8 @@ const MIN = 60_000;
 const even = (n: number, gap: number, start = 500) => Array.from({ length: n }, (_, i) => start + i * gap);
 
 describe('дуэль: упражнения', () => {
-  it('в дуэли — 10 упражнений с надёжным счётом, все есть в движке, отжимания первыми', () => {
-    expect(DUEL_EXERCISE_IDS).toHaveLength(10);
+  it('в дуэли — 11 упражнений с надёжным счётом, все есть в движке, отжимания первыми', () => {
+    expect(DUEL_EXERCISE_IDS).toHaveLength(11);
     expect(DUEL_EXERCISE_IDS[0]).toBe('push_up');
     for (const ex of ['push_up', 'squat', 'jumping_jack', 'lunge', 'high_knees'])
       expect(isDuelExercise(ex), ex).toBe(true);

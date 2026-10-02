@@ -24,6 +24,7 @@ import {
   SkinnedMesh,
   Vector3,
   CircleGeometry,
+  CylinderGeometry,
   CanvasTexture,
   DoubleSide,
   SphereGeometry,
@@ -412,6 +413,8 @@ export class ZAthleteView {
   private ready = false;
   private readonly headMesh = new Mesh(new SphereGeometry(1, 28, 20), SKIN);
   private readonly neckMesh = new Mesh(new SphereGeometry(1, 20, 14), SKIN);
+  /** Перекладина турника (подтягивания): ставим каждый кадр по пальцам атлета. */
+  private readonly barMesh: Mesh | null;
 
   constructor(readonly exercise: GhostId) {
     this.scene.add(new HemisphereLight('#ffffff', '#0f172a', 0.7));
@@ -438,6 +441,17 @@ export class ZAthleteView {
     for (const m of [this.headMesh, this.neckMesh]) {
       m.matrixAutoUpdate = false;
       this.group.add(m);
+    }
+    this.barMesh =
+      exercise === 'pull_up'
+        ? new Mesh(
+            new CylinderGeometry(0.017, 0.017, 1.3, 20),
+            new MeshStandardMaterial({ color: '#9ca3af', metalness: 0.85, roughness: 0.3 }),
+          )
+        : null;
+    if (this.barMesh) {
+      this.barMesh.rotation.z = Math.PI / 2;
+      this.group.add(this.barMesh);
     }
 
     const active = new Set<string>(MUSCLES[exercise]);
@@ -508,6 +522,17 @@ export class ZAthleteView {
     const rh = P(24);
     if (!ls || !rs || !lh || !rh) return false;
     const hipMid = mid(lh, rh);
+    // Перекладина — через обхват кистей: чуть выше запястий, между пальцами.
+    if (this.barMesh) {
+      const lf = P(19) ?? P(15);
+      const rf = P(20) ?? P(16);
+      const lw = P(15);
+      const rw = P(16);
+      if (lf && rf && lw && rw) {
+        const c = mid(mid(lf, rf), mid(lw, rw));
+        this.barMesh.position.set(c.x, c.y + 0.015, c.z);
+      }
+    }
     const shMid = mid(ls, rs);
 
     const basis = (right: Vector3, upRaw: Vector3) => {

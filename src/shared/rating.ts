@@ -22,6 +22,7 @@ export const RATED_EXERCISES = [
   'push_up',
   'plank',
   'burpee',
+  'pull_up',
 ] as const;
 export type RatedExercise = (typeof RATED_EXERCISES)[number];
 
@@ -53,6 +54,7 @@ export const SINGLE_TARGET: Record<RatedExercise, number> = {
   push_up: 10,
   plank: 30, // секунды
   burpee: 6,
+  pull_up: 5,
 };
 /** Длительность челленджа, секунды. */
 export const CHALLENGE_SEC = 60;

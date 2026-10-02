@@ -463,6 +463,7 @@ const KIN = {
   plank: [4000, (n) => kin.plank(body, n)],
   high_knees: [1100, (n) => kin.highKnees(body, n)],
   cross_jack: [2400, (n) => kin.crossJack(body, n)],
+  pull_up: [3000, (n) => kin.pullUp(body, n)],
 };
 for (const [id, [ms, make]] of Object.entries(KIN))
   out[id] = pack(make(r50(ms)), ms, 'кинематика: scripts/ghost-kin.mjs');

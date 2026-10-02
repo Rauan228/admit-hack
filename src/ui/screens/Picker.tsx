@@ -62,7 +62,7 @@ export function Picker({
           <p className="page__sub">
             {challenge
               ? 'Сколько чистых повторений успеешь за минуту? Выбери упражнение — у каждого свой рейтинг.'
-              : `${EXERCISE_COUNT} упражнений в четырёх группах. Обе руки над головой — назад.`}
+              : `${EXERCISE_COUNT} упражнений в ${CATEGORIES.length} группах. Обе руки над головой — назад.`}
           </p>
         </header>
 
@@ -116,7 +116,8 @@ export function Picker({
                   <small className="picker__muscles">{MUSCLE_NAMES[ex].join(' · ')}</small>
                   {meta.setup && (
                     <span className="picker__setup">
-                      <Icon name="camera" size={14} /> камера на полу, лицом к ней
+                      <Icon name="camera" size={14} />{' '}
+                      {ex === 'pull_up' ? 'нужен турник в кадре' : 'камера на полу, лицом к ней'}
                     </span>
                   )}
                 </span>

@@ -34,6 +34,7 @@ export const DUEL_EXERCISES = {
   knee_to_elbow: { minRepMs: 300, maxPer10s: 25 },
   arm_raise: { minRepMs: 300, maxPer10s: 25 },
   boxing: { minRepMs: 150, maxPer10s: 70 },
+  pull_up: { minRepMs: 500, maxPer10s: 8 },
 } as const satisfies Record<string, DuelExerciseRule>;
 
 export type DuelExercise = keyof typeof DUEL_EXERCISES;

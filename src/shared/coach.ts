@@ -20,7 +20,8 @@ export type LoadTag =
   | 'both_arms' // нужны обе руки
   | 'both_legs' // нужны обе ноги (стойка, шаги, прыжки)
   | 'balance' // стойка на одной ноге или быстрые смены опоры
-  | 'intense'; // высокий пульс
+  | 'intense' // высокий пульс
+  | 'bar'; // нужен турник
 
 export interface CoachInfo {
   /** Метаболический эквивалент — для оценки калорий. */
@@ -227,6 +228,17 @@ export const COACH_CATALOG: Record<CoachExercise, CoachInfo> = {
     unit: 'sec',
     about: 'Статическое удержание на локтях, цель в секундах. Кор и осанка.',
   },
+  pull_up: {
+    met: 8,
+    title: 'Подтягивания',
+    muscles: ['широчайшие', 'бицепсы', 'трапеции', 'предплечья'],
+    tags: ['bar', 'overhead', 'both_arms'],
+    secPerRep: 3.5,
+    min: 1,
+    max: 15,
+    unit: 'reps',
+    about: 'Подтягивания на турнике из виса на прямых руках, подбородок над перекладиной. Нужен турник.',
+  },
   burpee: {
     met: 10,
     title: 'Бёрпи',
@@ -298,6 +310,8 @@ export interface CoachProfile {
   daysPerWeek: number;
   minutesPerSession: number;
   limits: Limit[];
+  /** Есть турник — можно ставить подтягивания. */
+  hasBar?: boolean;
   /** Свободный текст: травмы, болезни, что нравится и не нравится. */
   notes: string;
 }
@@ -317,6 +331,7 @@ export function checkProfile(p: unknown): string | null {
   if (!num(v.daysPerWeek, 1, 7)) return 'Дней в неделю — от 1 до 7';
   if (!num(v.minutesPerSession, 5, 60)) return 'Минут на тренировку — от 5 до 60';
   if (!Array.isArray(v.limits) || v.limits.some((l) => !(l in LIMITS))) return 'Неизвестное ограничение';
+  if (v.hasBar !== undefined && typeof v.hasBar !== 'boolean') return 'Турник — да или нет';
   if (typeof v.notes !== 'string' || v.notes.length > 1500) return 'Комментарий — до 1500 символов';
   return null;
 }
@@ -331,10 +346,15 @@ export function bmi(p: Pick<CoachProfile, 'heightCm' | 'weightKg'>): number {
 }
 
 /** Упражнения, которые убирают галочки, — с причиной. Остальные доступны модели. */
-export function hardExclusions(limits: readonly Limit[]): Map<CoachExercise, string> {
+export function hardExclusions(limits: readonly Limit[], hasBar = false): Map<CoachExercise, string> {
   const out = new Map<CoachExercise, string>();
   for (const ex of COACH_EXERCISES) {
     const tags = COACH_CATALOG[ex].tags;
+    // Упражнения на турнике — только если он есть.
+    if (!hasBar && tags.includes('bar')) {
+      out.set(ex, 'Нет турника');
+      continue;
+    }
     for (const l of limits) {
       const drop = LIMITS[l].drop as readonly LoadTag[];
       if (tags.some((t) => drop.includes(t))) {
@@ -439,7 +459,8 @@ export function planSchema(allowed: readonly CoachExercise[]) {
 }
 
 export const SYSTEM_PROMPT = `Ты — опытный персональный тренер и спортивный врач в веб-приложении FORMA.
-Тренировки идут дома перед камерой: камера считает повторения и проверяет технику, инвентаря нет.
+Тренировки идут дома или на площадке перед камерой: камера считает повторения и проверяет технику.
+Инвентаря нет, кроме турника, если он есть у человека (hasPullUpBar) — тогда можно ставить подтягивания.
 Составь персональный недельный план ТОЛЬКО из упражнений каталога, который тебе дан.
 
 Как думать:
@@ -499,6 +520,7 @@ export function userPrompt(
     daysPerWeek: p.daysPerWeek,
     minutesPerSession: p.minutesPerSession,
     limits: p.limits.map((l) => LIMITS[l].title),
+    hasPullUpBar: !!p.hasBar,
     notes: p.notes.trim() || '—',
   };
   return [

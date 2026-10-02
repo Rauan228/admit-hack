@@ -41,6 +41,7 @@ export const CATEGORIES: { id: string; title: string; icon: IconName; items: Exe
     items: ['arm_raise', 'arm_circles', 'squat_press', 'side_bend', 'knee_to_elbow'],
   },
   { id: 'floor', title: 'На полу', icon: 'flag', items: ['push_up', 'plank'] },
+  { id: 'bar', title: 'Турник', icon: 'arms', items: ['pull_up'] },
 ];
 
 export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
@@ -153,6 +154,14 @@ export const EXERCISE_META: Record<ExerciseId, ExerciseMeta> = {
     cues: ['Локти под плечами', 'Тело — прямая линия', 'Таз не проваливается'],
     unit: 'sec',
     setup: 'Положи телефон на пол перед собой и встань в планку лицом к камере',
+  },
+  pull_up: {
+    title: 'Подтягивания',
+    short: 'Турник',
+    icon: 'arms',
+    cues: ['Хват чуть шире плеч', 'Из виса на прямых руках', 'Подбородок над перекладиной'],
+    setup:
+      'Поставь телефон в 2–3 метрах, чтобы в кадре были турник и ты от кистей до пояса — лицом, спиной или сбоку',
   },
   burpee: {
     title: 'Бёрпи',
