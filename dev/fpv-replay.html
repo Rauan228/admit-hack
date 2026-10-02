@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>FORMA — бой от первого лица по записи</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #000;
+      }
+      #stage {
+        position: relative;
+        width: 1280px;
+        height: 720px;
+        overflow: hidden;
+      }
+      #fpv,
+      #hud {
+        position: absolute;
+        inset: 0;
+        width: 1280px;
+        height: 720px;
+      }
+      #pip {
+        position: absolute;
+        left: 16px;
+        bottom: 16px;
+        width: 270px;
+        height: 360px;
+        border-radius: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Разбор боя от первого лица: запись позы → перчатки, удары движка, 3D-ринг; слева внизу — исходное
+         видео со скелетом. Кадры снимает scripts/fpv-replay.mjs. -->
+    <div id="stage">
+      <canvas id="fpv"></canvas>
+      <canvas id="pip" width="540" height="720"></canvas>
+      <canvas id="hud" width="1280" height="720"></canvas>
+    </div>
+    <video id="video" muted playsinline style="display: none"></video>
+    <script type="module" src="./fpvReplay.ts"></script>
+  </body>
+</html>
