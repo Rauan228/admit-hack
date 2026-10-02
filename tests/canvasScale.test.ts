@@ -26,7 +26,9 @@ describe('чёткость холстов 3D', () => {
 
   it('увеличение страницы на компьютере поднимает чёткость; холст не больше общего буфера', () => {
     withDpr(2, () => expect(canvasScale(400, 300, false)).toBe(2));
-    withDpr(3, () => expect(canvasScale(1400, 500, false) * 1400).toBeLessThanOrEqual(RENDER_MAX_SIDE + 1e-6));
+    withDpr(3, () =>
+      expect(canvasScale(1400, 500, false) * 1400).toBeLessThanOrEqual(RENDER_MAX_SIDE + 1e-6),
+    );
   });
 
   it('облегчённая модель — только слабым устройствам', () => {
@@ -35,5 +37,15 @@ describe('чёткость холстов 3D', () => {
     expect(wantsLiteModel(nav({ hardwareConcurrency: 2 }))).toBe(true);
     expect(wantsLiteModel(nav({ deviceMemory: 8, hardwareConcurrency: 8 }))).toBe(false);
     expect(wantsLiteModel(nav({ hardwareConcurrency: 6 }))).toBe(false);
+  });
+});
+
+describe('чёткость анимированных холстов', () => {
+  it('анимация на телефоне — до 1,75× и меньший бюджет, превью — до 2,5×', () => {
+    withDpr(3, () => {
+      expect(canvasScale(300, 300, true, undefined, true)).toBe(1.75);
+      const s = canvasScale(900, 700, true, undefined, true);
+      expect(900 * 700 * s * s).toBeLessThanOrEqual(1_200_000 + 1);
+    });
   });
 });

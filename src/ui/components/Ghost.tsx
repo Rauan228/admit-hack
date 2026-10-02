@@ -46,6 +46,8 @@ let load3d: Promise<typeof import('../three')> | null = null;
 const FRAME_MS = 1000 / 30;
 const ANATOMY_TIMEOUT_MS = 12_000;
 /** Вид атлета на упражнение — один на страницу: смена упражнения мгновенная, без повторной сборки мешей. */
+/** Кадр экрана (время requestAnimationFrame), в котором уже нарисовано превью. */
+let stillFrameAt = -1;
 const zviews = new Map<GhostId, import('../three').ZAthleteView>();
 
 export function Ghost({
@@ -117,7 +119,7 @@ export function Ghost({
       const W = canvas.clientWidth;
       const H = canvas.clientHeight;
       if (!W || !H) return;
-      const dpr = canvasScale(W, H, MOBILE);
+      const dpr = canvasScale(W, H, MOBILE, undefined, !still && !reduced);
       if (canvas.width !== Math.round(W * dpr)) canvas.width = Math.round(W * dpr);
       if (canvas.height !== Math.round(H * dpr)) canvas.height = Math.round(H * dpr);
       // При reduced motion — статичная середина движения (самая информативная поза).
@@ -134,6 +136,9 @@ export function Ghost({
         }
         return;
       }
+      // Кадры-превью — не больше одного за кадр экрана: когда модель загрузилась, все атлеты страницы
+      // иначе рисуются разом (на телефоне — полсекунды без отклика).
+      if (still && zview && stillFrameAt === now) return;
       const pose = athletePose(exercise, t);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       const o3d = { yaw: y, mobile: MOBILE, highlight: hl.current };
@@ -141,6 +146,7 @@ export function Ghost({
       const drawn3d =
         (!!zview && zview.render(ctx, canvas.width, canvas.height, pose, o3d)) ||
         (!!view && view.render(ctx, canvas.width, canvas.height, pose, o3d));
+      if (still && drawn3d) stillFrameAt = now;
       // Ждём анатомию: холст не трогаем (при смене упражнения остаётся прошлый кадр, он под затуханием).
       if (!drawn3d && waitAnatomy) return;
       show();

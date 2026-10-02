@@ -134,7 +134,7 @@ export class FpvView {
     const H = this.canvas.clientHeight;
     if (!W || !H) return false;
     // Бой идёт вместе с распознаванием позы: телефону бюджет меньше, чем атлетам в меню.
-    const dpr = Math.min(this.mobile ? 2 : 3, canvasScale(W, H, this.mobile, 4096));
+    const dpr = canvasScale(W, H, this.mobile, 4096, true);
     const w = Math.round(W * dpr);
     const h = Math.round(H * dpr);
     if (this.canvas.width !== w || this.canvas.height !== h) {
