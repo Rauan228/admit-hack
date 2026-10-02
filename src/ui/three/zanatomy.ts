@@ -487,6 +487,15 @@ export class ZAthleteView {
     return blitTo(r, this.scene, this.camera, target, W, H);
   }
 
+  /**
+   * Для своей сцены (бокс от первого лица, fight/fpv.ts): поставить позу и отдать группу атлета — её можно
+   * перенести в другую сцену. null — модель ещё грузится.
+   */
+  posed(pose: (V3 | null)[], highlight?: ReadonlySet<number>): Group | null {
+    if (!this.ready || !this.pose(pose, highlight)) return null;
+    return this.group;
+  }
+
   private fit(aspect: number): void {
     const b = athleteBounds(this.exercise);
     const cam = this.camera;
