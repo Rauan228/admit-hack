@@ -5,6 +5,7 @@ import { useSyncExternalStore } from 'react';
 import type { ArenaStanding } from '../../shared/arena';
 import type { CoachPlan, CoachProfile } from '../../shared/coach';
 import type { Board, ResultInput } from '../../shared/rating';
+import { clearCoach, saveCoachPlan, saveCoachProfile } from './coach';
 
 export interface ApiUser {
   id: number;
@@ -131,12 +132,25 @@ export async function register(email: string, password: string, nick: string): P
 
 export async function login(email: string, password: string): Promise<ApiUser> {
   const { user: u } = await call<{ user: ApiUser }>('POST', '/login', { email, password });
+  await pullCoachPlan();
   setUser(u);
   return u;
 }
 
+/** После входа — план с сервера на устройство (главная показывает его сразу). Нет сети — план подтянет экран плана. */
+async function pullCoachPlan(): Promise<void> {
+  try {
+    const r = await fetchCoachPlan();
+    if (r.plan) saveCoachPlan(r.plan);
+    if (r.profile) saveCoachProfile(r.profile);
+  } catch {
+    /* без плана на сервере или без сети — ничего */
+  }
+}
+
 export async function logout(): Promise<void> {
   await call('POST', '/logout').catch(() => undefined);
+  clearCoach();
   setUser(null);
 }
 

@@ -33,6 +33,15 @@ export const saveCoachProfile = (p: CoachProfile) => write(KEY.profile, p);
 export const loadCoachPlan = () => read<CoachPlan>(KEY.plan);
 export const saveCoachPlan = (plan: CoachPlan) => write(KEY.plan, plan);
 
+/** Выход из аккаунта: план, анкета и история — этого человека, на устройстве их не оставляем (план хранит сервер). */
+export function clearCoach(): void {
+  try {
+    for (const k of Object.values(KEY)) localStorage.removeItem(k);
+  } catch {
+    /* хранилище недоступно — нечего чистить */
+  }
+}
+
 /** Одна пройденная тренировка плана. */
 export interface CoachWorkout {
   at: number;
