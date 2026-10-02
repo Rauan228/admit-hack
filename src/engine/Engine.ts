@@ -109,6 +109,8 @@ class RealEngine implements Engine {
   private handsLoading = false;
   private handsOff = false;
   private handSamples: Partial<Record<Side, HandSample>> = {};
+  /** Режим просит проверять кулак (EngineMode.hands, по умолчанию да). */
+  private handsWanted = true;
   /** Среднее время одной проверки кисти, мс, сколько их было и когда была последняя. */
   private handCost = 0;
   private handChecks = 0;
@@ -200,7 +202,8 @@ class RealEngine implements Engine {
     this.bar = null;
     this.session = new ExerciseSession(def, Math.max(1, Math.round(mode.targetReps)), t);
     this.handSamples = {};
-    if (def.hands) this.loadHands();
+    this.handsWanted = mode.hands !== false;
+    if (def.hands && this.handsWanted) this.loadHands();
     this.emitAll(this.session.begin());
   }
 
@@ -433,7 +436,7 @@ class RealEngine implements Engine {
       this.emitAll(this.gestures.update(frame, t, { pointer: true, bothHandsUp: true }));
       return;
     }
-    if (frame && session.def.hands) this.checkHands(frame, session, video);
+    if (frame && session.def.hands && this.handsWanted) this.checkHands(frame, session, video);
     const events = session.update(frame, t);
     const cfg = ENGINE_CONFIG.presence;
     const missing = session.unmeasuredFor(t);

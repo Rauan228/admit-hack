@@ -79,7 +79,12 @@ export interface SetStats {
   perRep: number[];
 }
 
-export type EngineMode = 'calibration' | 'menu' | { exercise: ExerciseId; targetReps: number };
+/**
+ * Режим движка. hands: false — без проверки кулака у упражнений с hands (бокс от первого лица считает удары
+ * сам, а модель кистей на основном потоке ждёт видеокарту, занятую 3D-сценой).
+ */
+export type EngineMode =
+  'calibration' | 'menu' | { exercise: ExerciseId; targetReps: number; hands?: boolean };
 
 export interface Engine {
   start(video: HTMLVideoElement): Promise<void>;
