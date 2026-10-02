@@ -16,6 +16,12 @@ export interface Stance {
   guard: boolean;
   /** В этом кадре корпус ушёл от среднего положения — уклон. */
   dodge: boolean;
+  /**
+   * Сдвиг середины плеч от среднего положения в ширинах плеч: x — вправо по кадру камеры (для человека
+   * лицом к камере это его левая сторона), y — вниз. Для вида от первого лица: камера в игре следует за телом.
+   */
+  shiftX: number;
+  shiftY: number;
 }
 
 export const STANCE = {
@@ -51,7 +57,7 @@ export class StanceTracker {
     if (!seen(ls) || !seen(rs)) {
       // Тела не видно — среднее положение забываем: вернётся в другом месте кадра.
       this.reset();
-      return { guard: false, dodge: false };
+      return { guard: false, dodge: false, shiftX: 0, shiftY: 0 };
     }
     const sw = Math.hypot((ls.x - rs.x) * aspect, ls.y - rs.y) || 1e-6;
     const cx = ((ls.x + rs.x) / 2) * aspect;
@@ -59,11 +65,15 @@ export class StanceTracker {
 
     // Уклон — относительно среднего положения.
     let dodge = false;
+    let shiftX = 0;
+    let shiftY = 0;
     if (this.baseX === null || this.baseY === null) {
       this.baseX = cx;
       this.baseY = cy;
     } else {
-      dodge = Math.abs(cx - this.baseX) > STANCE.dodgeSide * sw || cy - this.baseY > STANCE.dodgeDuck * sw;
+      shiftX = (cx - this.baseX) / sw;
+      shiftY = (cy - this.baseY) / sw;
+      dodge = Math.abs(shiftX) > STANCE.dodgeSide || shiftY > STANCE.dodgeDuck;
       const dt = Math.max(0, t - this.lastT);
       const k = 1 - Math.exp(-dt / STANCE.baselineTauMs);
       this.baseX += (cx - this.baseX) * k;
@@ -84,7 +94,7 @@ export class StanceTracker {
         Math.abs(w.x * aspect - noseX) <= STANCE.guardSpread * sw;
       guard = atChin(lw) && atChin(rw);
     }
-    return { guard, dodge };
+    return { guard, dodge, shiftX, shiftY };
   }
 
   reset(): void {

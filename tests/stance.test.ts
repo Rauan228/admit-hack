@@ -33,7 +33,7 @@ function pose(o: {
 describe('стойка бойца: защита', () => {
   it('оба кулака у подбородка — защита', () => {
     const s = new StanceTracker();
-    expect(s.update(pose({}), 0, ASPECT)).toEqual({ guard: true, dodge: false });
+    expect(s.update(pose({}), 0, ASPECT)).toMatchObject({ guard: true, dodge: false, shiftX: 0, shiftY: 0 });
   });
 
   it('руки опущены ниже плеч — защиты нет', () => {
@@ -59,7 +59,12 @@ describe('стойка бойца: защита', () => {
   it('кисти не видны — не защита; плечи не видны — ничего', () => {
     const s = new StanceTracker();
     expect(s.update(pose({ wristV: 0.2 }), 0, ASPECT).guard).toBe(false);
-    expect(s.update(pose({ shoulderV: 0.1 }), 0, ASPECT)).toEqual({ guard: false, dodge: false });
+    expect(s.update(pose({ shoulderV: 0.1 }), 0, ASPECT)).toEqual({
+      guard: false,
+      dodge: false,
+      shiftX: 0,
+      shiftY: 0,
+    });
   });
 });
 
