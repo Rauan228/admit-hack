@@ -83,7 +83,7 @@ export function Menu({
         <section className="menu__trio" aria-label="Главное">
           <DwellButton className="menu__card rise" style={order(2)} onSelect={onQuick}>
             <span className="menu__card-head">
-              <b>Тренировка</b>
+              <b>Быстрая тренировка</b>
               <small>
                 Приседания, отжимания и бёрпи · около 4 минут. Тренер считает повторы и следит за техникой.
               </small>
@@ -294,7 +294,11 @@ function CoachCard({ plan, onSelect }: { plan: CoachPlan | null; onSelect: () =>
       </span>
       <span className="menu__panel">
         <b className="menu__panel-title">{info ? 'Твой прогресс' : 'План на 4 недели'}</b>
-        <span className="menu__ring" style={{ '--p': info?.pct ?? 100 } as CSSProperties}>
+        <span
+          className="menu__ring"
+          data-empty={info && info.pct === 0 ? '' : undefined}
+          style={{ '--p': info?.pct ?? 100 } as CSSProperties}
+        >
           <svg viewBox="0 0 120 120" aria-hidden="true">
             <circle cx="60" cy="60" r="52" />
             <circle cx="60" cy="60" r="52" pathLength={100} />
