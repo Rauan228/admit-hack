@@ -7,6 +7,11 @@
 //
 // Сцена в метрах: пол y = 0, бот стоит в начале координат лицом к +Z, камера — на уровне его глаз в
 // CAM_Z от него. Перчатки — дети камеры, их координаты — в пространстве камеры (вперёд — −Z).
+//
+// Руки — плечо и предплечье постоянной длины (двухзвенная рука, IK): кисть задаём, локоть считаем, ничего
+// не растягивается. В стойке кулаки у подбородка и мягко повторяют твои кисти (gloves.ts); удар — короткая
+// анимация (punch.ts находит его начало): вылет, касание, возврат — в голову бота, снизу — в корпус,
+// боковой — по дуге снаружи. На экране кулак ложится на соперника, как в играх, хотя рука короче дистанции.
 
 import {
   ACESFilmicToneMapping,
@@ -54,22 +59,45 @@ export interface FpvState {
   shiftY: number;
   /** Тряска камеры: 0…1 (пропустил удар, блок). */
   shake: number;
+  /** Удары, которые сейчас идут: начало (мс, тем же часом, что now), в корпус ли, боковой ли. */
+  punches: Partial<Record<GloveSide, FpvPunch>>;
+  /** Текущее время (мс) — для анимации ударов. */
+  now: number;
 }
+
+export interface FpvPunch {
+  start: number;
+  low: boolean;
+  hook: boolean;
+}
+
+/** Анимация удара: вылет до касания, задержка на касании, возврат в стойку (мс). */
+export const PUNCH_ANIM = { outMs: 110, holdMs: 50, backMs: 180 } as const;
+/** Касание — через столько мс после начала удара: тогда урон, отдача бота, звук. */
+export const PUNCH_CONTACT_MS = PUNCH_ANIM.outMs;
+const PUNCH_TOTAL = PUNCH_ANIM.outMs + PUNCH_ANIM.holdMs + PUNCH_ANIM.backMs;
 
 /** Камера — на уровне глаз бота, на таком расстоянии от него (м). */
 const CAM_Y = 1.42;
-const CAM_Z = 1.75;
+const CAM_Z = 1.4;
 const LOOK_Y = 1.3;
 /** Шаг бота в удар, м: его кулак доходит почти до камеры. */
-const BOT_STEP = 0.75;
+const BOT_STEP = 0.5;
 /** Насколько камера идёт за корпусом: м на ширину плеч; наклон — рад на ширину плеч. */
 const CAM_FOLLOW_X = 0.32;
 const CAM_FOLLOW_Y = 0.36;
 const CAM_ROLL = 0.22;
 const RING = { x0: -2.4, x1: 2.4, z0: -2.6, z1: 2.2, ropes: [0.48, 0.84, 1.2] };
 
-/** Длина видимого предплечья, м. */
-const FOREARM = 0.34;
+/** Руки в пространстве камеры: плечи (чуть ниже и позади глаз), длины плеча и предплечья, м. */
+const SHOULDER = { x: 0.2, y: -0.25, z: 0.05 };
+const UPPER = 0.31;
+const FORE = 0.3;
+/** Кулак в стойке — у подбородка, перед глазами. */
+const GUARD = { x: 0.16, y: -0.2, z: -0.4 };
+/** Насколько стойка повторяет твои кисти: м на ширину плеч, и предел. */
+const FOLLOW = 0.05;
+const FOLLOW_MAX = 0.06;
 const GLOVE_RED = '#d61f26';
 const BOT_BLUE = '#1d4ed8';
 
@@ -80,8 +108,11 @@ export class FpvView {
   private readonly bot = new ZAthleteView('boxing');
   private readonly botRoot = new Group();
   private readonly botGloves: Mesh[];
-  private readonly gloves: Record<GloveSide, { glove: Group; arm: Mesh }>;
+  private readonly gloves: Record<GloveSide, { glove: Group; upper: Mesh; fore: Mesh }>;
   private botGroup: Group | null = null;
+  /** Голова и грудь бота в мире — цели ударов. */
+  private readonly botHead = new Vector3(0, 1.38, 0);
+  private readonly botChest = new Vector3(0, 1.1, 0);
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -145,8 +176,9 @@ export class FpvView {
     }
     const ready = this.poseBot(s);
     this.placeCamera(s);
-    this.placeGlove('left', s.gloves.left);
-    this.placeGlove('right', s.gloves.right);
+    this.camera.updateMatrixWorld();
+    this.placeGlove('left', s.gloves.left, s.punches.left, s.now);
+    this.placeGlove('right', s.gloves.right, s.punches.right, s.now);
     this.renderer.render(this.scene, this.camera);
     return ready;
   }
@@ -183,6 +215,16 @@ export class FpvView {
     const koEase = ko * ko;
     this.botRoot.position.set(0, 0, BOT_STEP * s.botLunge - 0.12 * s.botRecoil - 0.35 * koEase);
     this.botRoot.rotation.set(-0.14 * s.botRecoil - 1.35 * koEase + 0.05 * s.botLunge, 0, 0.25 * koEase);
+    // Цели ударов — нос и середина груди бота в мире.
+    this.botRoot.updateMatrixWorld();
+    const nose = pose[0];
+    const ls = pose[11];
+    const rs = pose[12];
+    if (nose) this.botHead.set(nose.x, -nose.y, -nose.z).applyMatrix4(this.botRoot.matrixWorld);
+    if (ls && rs)
+      this.botChest
+        .set((ls.x + rs.x) / 2, -(ls.y + rs.y) / 2 - 0.16, -(ls.z + rs.z) / 2)
+        .applyMatrix4(this.botRoot.matrixWorld);
     return true;
   }
 
@@ -205,7 +247,7 @@ export class FpvView {
 
   // ——— Перчатки ———
 
-  private makeGlove(dir: -1 | 1): { glove: Group; arm: Mesh } {
+  private makeGlove(dir: -1 | 1): { glove: Group; upper: Mesh; fore: Mesh } {
     const red = new MeshStandardMaterial({
       color: GLOVE_RED,
       roughness: 0.3,
@@ -213,53 +255,78 @@ export class FpvView {
       emissive: '#3a0606',
     });
     const white = new MeshStandardMaterial({ color: '#f4f4f5', roughness: 0.5 });
-    const wrap = new MeshStandardMaterial({ color: '#18181b', roughness: 0.75 });
+    const sleeve = new MeshStandardMaterial({ color: '#1c1c20', roughness: 0.8 });
+    // Перчатка: начало координат — запястье, кулак — вперёд по −Z.
     const glove = new Group();
-    // Кулак: сплюснутый шар, костяшки вперёд (−Z); большой палец — к середине.
     const fist = new Mesh(new SphereGeometry(1, 28, 20), red);
-    fist.scale.set(0.058, 0.056, 0.074);
+    fist.scale.set(0.05, 0.048, 0.064);
+    fist.position.z = -0.075;
     const thumb = new Mesh(new SphereGeometry(1, 16, 12), red);
     thumb.scale.set(0.022, 0.024, 0.042);
-    thumb.position.set(-dir * 0.046, -0.012, -0.012);
-    // Манжета — белая полоса у запястья, к камере (+Z).
-    const cuff = new Mesh(new CylinderGeometry(0.046, 0.05, 0.075, 24), red);
+    thumb.position.set(-dir * 0.047, -0.012, -0.085);
+    const cuff = new Mesh(new CylinderGeometry(0.044, 0.048, 0.07, 24), red);
     cuff.rotation.x = Math.PI / 2;
-    cuff.position.z = 0.07;
-    const band = new Mesh(new CylinderGeometry(0.0475, 0.0475, 0.02, 24), white);
+    cuff.position.z = -0.005;
+    const band = new Mesh(new CylinderGeometry(0.0455, 0.0455, 0.02, 24), white);
     band.rotation.x = Math.PI / 2;
-    band.position.z = 0.072;
+    band.position.z = -0.002;
     glove.add(fist, thumb, cuff, band);
-    // Предплечье — цилиндр от манжеты к локтю у края экрана (ставим каждый кадр).
-    const arm = new Mesh(new CylinderGeometry(0.03, 0.04, 1, 16), wrap);
-    this.camera.add(glove, arm);
-    return { glove, arm };
+    // Плечо и предплечье — цилиндры постоянной длины (ставим каждый кадр).
+    const upper = new Mesh(new CylinderGeometry(0.042, 0.05, UPPER, 16), sleeve);
+    const fore = new Mesh(new CylinderGeometry(0.036, 0.043, FORE, 16), sleeve);
+    this.camera.add(glove, upper, fore);
+    return { glove, upper, fore };
   }
 
-  private placeGlove(side: GloveSide, g: Gloves[GloveSide]): void {
+  private placeGlove(side: GloveSide, g: Gloves[GloveSide], punch: FpvPunch | undefined, now: number): void {
     const dir = side === 'left' ? -1 : 1;
-    const { glove, arm } = this.gloves[side];
+    const { glove, upper, fore } = this.gloves[side];
+    const shoulder = new Vector3(dir * SHOULDER.x, SHOULDER.y, SHOULDER.z);
+    // Стойка: кулак у подбородка, чуть повторяет кисть (вбок, вверх-вниз, вперёд).
     const ext = clamp01(g.ext);
-    // Кисть по экрану: от середины плеч, с ограничением, чтобы перчатка не ушла за край. Удар — к центру.
-    const gx = clamp(g.x, -1.2, 1.2);
-    const gy = clamp(g.y, -1.2, 1.2);
-    const baseX = gx * 0.2 + dir * 0.06;
-    const baseY = -0.115 - (gy + 0.3) * 0.15;
-    const x = baseX * (1 - 0.45 * ext);
-    const y = baseY * (1 - ext) - 0.03 * ext;
-    const z = -0.44 - 1.0 * ext;
-    glove.position.set(x, y, z);
-    // В стойке кулаки чуть смотрят внутрь, в ударе — прямо (джеб с доворотом кулака).
-    glove.rotation.set(0.12 - 0.1 * ext, -dir * 0.32 * (1 - ext), -dir * (0.25 + 1.1 * ext));
-    // Локоть — внизу у края экрана, в ударе уходит вперёд вслед за кулаком.
-    const elbow = new Vector3(dir * 0.24, -0.44, -0.14).lerp(
-      new Vector3(x + dir * 0.06, y - 0.12, z + 0.42),
-      0.85 * ext,
-    );
-    const wrist = new Vector3(0, 0, 0.1).applyEuler(glove.rotation).add(glove.position);
-    // Видна только часть предплечья у перчатки — длинная «палка» до края экрана выглядит хуже.
-    const back = elbow.clone().sub(wrist);
-    if (back.length() > FOREARM) elbow.copy(wrist).add(back.setLength(FOREARM));
-    stretch(arm, elbow, wrist);
+    const fx = clamp((g.x - dir * 0.45) * FOLLOW, -FOLLOW_MAX, FOLLOW_MAX);
+    const fy = clamp(-(g.y + 0.35) * FOLLOW, -FOLLOW_MAX, FOLLOW_MAX);
+    const guard = new Vector3(dir * GUARD.x + fx, GUARD.y + fy, GUARD.z - 0.08 * ext);
+    let wrist = guard;
+    let k = 0;
+    // Куда смотрят костяшки: в стойке — вперёд и чуть внутрь-вверх, в ударе — в цель.
+    let aimDir = new Vector3(-dir * 0.22, 0.3, -1).normalize();
+    if (punch) {
+      const t = now - punch.start;
+      if (t >= 0 && t < PUNCH_TOTAL) {
+        const { outMs, holdMs, backMs } = PUNCH_ANIM;
+        k =
+          t < outMs
+            ? 1 - (1 - t / outMs) ** 3
+            : t < outMs + holdMs
+              ? 1
+              : 1 - smooth((t - outMs - holdMs) / backMs);
+        // Цель — голова (или грудь) бота: рука вытягивается к ней на всю длину.
+        // Кулак — на луче от глаза к цели, на расстоянии вытянутой руки от плеча: на экране он ложится ровно
+        // на голову (корпус) бота, а рука остаётся своей длины.
+        const aim = this.camera.worldToLocal((punch.low ? this.botChest : this.botHead).clone());
+        const target = onEyeRay(aim.normalize(), shoulder, UPPER + FORE - 0.06);
+        aimDir = aimDir.lerp(target.clone().normalize(), k).normalize();
+        if (punch.hook) {
+          // Боковой: дуга снаружи — контрольная точка сбоку от середины пути.
+          const ctrl = guard
+            .clone()
+            .lerp(target, 0.5)
+            .add(new Vector3(dir * 0.26, 0.04, 0.12));
+          wrist = bezier(guard, ctrl, target, k);
+        } else wrist = guard.clone().lerp(target, k);
+      }
+    }
+    // Локоть: двухзвенная рука, сгиб — вниз и наружу.
+    const elbow = solveElbow(shoulder, wrist, UPPER, FORE, new Vector3(dir * 0.7, -1, 0.15));
+    // Кисть, до которой рука реально дотянулась (если цель дальше — рука прямая).
+    const reached = elbow.clone().add(wrist.clone().sub(elbow).setLength(FORE));
+    place(upper, shoulder, elbow);
+    place(fore, elbow, reached);
+    // Перчатка — на кисти, костяшками туда, куда бьёт; в прямом — доворот кулака ладонью вниз.
+    glove.position.copy(reached);
+    glove.quaternion.setFromUnitVectors(new Vector3(0, 0, -1), aimDir);
+    glove.rotateZ(-dir * (0.35 + (punch?.hook ? 0.5 : 1.1) * k));
   }
 
   // ——— Ринг ———
@@ -332,6 +399,51 @@ export class FpvView {
     });
   }
 }
+
+/** Локоть двухзвенной руки: плечо s, кисть w, длины a и b, сгиб в сторону pole. Цель дальше — рука прямая. */
+function solveElbow(s: Vector3, w: Vector3, a: number, b: number, pole: Vector3): Vector3 {
+  const d = w.clone().sub(s);
+  const len = Math.min(Math.max(d.length(), 1e-4), a + b - 1e-4);
+  const u = d.normalize();
+  const cos = clamp((a * a + len * len - b * b) / (2 * a * len), -1, 1);
+  const sin = Math.sqrt(1 - cos * cos);
+  const n = pole
+    .clone()
+    .sub(u.clone().multiplyScalar(pole.dot(u)))
+    .normalize();
+  return s
+    .clone()
+    .add(u.multiplyScalar(a * cos))
+    .add(n.multiplyScalar(a * sin));
+}
+
+/** Точка на луче из глаза (начало координат камеры) по направлению h на расстоянии reach от плеча s. */
+function onEyeRay(h: Vector3, s: Vector3, reach: number): Vector3 {
+  const hs = h.dot(s);
+  const disc = hs * hs - s.lengthSq() + reach * reach;
+  const t = disc > 0 ? hs + Math.sqrt(disc) : Math.max(0.2, hs);
+  return h.clone().multiplyScalar(t);
+}
+
+/** Цилиндр по оси Y с длиной своей геометрии — поставить от a к b (без растяжения). */
+function place(m: Object3D, a: Vector3, b: Vector3): void {
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.copy(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), b.clone().sub(a).normalize()));
+}
+
+function bezier(a: Vector3, c: Vector3, b: Vector3, t: number): Vector3 {
+  const u = 1 - t;
+  return a
+    .clone()
+    .multiplyScalar(u * u)
+    .add(c.clone().multiplyScalar(2 * u * t))
+    .add(b.clone().multiplyScalar(t * t));
+}
+
+const smooth = (x: number) => {
+  const t = clamp01(x);
+  return t * t * (3 - 2 * t);
+};
 
 /** Цилиндр высотой 1 по оси Y — растянуть между двумя точками. */
 function stretch(m: Object3D, a: Vector3, b: Vector3): void {
