@@ -102,7 +102,7 @@ class RealEngine implements Engine {
   private barCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null;
   /** Растёт на каждый start/stop: start, который пережил stop, узнаёт об этом и убирает за собой. */
   private generation = 0;
-  /** Кадров в детекторе в фоновом потоке без ответа (не больше pose.workerInFlight). */
+  /** Кадров в детекторе в фоновом потоке без ответа (не больше detector.inFlightLimit). */
   private inFlight = 0;
   /** Кисти (E-36): детектор грузится при входе в упражнение с hands; off — выключен (ошибка или медленно). */
   private hands: HandDetector | null = null;
@@ -390,7 +390,8 @@ class RealEngine implements Engine {
    * пока новая грузится, работает старая.
    */
   private downgradeModel(current: PoseDetector): void {
-    if (current.model === 'lite') return;
+    // Модель в фоне не тормозит страницу: кадры считают два воркера по очереди — точность важнее.
+    if (current.model === 'lite' || current.detectAsync) return;
     const gen = this.generation;
     this.deps
       .createPoseDetector({ model: 'lite', delegate: current.delegate })

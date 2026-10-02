@@ -13,7 +13,6 @@
 import { ENGINE_CONFIG } from './config';
 import { isMobileDevice } from './perf';
 import {
-  defaultModel,
   loadPoseModel,
   type PoseDelegate,
   type PoseDetection,
@@ -91,7 +90,7 @@ class PoseWorkerClient {
 export async function createWorkerPoseDetector(options: PoseDetectorOptions = {}): Promise<PoseDetector> {
   const cfg = ENGINE_CONFIG.pose;
   const wanted: PoseDelegate = options.delegate ?? cfg.workerDelegate;
-  const model = options.model ?? defaultModel(wanted);
+  const model = options.model ?? cfg.workerModel;
   // Байты модели — из общей загрузки страницы (её начинает предзагрузка); каждому воркеру — копия.
   const bytes = await loadPoseModel(cfg.modelUrls[model]);
   const pool = Array.from({ length: poseWorkerCount() }, () => new PoseWorkerClient());
