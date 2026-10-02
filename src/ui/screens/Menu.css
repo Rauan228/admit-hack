@@ -2,160 +2,8 @@
   margin-bottom: var(--s-5);
 }
 
-/* ИИ-тренер: широкая карточка на всю ширину, атлет крупным планом в тёплом свете. */
-.menu__coach {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-  align-items: stretch;
-  width: 100%;
-  min-height: 320px;
-  margin-bottom: var(--s-3);
-  padding: 0;
-  overflow: hidden;
-  border-radius: var(--r-xl);
-  background: linear-gradient(110deg, var(--surface) 40%, #1a120c);
-  text-align: left;
-}
-
-.menu__coach .dwell__label {
-  display: contents;
-}
-
-.menu__coach:hover,
-.menu__coach.is-hover {
-  background: linear-gradient(110deg, #17171b 40%, #20150d);
-}
-
-.menu__coach-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: var(--s-3);
-  padding: clamp(24px, 3.4vw, 44px);
-  z-index: 1;
-}
-
-.menu__coach-text b {
-  max-width: 18ch;
-  font-size: clamp(30px, 3.2vw, 46px);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.04;
-}
-
-.menu__coach-text small {
-  max-width: 48ch;
-  color: var(--muted);
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 1.5;
-}
-
-.menu__coach-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.menu__coach-steps span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border-radius: var(--r-full);
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.menu__coach-steps svg {
-  color: var(--primary);
-}
-
-.menu__coach:hover .menu__go,
-.menu__coach.is-hover .menu__go {
-  background: var(--primary-2);
-}
-
-.menu__coach-art {
-  position: relative;
-  overflow: hidden;
-  background: radial-gradient(40% 50% at 45% 50%, rgba(249, 115, 22, 0.32), transparent 75%);
-  -webkit-mask-image:
-    radial-gradient(65% 75% at 50% 45%, #000 55%, transparent 100%),
-    linear-gradient(180deg, #000 70%, transparent 100%);
-  -webkit-mask-composite: source-in;
-  mask-image:
-    radial-gradient(65% 75% at 50% 45%, #000 55%, transparent 100%),
-    linear-gradient(180deg, #000 70%, transparent 100%);
-  mask-composite: intersect;
-}
-
-/* Холст в разы больше блока: в кадре голова, плечи и грудь; серую модель тонируем в тёмное. */
-.menu__coach-ghost {
-  position: absolute;
-  top: -48%;
-  left: -70%;
-  width: 240%;
-  height: 240%;
-  filter: grayscale(0.85) brightness(0.48) contrast(1.55);
-}
-
-.menu__coach-art::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    45% 45% at 42% 62%,
-    rgba(249, 115, 22, 0.85),
-    rgba(234, 88, 12, 0.35) 50%,
-    transparent 80%
-  );
-  mix-blend-mode: color-dodge;
-  pointer-events: none;
-}
-
-/* Два главных входа: тренировка и арена — рядом, большими карточками. */
-.menu__heroes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-3);
-}
-
-.menu__hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  align-items: stretch;
-  width: 100%;
-  min-height: 300px;
-  padding: 0;
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  text-align: left;
-}
-
-.menu__hero .dwell__label {
-  display: contents;
-}
-
-.menu__hero:hover,
-.menu__hero.is-hover {
-  background: #17171b;
-}
-
-.menu__hero-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: var(--s-3);
-  padding: clamp(22px, 3vw, 36px);
-  z-index: 1;
-}
-
 .menu__badge {
+  align-self: flex-start;
   padding: 6px 12px;
   border-radius: var(--r-full);
   background: var(--primary-soft);
@@ -169,41 +17,11 @@
   color: #93c5fd;
 }
 
-.menu__hero-text b {
-  font-size: clamp(26px, 2.6vw, 38px);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-}
-
-.menu__hero-text small {
-  max-width: 34ch;
-  color: var(--muted);
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 1.5;
-}
-
-.menu__formats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.menu__formats span {
-  padding: 5px 10px;
-  border-radius: var(--r-full);
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .menu__go {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin-top: var(--s-2);
   min-height: 50px;
   padding: 0 var(--s-5) 0 var(--s-6);
   border-radius: var(--r-full);
@@ -214,57 +32,355 @@
   transition: background var(--t-fast) var(--ease);
 }
 
+.menu__go--wide {
+  width: 100%;
+  margin-top: auto;
+}
+
 .menu__go--light {
-  padding: 0 var(--s-5);
   background: var(--fg);
   color: #09090b;
 }
 
-.menu__hero:hover .menu__go,
-.menu__hero.is-hover .menu__go {
+/* ——— ИИ-план: широкая карточка — текст, атлет в тёплом свете, справа прогресс ——— */
+.menu__coach {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr) minmax(200px, 240px);
+  align-items: stretch;
+  width: 100%;
+  min-height: 340px;
+  margin-bottom: var(--s-3);
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(45% 90% at 62% 55%, rgba(249, 115, 22, 0.16), transparent 70%),
+    linear-gradient(110deg, var(--surface) 35%, #17100b);
+  text-align: left;
+}
+
+.menu__coach .dwell__label {
+  display: contents;
+}
+
+.menu__coach:hover,
+.menu__coach.is-hover {
+  background:
+    radial-gradient(45% 90% at 62% 55%, rgba(249, 115, 22, 0.22), transparent 70%),
+    linear-gradient(110deg, #17171b 35%, #1d140d);
+}
+
+.menu__coach-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--s-3);
+  padding: clamp(24px, 3.2vw, 40px);
+  z-index: 1;
+}
+
+.menu__coach-text > b {
+  max-width: 16ch;
+  font-size: clamp(30px, 3.4vw, 48px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
+}
+
+.menu__coach-text > small {
+  max-width: 46ch;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.menu__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: var(--s-1) 0 var(--s-2);
+}
+
+.menu__fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 220px;
+  padding: 10px 14px 10px 12px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.menu__fact svg {
+  flex: none;
+  color: var(--primary);
+}
+
+.menu__fact > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.menu__fact b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.menu__fact small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.menu__coach:hover .menu__go,
+.menu__coach.is-hover .menu__go,
+.menu__card:hover .menu__go:not(.menu__go--light),
+.menu__card.is-hover .menu__go:not(.menu__go--light) {
   background: var(--primary-2);
 }
 
-.menu__hero:hover .menu__go--light,
-.menu__hero.is-hover .menu__go--light {
+.menu__card:hover .menu__go--light,
+.menu__card.is-hover .menu__go--light {
   background: #fff;
 }
 
-.menu__hero-art {
+/* Атлет: холст больше блока, фигура во весь рост по центру; края растворяются в фоне. */
+.menu__coach-art {
   position: relative;
   overflow: hidden;
-  border-radius: 0 var(--r-xl) var(--r-xl) 0;
-  background: radial-gradient(60% 70% at 55% 62%, rgba(249, 115, 22, 0.22), transparent 70%);
+  -webkit-mask-image: radial-gradient(70% 75% at 50% 50%, #000 60%, transparent 100%);
+  mask-image: radial-gradient(70% 75% at 50% 50%, #000 60%, transparent 100%);
 }
 
-.menu__hero-ghost {
+.menu__coach-ghost {
   position: absolute;
-  left: -22%;
-  top: -30%;
-  width: 144%;
-  height: 150%;
+  top: -2%;
+  left: -20%;
+  width: 140%;
+  height: 102%;
 }
 
-/* Арена: два бойца друг напротив друга и «VS» между ними, холодный свет против тёплого. */
+/* Прогресс программы. */
+.menu__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-4) var(--s-4) var(--s-4) 0;
+  padding: var(--s-5) var(--s-4);
+  border-radius: var(--r-lg);
+  background: rgba(9, 9, 11, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  z-index: 1;
+}
+
+.menu__panel-title {
+  align-self: flex-start;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.menu__ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  margin-top: var(--s-1);
+}
+
+.menu__ring svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.menu__ring circle {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 9;
+}
+
+.menu__ring circle + circle {
+  stroke: var(--primary);
+  stroke-linecap: round;
+  stroke-dasharray: calc(var(--p) * 1) 100;
+  filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.45));
+}
+
+.menu__ring b {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.menu__panel-sub {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.menu__panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: stretch;
+  margin-top: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.menu__panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.menu__panel-row svg {
+  flex: none;
+  color: var(--primary);
+}
+
+.menu__panel-row b {
+  color: var(--fg);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ——— Три главных входа ——— */
+.menu__trio {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+.menu__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 500px;
+  padding: clamp(20px, 2.2vw, 28px);
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  text-align: left;
+}
+
+.menu__card .dwell__label {
+  display: contents;
+}
+
+.menu__card:hover,
+.menu__card.is-hover {
+  background: #17171b;
+}
+
+.menu__card-head {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  z-index: 1;
+}
+
+.menu__card-head b {
+  font-size: clamp(26px, 2.3vw, 34px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.menu__card-head small {
+  max-width: 34ch;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.menu__card-art {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 170px;
+  margin: 0 calc(-1 * clamp(20px, 2.2vw, 28px));
+  overflow: hidden;
+}
+
+.menu__card-art--train {
+  background: radial-gradient(55% 60% at 55% 60%, rgba(249, 115, 22, 0.22), transparent 70%);
+}
+
+.menu__train-ghost {
+  position: absolute;
+  top: -6%;
+  left: 6%;
+  width: 88%;
+  height: 112%;
+}
+
+/* Миниатюры упражнений быстрой тренировки. */
+.menu__thumbs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+.menu__thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.menu__thumb.is-on {
+  box-shadow: inset 0 0 0 2px var(--primary);
+  background: radial-gradient(70% 70% at 50% 60%, rgba(249, 115, 22, 0.2), var(--surface-2));
+}
+
+.menu__thumb canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Арена: два бойца друг напротив друга и «VS» между ними, тёплый свет против холодного. */
+.menu__card--arena {
+  background: radial-gradient(60% 40% at 50% 55%, rgba(96, 165, 250, 0.08), transparent 70%), var(--surface);
+}
+
 .menu__versus {
   background:
-    radial-gradient(45% 60% at 22% 62%, rgba(249, 115, 22, 0.2), transparent 70%),
-    radial-gradient(45% 60% at 80% 62%, rgba(96, 165, 250, 0.2), transparent 70%);
+    radial-gradient(40% 55% at 25% 55%, rgba(249, 115, 22, 0.22), transparent 70%),
+    radial-gradient(40% 55% at 75% 55%, rgba(96, 165, 250, 0.22), transparent 70%);
 }
 
 .menu__fighter {
   position: absolute;
-  top: -12%;
-  width: 70%;
+  top: -10%;
+  width: 66%;
   height: 120%;
 }
 
 .menu__fighter--a {
-  left: -8%;
+  left: -6%;
 }
 
 .menu__fighter--b {
-  right: -8%;
+  right: -6%;
   transform: scaleX(-1);
 }
 
@@ -273,7 +389,7 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  font-size: clamp(30px, 3vw, 44px);
+  font-size: clamp(34px, 3.4vw, 48px);
   font-style: normal;
   font-weight: 800;
   letter-spacing: -0.04em;
@@ -281,7 +397,99 @@
   text-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
 }
 
-/* Режимы тренировки — две широкие строки, дальше — три компактные. */
+.menu__formats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+.menu__formats span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.menu__formats b {
+  color: var(--fg);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Бокс: кадр нашей 3D-сцены от первого лица — ринг, соперник, твои перчатки. */
+.menu__card--box {
+  background: #0c0806;
+}
+
+.menu__card-art--box {
+  position: absolute;
+  inset: 30% 0 0;
+  margin: 0;
+}
+
+.menu__card-art--box img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 70%;
+  transition: transform 0.6s var(--ease);
+}
+
+.menu__card-art--box::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, #0c0806 0%, rgba(12, 8, 6, 0.6) 14%, transparent 34%),
+    linear-gradient(0deg, rgba(12, 8, 6, 0.95) 0%, rgba(12, 8, 6, 0.4) 26%, transparent 45%);
+}
+
+.menu__card--box:hover .menu__card-art--box img,
+.menu__card--box.is-hover .menu__card-art--box img {
+  transform: scale(1.04);
+}
+
+.menu__chips {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+  z-index: 1;
+}
+
+.menu__chips span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--r-full);
+  background: rgba(9, 9, 11, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.menu__chips svg {
+  color: var(--primary);
+}
+
+.menu__card--box .menu__go {
+  position: relative;
+  z-index: 1;
+  margin-top: 0;
+}
+
+/* ——— Режимы и ссылки ——— */
 .menu__modes,
 .menu__more {
   display: grid;
@@ -302,14 +510,15 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--s-4);
-  min-height: 92px;
+  min-height: 88px;
   padding: var(--s-4) var(--s-5);
   border-radius: var(--r-lg);
   background: var(--surface);
   text-align: left;
 }
 
-.menu__row .dwell__label {
+.menu__row .dwell__label,
+.menu__cta .dwell__label {
   display: contents;
 }
 
@@ -349,7 +558,6 @@
 .menu__text small {
   color: var(--muted);
   font-size: 14px;
-  font-weight: 400;
 }
 
 .menu__chev {
@@ -365,60 +573,206 @@
   transform: translateX(3px);
 }
 
-/* Сводка — одна широкая карточка с крупными цифрами. */
-.menu__stats {
+/* ——— Статистика и серия ——— */
+.menu__summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--s-4);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: var(--s-3);
   margin-top: var(--s-3);
+}
+
+.menu__stats,
+.menu__streak {
   padding: var(--s-5);
   border-radius: var(--r-lg);
   background: var(--surface);
 }
 
-.menu__stats div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.menu__summary h2 {
+  margin: 0 0 var(--s-4);
+  font-size: 17px;
+  font-weight: 600;
 }
 
-.menu__stats b {
-  font-size: 28px;
+.menu__stats dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.menu__stats dl div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 4px;
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.menu__stats dd {
+  margin: 0;
+  font-size: clamp(24px, 2.4vw, 32px);
   font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
-.menu__stats small {
+.menu__stats dt {
   color: var(--muted);
   font-size: 14px;
 }
 
+.menu__streak-num {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 var(--s-4);
+  color: var(--primary);
+}
+
+.menu__streak-num b {
+  color: var(--fg);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.menu__week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.menu__week li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.menu__week i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-3);
+}
+
+.menu__week li.is-on {
+  color: var(--muted);
+}
+
+.menu__week li.is-on i {
+  background: var(--primary);
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.55);
+}
+
+/* ——— Призыв к челленджу ——— */
+.menu__cta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-5);
+  width: 100%;
+  margin-top: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-lg);
+  background: radial-gradient(50% 140% at 0% 50%, rgba(249, 115, 22, 0.16), transparent 70%), var(--surface);
+  text-align: left;
+}
+
+.menu__cta:hover,
+.menu__cta.is-hover {
+  background:
+    radial-gradient(50% 140% at 0% 50%, rgba(249, 115, 22, 0.24), transparent 70%), var(--surface-2);
+}
+
+.menu__cta-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.35), rgba(249, 115, 22, 0.08));
+  color: var(--primary);
+}
+
+.menu__cta .menu__text b {
+  font-size: 19px;
+}
+
+.menu__cta-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 var(--s-5);
+  border-radius: var(--r-full);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ——— Адаптив ——— */
 @media (max-width: 1100px) {
-  .menu__heroes {
-    grid-template-columns: 1fr;
+  .menu__coach {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  }
+
+  .menu__panel {
+    display: none;
+  }
+
+  .menu__trio {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .menu__card--box {
+    grid-column: 1 / -1;
+    min-height: 420px;
   }
 }
 
 @media (max-width: 760px) {
+  .menu__trio,
   .menu__modes,
-  .menu__more {
+  .menu__more,
+  .menu__summary {
     grid-template-columns: 1fr;
     gap: var(--s-2);
+  }
+
+  .menu__modes,
+  .menu__more,
+  .menu__summary {
     margin-top: var(--s-2);
   }
-  .menu__heroes {
-    gap: var(--s-2);
+
+  .menu__card {
+    min-height: 460px;
+  }
+
+  .menu__stats dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .menu__cta {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .menu__cta-go {
+    grid-column: 1 / -1;
+    justify-content: center;
   }
 }
 
-/* Телефон: картинка сверху карточки, под ней текст и кнопка на всю ширину. */
+/* Телефон: атлет сверху карточки плана, под ним текст и кнопка на всю ширину. */
 @media (max-width: 620px) {
-  .menu__hero {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
-
   .menu__coach {
     grid-template-columns: 1fr;
     min-height: 0;
@@ -435,32 +789,17 @@
 
   .menu__coach .menu__go {
     width: 100%;
-    justify-content: center;
   }
 
-  .menu__hero-art {
-    order: -1;
-    height: 190px;
-    border-radius: var(--r-xl) var(--r-xl) 0 0;
-  }
-
-  .menu__hero-text {
-    padding: var(--s-2) var(--s-5) var(--s-5);
-  }
-
-  .menu__go {
-    width: 100%;
-    justify-content: center;
+  .menu__fact {
+    flex: 1 1 140px;
+    max-width: none;
   }
 
   .menu__row,
   .menu__row--small {
     min-height: 72px;
     padding: var(--s-3) var(--s-4);
-  }
-
-  .menu__row--small {
-    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .menu__icon {
@@ -470,9 +809,5 @@
 
   .menu__text b {
     font-size: 16px;
-  }
-
-  .menu__stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
