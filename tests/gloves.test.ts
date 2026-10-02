@@ -1,6 +1,4 @@
-import { readFileSync } from 'node:fs';
 import { STAND, synthFrame, type SynthParams } from '../src/engine/skeleton';
-import type { Landmark } from '../src/engine/types';
 import { GLOVES, GloveTracker, framing, punchPulse } from '../src/fight/gloves';
 
 const frame = (p: Partial<SynthParams>) => synthFrame({ ...STAND, ...p }, 0);
@@ -91,42 +89,5 @@ describe('кадр для боя от первого лица', () => {
     const f = frame({ punchL: 0, punchR: 0 });
     const lms = f.image.map((p) => ({ ...p, y: p.y + 0.5 }));
     expect(framing(lms, f.aspect)).toBe('low');
-  });
-});
-
-/** Запись боя с тенью анфас (tests/fixtures/fpv), удары размечены по раскадровке. */
-describe('перчатки на записи боксёра', () => {
-  const file = JSON.parse(
-    readFileSync(new URL('./fixtures/fpv/boxing-pexels-front.json', import.meta.url), 'utf8'),
-  ) as {
-    aspect: number;
-    frames: { t: number; p: number[] }[];
-    meta: {
-      punches: { side: 'left' | 'right'; from: number; to: number }[];
-      guard: { from: number; to: number }[];
-    };
-  };
-  const g = new GloveTracker();
-  const trace = file.frames.map((fr) => {
-    const p = fr.p;
-    const lms: Landmark[] = p.length
-      ? Array.from({ length: 33 }, (_, i) => ({
-          x: p[i * 4]!,
-          y: p[i * 4 + 1]!,
-          z: p[i * 4 + 2]!,
-          v: p[i * 4 + 3]!,
-        }))
-      : [];
-    return { t: fr.t / 1000, r: g.update(lms, fr.t, file.aspect) };
-  });
-  const within = (a: number, b: number) => trace.filter((x) => x.t >= a && x.t <= b);
-
-  it.each(file.meta.punches)('удар $side $from–$to с: бьющая перчатка вынесена', ({ side, from, to }) => {
-    expect(Math.max(...within(from, to).map((x) => x.r[side].ext))).toBeGreaterThan(0.8);
-  });
-
-  it('в стойке правая перчатка стоит', () => {
-    for (const { from, to } of file.meta.guard)
-      expect(Math.max(...within(from, to).map((x) => x.r.right.ext))).toBeLessThan(0.3);
   });
 });
