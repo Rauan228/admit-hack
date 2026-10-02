@@ -4,7 +4,7 @@
 // на телефоне — плотность пикселей 1 и без свечения (shadowBlur на мобильных GPU очень дорогой).
 
 import { useEffect, useRef } from 'react';
-import { isMobileDevice } from '../../engine/perf';
+import { canvasScale, isMobileDevice } from '../../engine/perf';
 import { GHOST_DURATION_MS, ghostPoseAt } from '../../engine/ghostPoses';
 import type { ExerciseId, Landmark } from '../../engine/types';
 import {
@@ -114,10 +114,10 @@ export function Ghost({
       raf = requestAnimationFrame(draw);
       if (now - last < FRAME_MS) return;
       last = now;
-      const dpr = Math.min(window.devicePixelRatio || 1, MOBILE ? 1 : 1.5);
       const W = canvas.clientWidth;
       const H = canvas.clientHeight;
       if (!W || !H) return;
+      const dpr = canvasScale(W, H, MOBILE);
       if (canvas.width !== Math.round(W * dpr)) canvas.width = Math.round(W * dpr);
       if (canvas.height !== Math.round(H * dpr)) canvas.height = Math.round(H * dpr);
       // При reduced motion — статичная середина движения (самая информативная поза).
@@ -170,12 +170,18 @@ export function Ghost({
         : null;
     io?.observe(canvas);
     document.addEventListener('visibilitychange', kick);
+    // Увеличили страницу или повернули телефон — перерисовать в новой чёткости (и кадр-превью тоже).
+    const ro = 'ResizeObserver' in window ? new ResizeObserver(kick) : null;
+    ro?.observe(canvas);
+    window.addEventListener('resize', kick);
     kick();
     return () => {
       cancelled = true;
       clearTimeout(giveUp);
       cancelAnimationFrame(raf);
       io?.disconnect();
+      ro?.disconnect();
+      window.removeEventListener('resize', kick);
       document.removeEventListener('visibilitychange', kick);
     };
   }, [exercise, yaw, sway, anatomyOnly, still, phase]);

@@ -34,6 +34,7 @@ import {
   WebGLRenderer,
   type Object3D,
 } from 'three';
+import { canvasScale } from '../engine/perf';
 import { athletePose } from '../ui/lib/athlete';
 import { ZAthleteView } from '../ui/three/zanatomy';
 import type { GloveSide, Gloves } from './gloves';
@@ -132,7 +133,8 @@ export class FpvView {
     const W = this.canvas.clientWidth;
     const H = this.canvas.clientHeight;
     if (!W || !H) return false;
-    const dpr = Math.min(window.devicePixelRatio || 1, this.mobile ? 1 : 1.5);
+    // Бой идёт вместе с распознаванием позы: телефону бюджет меньше, чем атлетам в меню.
+    const dpr = Math.min(this.mobile ? 2 : 3, canvasScale(W, H, this.mobile, 4096));
     const w = Math.round(W * dpr);
     const h = Math.round(H * dpr);
     if (this.canvas.width !== w || this.canvas.height !== h) {

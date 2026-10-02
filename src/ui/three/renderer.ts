@@ -2,6 +2,7 @@
 // и копируется в свой 2D-холст — так на странице может быть сколько угодно атлетов без лимита
 // WebGL-контекстов (на телефонах их ~8).
 
+import { RENDER_MAX_SIDE } from '../../engine/perf';
 import { ACESFilmicToneMapping, SRGBColorSpace, WebGLRenderer, type Camera, type Scene } from 'three';
 
 let renderer: WebGLRenderer | null = null;
@@ -9,10 +10,11 @@ let failed = false;
 let bufW = 0;
 let bufH = 0;
 
-export function sharedRenderer(mobile: boolean): WebGLRenderer | null {
+export function sharedRenderer(_mobile: boolean): WebGLRenderer | null {
   if (renderer || failed) return renderer;
   try {
-    renderer = new WebGLRenderer({ antialias: !mobile, alpha: true, powerPreference: 'high-performance' });
+    // Сглаживание краёв и на телефоне: без него контуры атлета — лесенкой.
+    renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
   } catch {
     failed = true;
     return null;
@@ -36,8 +38,8 @@ export function blitTo(
   H: number,
 ): boolean {
   if (W > bufW || H > bufH) {
-    bufW = Math.min(2048, Math.max(bufW, W));
-    bufH = Math.min(2048, Math.max(bufH, H));
+    bufW = Math.min(RENDER_MAX_SIDE, Math.max(bufW, W));
+    bufH = Math.min(RENDER_MAX_SIDE, Math.max(bufH, H));
     r.setSize(bufW, bufH, false);
   }
   r.setViewport(0, 0, W, H);

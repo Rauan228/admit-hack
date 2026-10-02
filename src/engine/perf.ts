@@ -75,3 +75,31 @@ export class AdaptivePerf {
     this.throttling = false;
   }
 }
+
+/** Общий WebGL-буфер атлетов (ui/three/renderer.ts) не больше этого по стороне — холст не крупнее. */
+export const RENDER_MAX_SIDE = 2048;
+
+/**
+ * Во сколько раз рисовать холст относительно его CSS-размера: по плотности экрана (телефон 3×, увеличение
+ * страницы в браузере тоже поднимает её), но не больше бюджета пикселей на холст — слабым телефонам не
+ * тяжело, — и не больше общего буфера по стороне.
+ */
+export function canvasScale(cssW: number, cssH: number, mobile: boolean, maxSide = RENDER_MAX_SIDE): number {
+  const dpr = globalThis.devicePixelRatio || 1;
+  const budget = mobile ? 2_200_000 : 4_500_000;
+  let s = Math.min(dpr, mobile ? 2.5 : 3);
+  s = Math.min(s, Math.sqrt(budget / Math.max(1, cssW * cssH)));
+  s = Math.min(s, maxSide / Math.max(1, cssW, cssH));
+  return Math.max(0.5, s);
+}
+
+/**
+ * Облегчённая модель атлета (в ~3 раза меньше треугольников) — только слабым устройствам: мало памяти
+ * или ядер. Современный телефон получает полную — вблизи облегчённая видна гранями.
+ */
+export function wantsLiteModel(nav: Navigator | undefined = globalThis.navigator): boolean {
+  if (!nav) return false;
+  const memory = (nav as Navigator & { deviceMemory?: number }).deviceMemory;
+  const cores = nav.hardwareConcurrency;
+  return (typeof memory === 'number' && memory < 4) || (typeof cores === 'number' && cores > 0 && cores < 4);
+}
