@@ -29,6 +29,8 @@
           <span class="guard-pill" id="guard-pill" hidden>🛡 Защита</span>
         </div>
         <div class="ring__bot" id="side-bot">
+          <canvas class="ring__fpv" id="fpv" aria-hidden="true"></canvas>
+          <div class="ring__vignette" aria-hidden="true"></div>
           <div class="ring__floor" aria-hidden="true"></div>
           <div class="ring__ghost" id="bot-ghost" aria-hidden="true"></div>
           <div class="warn" id="warn" aria-hidden="true">!</div>
@@ -99,12 +101,21 @@
             <p class="menu__kicker">Файтинг с камерой</p>
             <h1 class="menu__title">Бокс с ботом</h1>
             <p class="menu__lead">
-              Телефон — горизонтально, ты слева, бот справа. Прямые удары снимают ему здоровье, его замах —
-              твой сигнал закрыться или уклониться. До двух побед в раундах по 45 секунд.
+              Телефон — горизонтально. Прямые удары снимают боту здоровье, его замах — твой сигнал закрыться
+              или уклониться. До двух побед в раундах по 45 секунд.
             </p>
             <div class="menu__ghost" id="menu-ghost" aria-hidden="true"></div>
           </div>
           <div class="menu__pick">
+            <h2 class="menu__sub">Вид</h2>
+            <div class="views" role="radiogroup" aria-label="Вид боя">
+              <button class="view-pick" type="button" role="radio" data-view-pick="fpv">
+                <b>От первого лица</b><span>Перед тобой ринг и соперник, внизу твои перчатки</span>
+              </button>
+              <button class="view-pick" type="button" role="radio" data-view-pick="side">
+                <b>Сбоку</b><span>Ты слева на камере, бот справа — как в файтинге</span>
+              </button>
+            </div>
             <h2 class="menu__sub">Соперник</h2>
             <div class="bots" id="bots" role="radiogroup" aria-label="Соперник"></div>
             <button class="btn btn--primary btn--lg menu__go" id="camera-on" type="button">Начать бой</button>

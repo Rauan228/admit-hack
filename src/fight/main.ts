@@ -2,7 +2,9 @@
 // Файтинг на широком экране: слева ты (камера и скелет), справа бот (3D-атлет), сверху здоровье.
 // Экраны: menu (выбор бота) → setup (камера) → arena (подготовка 5 с → раунды) → result.
 // Время, здоровье и исход — в FightMatch; стойка (блок, уклон) — StanceTracker; здесь движок, DOM и звук.
-// Для проверок: ?mock=1 (мок-движок), ?bot=machine.
+// Два вида: «от первого лица» (fpv.ts — 3D-ринг, камера в игре — твоя голова, внизу твои перчатки, твоя
+// камера — в углу) и «сбоку» (ты слева, бот справа). Логика боя у них общая.
+// Для проверок: ?mock=1 (мок-движок), ?bot=machine, ?view=side|fpv.
 
 import '../ui/styles/global.css';
 import './fight.css';
@@ -25,10 +27,13 @@ import {
   type FightEvent,
   type FightSnapshot,
 } from './fight';
+import type { FpvView } from './fpv';
+import { FRAMING_HINT, GloveTracker, framing, type Framing } from './gloves';
 import { fightSfx, unlockFightAudio } from './sfx';
 import { StanceTracker } from './stance';
 
 type Screen = 'menu' | 'setup' | 'arena' | 'result';
+type View = 'fpv' | 'side';
 
 /** Потолок подхода для движка: раунд держит таймер страницы, не цель по ударам. */
 const ENGINE_TARGET = 1000;
@@ -43,6 +48,15 @@ const SWING = {
 } as const;
 /** Бот стоит почти боком и смотрит на тебя — влево. */
 const BOT_YAW = -1.0;
+/** От первого лица: отдача бота от твоего удара, тряска камеры, падение при нокауте, мс. */
+const RECOIL_MS = 260;
+const SHAKE_HIT_MS = 380;
+const SHAKE_BLOCK_MS = 180;
+const KO_FALL_MS = 900;
+const VIEW_KEY = 'forma.fight.view.v1';
+/** Кадр плохой дольше — подсказка; в бою повторяем не чаще. */
+const FRAMING_BAD_MS = 1200;
+const FRAMING_HINT_EVERY_MS = 4000;
 const BOT_ABOUT: Record<FightBot['id'], string> = {
   novice: 'Редкие атаки, почти не блокирует',
   athlete: 'Держит темп, каждый пятый удар — в блок',
@@ -51,6 +65,7 @@ const BOT_ABOUT: Record<FightBot['id'], string> = {
 
 const params = new URLSearchParams(location.search);
 const MOBILE = isMobileDevice();
+let view: View = readView();
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const app = $<HTMLElement>('app');
@@ -132,6 +147,71 @@ let botAnim: { kind: 'idle' | 'windup' | 'hit' | 'recover'; since: number; side:
   side: 'left',
 };
 let botAnimGen = 0;
+/** Вид от первого лица: сцена (отдельный чанк three.js), перчатки, сдвиг корпуса, эффекты. */
+let fpv: FpvView | null = null;
+let fpvLoading: Promise<void> | null = null;
+const gloves = new GloveTracker();
+let shift = { x: 0, y: 0 };
+let recoilAt = -Infinity;
+let shakeAt = -Infinity;
+let shakeMs = 0;
+let koAt = -Infinity;
+let frameIs: Framing = 'none';
+let frameBadSince = 0;
+let frameHintAt = -Infinity;
+
+function readView(): View {
+  const q = params.get('view');
+  if (q === 'fpv' || q === 'side') return q;
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    if (v === 'fpv' || v === 'side') return v;
+  } catch {
+    /* без хранилища — по умолчанию */
+  }
+  return 'fpv';
+}
+
+function setView(next: View): void {
+  view = next;
+  app.dataset.view = next;
+  try {
+    localStorage.setItem(VIEW_KEY, next);
+  } catch {
+    /* не запомним — не страшно */
+  }
+  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-view-pick]')) {
+    const on = b.dataset.viewPick === next;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-checked', String(on));
+  }
+}
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-view-pick]')) {
+  b.addEventListener('click', () => setView(b.dataset.viewPick as View));
+}
+setView(view);
+
+/** Сцена от первого лица: грузим three.js и модель один раз, при первом входе в бой. */
+function ensureFpv(): void {
+  if (fpv || fpvLoading) return;
+  fpvLoading = import('./fpv')
+    .then((m) => {
+      fpv = new m.FpvView($<HTMLCanvasElement>('fpv'), MOBILE);
+    })
+    .catch((err) => {
+      // Без WebGL — вид сбоку, он работает и на 2D.
+      console.error('[fight] вид от первого лица не запустился', err);
+      setView('side');
+      mountBotGhost();
+    })
+    .finally(() => {
+      fpvLoading = null;
+    });
+}
+
+function mountBotGhost(): void {
+  botGhost ??= mountGhost($('bot-ghost'), { exercise: 'boxing', yaw: BOT_YAW, clock: botClock });
+}
 
 // ——— Меню: выбор бота ———
 function paintBots(): void {
@@ -259,10 +339,12 @@ async function startEngine(): Promise<void> {
 function toSetup(): void {
   show('setup');
   seen = null;
+  frameIs = 'none';
   engine?.setMode('menu');
   ui.start.disabled = !engineReady;
   ui.setupMeta.textContent = `Против бота «${bot.name}» · до двух побед, раунд 45 с`;
-  botGhost ??= mountGhost($('bot-ghost'), { exercise: 'boxing', yaw: BOT_YAW, clock: botClock });
+  if (view === 'fpv') ensureFpv();
+  else mountBotGhost();
   botAnim = { kind: 'idle', since: performance.now(), side: 'left' };
   ui.hudBot.textContent = bot.name;
 }
@@ -279,14 +361,17 @@ function onEvent(e: EngineEvent): void {
       lastLandmarks = e.landmarks;
       lastImage = e.image instanceof HTMLCanvasElement ? e.image : null;
       lastFrameAt = now;
-      if (page === 'setup' && engineReady && e.landmarks.length > 0 !== seen) {
+      // Стойка: блок и уклон — по точкам каждого кадра.
+      const aspect = video.videoWidth > 0 ? video.videoWidth / video.videoHeight : 16 / 9;
+      if (view === 'fpv') checkFraming(framing(e.landmarks, aspect), now);
+      else if (page === 'setup' && engineReady && e.landmarks.length > 0 !== seen) {
         seen = e.landmarks.length > 0;
         if (seen) setStatus('Вижу тебя — кулаки к подбородку', 'ok');
         else setStatus('Тебя не видно — встань так, чтобы в кадре были голова, плечи и пояс.', 'bad');
       }
-      // Стойка: блок и уклон — по точкам каждого кадра.
-      const aspect = video.videoWidth > 0 ? video.videoWidth / video.videoHeight : 16 / 9;
       const st = stance.update(e.landmarks, now, aspect);
+      shift = { x: st.shiftX, y: st.shiftY };
+      gloves.update(e.landmarks, now, aspect);
       match?.setGuard(now, st.guard);
       if (st.dodge) match?.dodge(now);
       if (st.guard !== guardShown) {
@@ -296,6 +381,7 @@ function onEvent(e: EngineEvent): void {
       break;
     }
     case 'calibration':
+      if (page === 'setup' && view === 'fpv') break; // от первого лица кадр проверяет checkFraming
       if (page === 'setup') {
         if (e.status === 'ok') setStatus('Вижу тебя — кулаки к подбородку', 'ok');
         else setStatus(e.hint, 'bad');
@@ -319,6 +405,31 @@ function onEvent(e: EngineEvent): void {
   }
 }
 
+/**
+ * От первого лица удар виден по локтям: просим встать так, чтобы они были в кадре. На подготовке — статус
+ * сразу, в бою — подсказка, если кадр плохой дольше FRAMING_BAD_MS (не чаще раза в FRAMING_HINT_EVERY_MS).
+ */
+function checkFraming(f: Framing, now: number): void {
+  if (f !== frameIs) {
+    frameIs = f;
+    frameBadSince = now;
+    if (page === 'setup' && engineReady) {
+      if (f === 'ok') setStatus('Вижу тебя — кулаки к подбородку', 'ok');
+      else setStatus(FRAMING_HINT[f], 'bad');
+    }
+  }
+  if (
+    f !== 'ok' &&
+    page === 'arena' &&
+    app.dataset.phase === 'fight' &&
+    now - frameBadSince > FRAMING_BAD_MS &&
+    now - frameHintAt > FRAMING_HINT_EVERY_MS
+  ) {
+    frameHintAt = now;
+    hint(FRAMING_HINT[f], 'bad');
+  }
+}
+
 // ——— Бой ———
 function startMatch(): void {
   unlock();
@@ -330,6 +441,8 @@ function startMatch(): void {
   ui.floatMe.replaceChildren();
   ui.floatBot.replaceChildren();
   botAnim = { kind: 'idle', since: performance.now(), side: 'left' };
+  koAt = -Infinity;
+  recoilAt = -Infinity;
   engine?.setMode('menu');
   show('arena');
   app.dataset.phase = 'prep';
@@ -353,6 +466,8 @@ $<HTMLButtonElement>('change').addEventListener('click', () => {
 function onPunch(now: number, clean: boolean): void {
   const r = match?.punch(now, clean);
   if (!r) return;
+  gloves.punch(now);
+  if (!r.blocked) recoilAt = now;
   if (r.blocked) {
     fightSfx.blockedByBot();
     floater(ui.floatBot, 'Блок', 'floater--word');
@@ -367,6 +482,7 @@ function onPunch(now: number, clean: boolean): void {
     pop(ui.combo);
   }
   if (r.ko) {
+    koAt = now;
     ui.sideBot.classList.add('is-ko');
     fightSfx.ko();
   }
@@ -396,17 +512,19 @@ function onFightEvent(e: FightEvent, now: number): void {
       }, HIT_MS);
       if (e.result === 'landed') {
         fightSfx.hurt();
-        floater(ui.floatMe, `-${e.damage}`, 'floater--hurt');
+        floater(meFloats(), `-${e.damage}`, 'floater--hurt');
         flash(ui.sideMe, 'is-hurt', 400);
         flash(app, 'is-shake', 300);
+        shake(now, SHAKE_HIT_MS);
         if (!e.ko) hint('Закройся: кулаки у подбородка', 'bad');
       } else if (e.result === 'blocked') {
         fightSfx.guard();
-        floater(ui.floatMe, 'Блок', 'floater--word');
+        shake(now, SHAKE_BLOCK_MS);
+        floater(meFloats(), 'Блок', 'floater--word');
         flash(ui.sideMe, 'is-guard', 300);
       } else {
         fightSfx.dodge();
-        floater(ui.floatMe, 'Уклон!', 'floater--word floater--good');
+        floater(meFloats(), 'Уклон!', 'floater--word floater--good');
         flash(ui.sideMe, 'is-dodge', 300);
       }
       if (e.ko) fightSfx.ko();
@@ -437,6 +555,7 @@ function onPhase(phase: FightSnapshot['phase'], round: number): void {
       ui.tips.hidden = true;
       ui.combo.hidden = true;
       ui.sideBot.classList.remove('is-ko');
+      koAt = -Infinity;
       botAnim = { kind: 'idle', since: performance.now(), side: 'left' };
       banner(`Раунд ${round}`, '', '');
       fightSfx.bell();
@@ -520,6 +639,46 @@ function frame(): void {
     errorJoints = new Set();
   }
   draw();
+  if (view === 'fpv' && fpv && (page === 'setup' || page === 'arena' || page === 'result')) renderFpv(now);
+}
+
+function shake(now: number, ms: number): void {
+  shakeAt = now;
+  shakeMs = ms;
+}
+
+/** Кадр от первого лица: поза и выпад бота, отдача, нокаут, перчатки, камера за корпусом. */
+function renderFpv(now: number): void {
+  const since = (t: number, ms: number) => Math.max(0, Math.min(1, (now - t) / ms));
+  const recoil = now - recoilAt < RECOIL_MS ? 1 - since(recoilAt, RECOIL_MS) : 0;
+  const shk = now - shakeAt < shakeMs ? 1 - since(shakeAt, shakeMs) : 0;
+  fpv!.render({
+    botT: botClock(),
+    botLunge: botLunge(now),
+    botRecoil: recoil * recoil,
+    botKo: koAt > -Infinity ? since(koAt, KO_FALL_MS) : 0,
+    gloves: gloves.read(now),
+    shiftX: shift.x,
+    shiftY: shift.y,
+    shake: shk,
+  });
+}
+
+/** Шаг бота в удар: на замахе откидывается, в ударе — к тебе, потом обратно. */
+function botLunge(now: number): number {
+  const u = (ms: number) => Math.max(0, Math.min(1, (now - botAnim.since) / ms));
+  switch (botAnim.kind) {
+    case 'idle':
+      return 0;
+    case 'windup': {
+      const k = u(match?.rules.windupMs ?? 700);
+      return -0.2 * k * k;
+    }
+    case 'hit':
+      return -0.2 + 1.2 * u(HIT_MS);
+    case 'recover':
+      return 1 - u(RECOVER_MS);
+  }
 }
 
 function render(s: FightSnapshot, now: number): void {
@@ -626,6 +785,11 @@ function hint(text: string, kind: 'ok' | 'bad'): void {
   ui.hintBox.dataset.kind = kind;
   ui.hintBox.hidden = false;
   hintUntil = performance.now() + HINT_MS;
+}
+
+/** Твои числа и слова: от первого лица — посреди экрана (окошко камеры маленькое). */
+function meFloats(): HTMLElement {
+  return view === 'fpv' ? ui.floatBot : ui.floatMe;
 }
 
 /** Летящее число или слово над бойцом. */

@@ -185,6 +185,149 @@
   }
 }
 
+/* ——— От первого лица: весь экран — 3D-ринг, твоя камера — окошко в углу ——— */
+.ring__fpv,
+.ring__vignette {
+  display: none;
+}
+
+.fight[data-view='fpv'] .ring {
+  display: block;
+}
+
+.fight[data-view='fpv'] .ring__bot {
+  position: absolute;
+  inset: 0;
+  background: #070504;
+}
+
+.fight[data-view='fpv'] .ring__fpv {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fight[data-view='fpv'] .ring__ghost,
+.fight[data-view='fpv'] .ring__floor {
+  display: none;
+}
+
+.fight[data-view='fpv'] .ring__me {
+  position: absolute;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 3;
+  width: clamp(150px, 22vw, 320px);
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-lg);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+/* Пропущенный удар — красные края всего экрана, блок — серые, уклон — зелёные. */
+.fight[data-view='fpv'] .ring__vignette {
+  position: absolute;
+  inset: 0;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(75% 70% at 50% 50%, rgba(239, 68, 68, 0) 45%, rgba(220, 38, 38, 0.75) 100%);
+}
+
+.fight[data-view='fpv'] .ring__me.is-hurt ~ .ring__bot .ring__vignette {
+  animation: flash 0.55s var(--ease-out);
+}
+
+.fight[data-view='fpv'] .ring__me.is-guard ~ .ring__bot .ring__vignette {
+  background: radial-gradient(75% 70% at 50% 50%, rgba(161, 161, 170, 0) 50%, rgba(161, 161, 170, 0.45) 100%);
+  animation: flash 0.3s var(--ease-out);
+}
+
+.fight[data-view='fpv'] .ring__me.is-dodge ~ .ring__bot .ring__vignette {
+  background: radial-gradient(75% 70% at 50% 50%, rgba(34, 197, 94, 0) 50%, rgba(34, 197, 94, 0.4) 100%);
+  animation: flash 0.3s var(--ease-out);
+}
+
+/* Твой удар дошёл — короткая вспышка без красного «урона по себе». */
+.fight[data-view='fpv'] .ring__bot.is-hit .ring__flash {
+  background: radial-gradient(40% 40% at 50% 45%, rgba(255, 237, 213, 0.35) 0%, rgba(255, 237, 213, 0) 100%);
+}
+
+.fight[data-view='fpv'] .hint {
+  bottom: max(28px, env(safe-area-inset-bottom));
+  left: 50%;
+}
+
+.fight[data-view='fpv'] .tips {
+  bottom: auto;
+  top: 18%;
+}
+
+.fight[data-view='fpv'] .warn {
+  top: 14%;
+}
+
+.fight[data-view='fpv'] .guard-pill {
+  top: 8px;
+}
+
+/* Выбор вида в меню. */
+.views {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+.view-pick {
+  display: grid;
+  gap: 4px;
+  min-height: 64px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  color: var(--fg);
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.view-pick b {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.view-pick span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.view-pick:hover {
+  background: var(--surface-3);
+}
+
+.view-pick.is-active {
+  background: var(--fg);
+  color: var(--on-light);
+}
+
+.view-pick.is-active span {
+  color: var(--on-light-muted);
+}
+
+.view-pick:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
 /* Стойка защиты распознана — метка над тобой. */
 .guard-pill {
   position: absolute;
