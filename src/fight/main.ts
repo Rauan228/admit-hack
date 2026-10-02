@@ -27,8 +27,9 @@ import {
   type FightEvent,
   type FightSnapshot,
 } from './fight';
-import type { FpvView } from './fpv';
-import { FRAMING_HINT, GloveTracker, framing, type Framing } from './gloves';
+import { PUNCH_CONTACT_MS, type FpvPunch, type FpvView } from './fpv';
+import { FRAMING_HINT, GloveTracker, framing, type Framing, type GloveSide } from './gloves';
+import { PunchDetector } from './punch';
 import { fightSfx, unlockFightAudio } from './sfx';
 import { StanceTracker } from './stance';
 
@@ -157,6 +158,15 @@ let shakeAt = -Infinity;
 let shakeMs = 0;
 let koAt = -Infinity;
 let frameIs: Framing = 'none';
+/**
+ * От первого лица удар — событие детектора (punch.ts) в начале удара: перчатка летит сразу, урон — в момент
+ * касания. Повтор движка приходит позже (рука уже вернулась) и путает руку — здесь он только для подсказок
+ * по технике: удар с ошибкой техники за последние FLAWED_MS — «с ошибкой» (меньше урона).
+ */
+const punchDetector = new PunchDetector();
+const punches: Partial<Record<GloveSide, FpvPunch>> = {};
+let lastFormErrorAt = -Infinity;
+const FLAWED_MS = 1500;
 let frameBadSince = 0;
 let frameHintAt = -Infinity;
 
@@ -372,6 +382,7 @@ function onEvent(e: EngineEvent): void {
       const st = stance.update(e.landmarks, now, aspect);
       shift = { x: st.shiftX, y: st.shiftY };
       gloves.update(e.landmarks, now, aspect);
+      if (view === 'fpv') onPunches(punchDetector.update(e.landmarks, now, aspect));
       match?.setGuard(now, st.guard);
       if (st.dodge) match?.dodge(now);
       if (st.guard !== guardShown) {
@@ -392,10 +403,12 @@ function onEvent(e: EngineEvent): void {
       else if (page === 'result') startMatch();
       break;
     case 'rep':
-      onPunch(now, e.errors.length === 0);
+      // От первого лица удары считает детектор (onPunches), повтор движка — только для подсказок по технике.
+      if (view !== 'fpv') onPunch(now, e.errors.length === 0);
       break;
     case 'form_error':
       if (page !== 'arena') break;
+      lastFormErrorAt = now;
       hint(e.message, 'bad');
       errorJoints = new Set(e.joints);
       break;
@@ -434,6 +447,9 @@ function checkFraming(f: Framing, now: number): void {
 function startMatch(): void {
   unlock();
   match = new FightMatch({ bot, seed: (Math.random() * 2 ** 31) | 0 }, performance.now());
+  punchDetector.reset();
+  delete punches.left;
+  delete punches.right;
   shown = { hpMe: -1, hpBot: -1, second: -1, combo: -1, round: -1, lastTen: false, winsMe: -1, winsBot: -1 };
   errorJoints = new Set();
   ui.hudBot.textContent = bot.name;
@@ -462,11 +478,23 @@ $<HTMLButtonElement>('change').addEventListener('click', () => {
   show('menu');
 });
 
-/** Твой удар (rep движка). */
+/** Удары детектора (от первого лица): перчатка летит сразу, урон и эффекты — в момент касания. */
+function onPunches(list: ReturnType<PunchDetector['update']>): void {
+  if (!match || page !== 'arena' || app.dataset.phase !== 'fight') return;
+  for (const p of list) {
+    punches[p.side] = { start: p.t, low: p.low, hook: p.hook };
+    const clean = p.t - lastFormErrorAt > FLAWED_MS;
+    setTimeout(() => {
+      if (page === 'arena' && app.dataset.phase === 'fight') onPunch(performance.now(), clean);
+    }, PUNCH_CONTACT_MS);
+  }
+}
+
+/** Твой удар (от первого лица — касание перчатки, сбоку — повтор движка). */
 function onPunch(now: number, clean: boolean): void {
   const r = match?.punch(now, clean);
   if (!r) return;
-  gloves.punch(now);
+  if (view !== 'fpv') gloves.punch(now);
   if (!r.blocked) recoilAt = now;
   if (r.blocked) {
     fightSfx.blockedByBot();
@@ -661,6 +689,8 @@ function renderFpv(now: number): void {
     shiftX: shift.x,
     shiftY: shift.y,
     shake: shk,
+    punches,
+    now,
   });
 }
 
