@@ -38,10 +38,10 @@ import J from './zanatomyJoints.json';
 type V3 = { x: number; y: number; z: number };
 type JointName = keyof typeof J;
 
-import { isMobileDevice } from '../../engine/perf';
+import { wantsLiteModel } from '../../engine/perf';
 
-/** Телефону — облегчённая модель (~3× меньше треугольников). */
-const MODEL_URL = `${import.meta.env.BASE_URL}models/${isMobileDevice() ? 'athlete-lite' : 'athlete'}.glb`;
+/** Слабому устройству — облегчённая модель (~3× меньше треугольников), остальным — полная. */
+const MODEL_URL = `${import.meta.env.BASE_URL}models/${wantsLiteModel() ? 'athlete-lite' : 'athlete'}.glb`;
 
 // ——— Кости ———
 
