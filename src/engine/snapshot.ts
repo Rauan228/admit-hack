@@ -7,7 +7,7 @@
 // остаётся прошлый кадр вместе со своими точками — картинка и скелет не расходятся.
 
 /** Кадр для модели и для экрана: видео или холст. */
-export type FrameSource = HTMLVideoElement | HTMLCanvasElement | OffscreenCanvas;
+export type FrameSource = HTMLVideoElement | HTMLCanvasElement | OffscreenCanvas | ImageBitmap;
 
 /** Размер кадра в пикселях: у видео — размер потока, у холста — его размер. */
 export function sourceSize(src: FrameSource): { w: number; h: number } {
@@ -29,12 +29,20 @@ function browserCanvas(): SnapshotCanvas | null {
 }
 
 export class FrameSnapshots {
-  private readonly slots: (SnapshotCanvas | null)[] = [null, null];
+  private readonly slots: (SnapshotCanvas | null)[];
   private back = 0;
   private front: HTMLCanvasElement | null = null;
   private broken = false;
+  /** Следующий холст по кругу для captureNext. */
+  private ring = 0;
 
-  constructor(private readonly create: () => SnapshotCanvas | null = browserCanvas) {}
+  /** count — холстов: 2 для одного кадра в пути, больше — когда кадров в пути несколько (воркер). */
+  constructor(
+    private readonly create: () => SnapshotCanvas | null = browserCanvas,
+    count = 2,
+  ) {
+    this.slots = Array.from({ length: Math.max(2, count) }, () => null);
+  }
 
   /** Кадр, на котором посчитаны последние точки; null — снимков нет, экран рисует видео. */
   get frame(): HTMLCanvasElement | null {
@@ -43,17 +51,37 @@ export class FrameSnapshots {
 
   /** Копирует текущий кадр видео в свободный холст. null — снимок недоступен: модель берёт само видео. */
   capture(video: HTMLVideoElement): HTMLCanvasElement | null {
+    return this.draw(this.back, video);
+  }
+
+  /**
+   * Несколько кадров в пути (детектор в воркере): каждый снимок — в свой холст по кругу, не трогая тот,
+   * что сейчас на экране. Показать его — commitFrame, когда придут его точки.
+   */
+  captureNext(video: HTMLVideoElement): HTMLCanvasElement | null {
+    let i = this.ring;
+    if (this.slots[i]?.canvas === this.front) i = (i + 1) % this.slots.length;
+    this.ring = (i + 1) % this.slots.length;
+    return this.draw(i, video);
+  }
+
+  /** Точки по этому снимку пришли: он — кадр на экране. */
+  commitFrame(canvas: HTMLCanvasElement): void {
+    this.front = canvas;
+  }
+
+  private draw(i: number, video: HTMLVideoElement): HTMLCanvasElement | null {
     if (this.broken) return null;
     const { w, h } = sourceSize(video);
     if (!(w > 0 && h > 0)) return null;
-    let slot = this.slots[this.back] ?? null;
+    let slot = this.slots[i] ?? null;
     if (!slot) {
       slot = this.create();
       if (!slot) {
         this.broken = true;
         return null;
       }
-      this.slots[this.back] = slot;
+      this.slots[i] = slot;
     }
     if (slot.canvas.width !== w || slot.canvas.height !== h) {
       slot.canvas.width = w;
@@ -72,6 +100,6 @@ export class FrameSnapshots {
     const slot = this.slots[this.back];
     if (!slot) return;
     this.front = slot.canvas;
-    this.back = 1 - this.back;
+    this.back = (this.back + 1) % this.slots.length;
   }
 }
