@@ -47,6 +47,7 @@ async function run(job) {
     model: job.model ?? 'full',
     delegate: job.delegate ?? 'CPU',
     numPoses: String(job.numPoses ?? 1),
+    ...(job.bar ? { bar: '1' } : {}),
   });
   const started = Date.now();
   await page.goto(`${base}dev/extract.html?${params}`);

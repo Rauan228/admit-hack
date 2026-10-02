@@ -19,7 +19,8 @@ export type ExerciseId =
   | 'boxing'
   | 'push_up'
   | 'plank'
-  | 'burpee';
+  | 'burpee'
+  | 'pull_up';
 export type Joint = number; // индекс точки MediaPipe (0..32)
 
 export interface Landmark {
@@ -106,4 +107,5 @@ export const EXERCISES: readonly ExerciseId[] = [
   'push_up',
   'plank',
   'burpee',
+  'pull_up',
 ];

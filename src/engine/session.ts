@@ -110,6 +110,12 @@ export class ExerciseSession<M extends BaseMetrics = BaseMetrics> {
     this.lastMeasuredAt = t;
     this.last = m;
     if (this.def.hold) return this.updateHold(m, t);
+    if (m.abort && this.counter.phase !== 'start') {
+      this.counter.reset();
+      this.repFrames = [];
+      this.atBottom = null;
+      return [{ type: 'phase', exercise: this.def.id, phase: 'start' }];
+    }
 
     const out: EngineEvent[] = [];
     const exercise = this.def.id;

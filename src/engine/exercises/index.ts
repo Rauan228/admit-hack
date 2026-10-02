@@ -8,6 +8,7 @@ import { createBurpee } from './burpee';
 import { createCalfRaise } from './calfRaise';
 import { createCrossJack } from './crossJack';
 import { createPlank, createPushUp } from './floor';
+import { createPullUp } from './pullUp';
 import { createHighKnees } from './highKnees';
 import { createJumpingJack } from './jumpingJack';
 import { createJumpSquat } from './jumpSquat';
@@ -39,6 +40,7 @@ const FACTORIES: Partial<Record<ExerciseId, () => ExerciseDef<BaseMetrics>>> = {
   push_up: createPushUp as () => ExerciseDef<BaseMetrics>,
   plank: createPlank as () => ExerciseDef<BaseMetrics>,
   burpee: createBurpee as () => ExerciseDef<BaseMetrics>,
+  pull_up: createPullUp as () => ExerciseDef<BaseMetrics>,
 };
 
 /** Описание упражнения или null, если движок его пока не умеет. */

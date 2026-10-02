@@ -40,6 +40,12 @@ export function runSession<M extends BaseMetrics>(
     if (!frame) continue;
     const m = meter.measure(frame, counter.phase);
     if (!m) continue;
+    if (m.abort && counter.phase !== 'start') {
+      counter.reset();
+      repFrames = [];
+      atBottom = null;
+      continue;
+    }
     const wasStart = counter.phase === 'start';
     const evs = counter.update(m.progress, frame.t, m.returned);
     res.events.push(...evs);
@@ -86,6 +92,9 @@ export function fixtureFrames(file: FixtureFile, every = 1): (PoseFrame | null)[
     .filter((_, i) => i % every === 0)
     .map((f) => {
       const d = decodeDetection(f);
-      return d ? smoothPose(smoother, d.image, d.world, f.t, file.aspect) : null;
+      const frame = d ? smoothPose(smoother, d.image, d.world, f.t, file.aspect) : null;
+      // Турник, найденный по пикселям при записи (подтягивания), — как его видит живая камера.
+      if (frame && f.b !== undefined) frame.bar = f.b === 0 ? null : { y: f.b[0], score: f.b[1] };
+      return frame;
     });
 }

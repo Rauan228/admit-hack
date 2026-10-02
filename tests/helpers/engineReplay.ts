@@ -35,6 +35,11 @@ export async function engineEvents(file: FixtureFile, exercise: ExerciseId): Pro
     },
     now: () => clock,
     measureBrightness: () => 120,
+    // Турник — тот, что найден по пикселям при записи (подтягивания).
+    findBar: () => {
+      const b = file.frames[k]?.b;
+      return b === undefined ? undefined : b === 0 ? null : { y: b[0], score: b[1] };
+    },
   };
   const engine = createRealEngine(deps);
   const events: EngineEvent[] = [];

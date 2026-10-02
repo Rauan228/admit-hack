@@ -22,6 +22,7 @@ describe('engine contract', () => {
       'push_up',
       'plank',
       'burpee',
+      'pull_up',
     ]);
   });
 

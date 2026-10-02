@@ -39,6 +39,7 @@ export const GHOST_DURATION_MS: Record<ExerciseId, number> = {
   push_up: 2400,
   plank: 2000,
   burpee: 3600,
+  pull_up: 3000,
 };
 
 /** Сколько ключевых кадров на цикл. */
@@ -156,6 +157,10 @@ function poseAt(exercise: ExerciseId, u: number): Landmark[] {
       ).image;
     case 'burpee':
       return burpeePose(u, base);
+    case 'pull_up':
+      // Вис на прямых руках → тело поднимается к перекладине (стопы отрываются от пола) → обратно.
+      // Ниже и мельче, чем стоя: кисти над головой не должны уходить за верх кадра.
+      return synthFrame({ ...STAND, ...base, height: 0.66, arms: 172, footY: 0.97 - 0.1 * w }, 0).image;
   }
 }
 
@@ -206,6 +211,7 @@ export const GHOST_KEYFRAMES: Record<ExerciseId, Landmark[][]> = {
   push_up: frames('push_up'),
   plank: frames('plank'),
   burpee: frames('burpee'),
+  pull_up: frames('pull_up'),
 };
 
 function frames(exercise: ExerciseId): Landmark[][] {

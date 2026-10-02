@@ -5,6 +5,7 @@
 // Параметры в адресе: src (URL видео), fps (частота выборки), from/to (секунды),
 // model (lite|full), delegate (CPU|GPU). Результат кладётся в window.__fixture.
 
+import { BAR_H, BAR_W, barRegion, sampleBar } from '../src/engine/bar';
 import { createPoseDetector } from '../src/engine/pose';
 import { encodeFrame, type FixtureFile } from '../src/engine/recorder';
 import type { PoseModel } from '../src/engine/config';
@@ -18,11 +19,13 @@ const model = (q.get('model') ?? 'full') as PoseModel;
 const delegate = (q.get('delegate') ?? 'CPU') as 'CPU' | 'GPU';
 const numPoses = Number(q.get('numPoses') ?? 1);
 const shadowLift = q.get('shadow') === '1';
+/** bar=1 — сохранить ещё и серые вырезки вокруг кистей (поиск турника, подтягивания). */
+const withBar = q.get('bar') === '1';
 const log = document.querySelector('#log')!;
 
 declare global {
   interface Window {
-    __fixture?: FixtureFile;
+    __fixture?: FixtureFile & { bars?: { t: number; r: number[]; g: string }[] };
     __error?: string;
     __detectMs?: number[];
   }
@@ -53,6 +56,9 @@ async function main(): Promise<void> {
   const detector = await createPoseDetector({ model, delegate, numPoses, shadowLift });
   const to = Math.min(toParam, video.duration);
   const frames: FixtureFile['frames'] = [];
+  const bars: { t: number; r: number[]; g: string }[] = [];
+  const barCtx = new OffscreenCanvas(BAR_W, BAR_H).getContext('2d', { willReadFrequently: true })!;
+  const aspect = video.videoWidth / video.videoHeight;
   /** Время детекции каждого кадра, мс — для сравнения моделей и настроек (window.__detectMs). */
   const detectMs: number[] = [];
   window.__detectMs = detectMs;
@@ -66,6 +72,13 @@ async function main(): Promise<void> {
     const detection = detector.detect(video, tMs);
     detectMs.push(performance.now() - t0);
     frames.push(encodeFrame(tMs, detection));
+    const region = withBar && detection ? barRegion(detection.image, aspect) : null;
+    if (region) {
+      const gray = sampleBar(video, video.videoWidth, video.videoHeight, region, barCtx);
+      let bin = '';
+      for (const v of gray) bin += String.fromCharCode(v);
+      bars.push({ t: tMs, r: [region.x0, region.y0, region.x1, region.y1], g: btoa(bin) });
+    }
     if (i % 30 === 0) log.textContent = `${t.toFixed(1)} / ${to.toFixed(1)} с`;
   }
   detector.close();
@@ -75,6 +88,7 @@ async function main(): Promise<void> {
     aspect: video.videoWidth / video.videoHeight,
     model: detector.model,
     frames,
+    ...(withBar ? { bars } : {}),
   };
   log.textContent = `готово: ${frames.length} кадров`;
 }

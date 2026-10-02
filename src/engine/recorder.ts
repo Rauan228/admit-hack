@@ -13,6 +13,8 @@ export interface FixtureFrame {
   p: number[];
   /** 33 × [x, y, z] мировых координат подряд или отсутствует. */
   w?: number[];
+  /** Турник у кистей (bar.ts): [y, уверенность]; 0 — искали, линии нет; нет поля — не искали. */
+  b?: [number, number] | 0;
 }
 
 export interface FixtureFile {

@@ -34,6 +34,11 @@ export interface PoseFrame {
    * только пока идёт движение, и может отставать на кадр. Нет — кисти не проверялись.
    */
   hands?: Partial<Record<Side, HandSample>>;
+  /**
+   * Перекладина у кистей по пикселям кадра (bar.ts) — только для упражнений на турнике.
+   * undefined — не искали; null — искали, линии нет.
+   */
+  bar?: { y: number; score: number } | null;
 }
 
 export const RAD_TO_DEG = 180 / Math.PI;

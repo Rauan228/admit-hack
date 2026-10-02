@@ -274,6 +274,17 @@ export function exercisePose(
         armR: 12 + air * 160,
       });
     }
+    case 'pull_up': {
+      // Вис: руки вверх; подъём — тело выше, локти сгибаются, кисти остаются у «перекладины».
+      const lift = code === 'chin_low' ? wave * 0.5 : wave;
+      return body({
+        groundY: STANDING_GROUND - 0.16 * lift,
+        armL: 176,
+        armR: 176,
+        elbowL: lift * 120,
+        elbowR: lift * 120,
+      });
+    }
   }
 }
 

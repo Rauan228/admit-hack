@@ -8,6 +8,7 @@
 //   подход с руками над головой; курсор — только после set_complete (на экране итогов).
 // Во всех режимах на каждый обработанный кадр — событие frame (UI рисует скелет).
 
+import { analyzeBar, BAR_H, BAR_W, barRegion, sampleBar, type BarSeen } from './bar';
 import { createBrightnessMeter } from './brightness';
 import { assessCalibration, CalibrationTracker, type CalibrationVerdict } from './calibration';
 import { openCamera, stopCamera } from './camera';
@@ -37,6 +38,16 @@ export interface EngineDeps {
   measureBrightness(video: HTMLVideoElement, tMs: number): number | null;
   /** Детектор кистей (hands.ts) для упражнений с hands: true; нет — кисти не проверяются. */
   createHandDetector?(): Promise<HandDetector>;
+  /**
+   * Турник у кистей (подтягивания). По умолчанию — поиск по пикселям видео (bar.ts); в тестах — из записи.
+   * undefined — искать негде (кисти не видны, нет доступа к пикселям).
+   */
+  findBar?(
+    video: HTMLVideoElement,
+    detection: PoseDetection,
+    tMs: number,
+    aspect: number,
+  ): BarSeen | null | undefined;
 }
 
 function browserDeps(): EngineDeps {
@@ -75,6 +86,9 @@ class RealEngine implements Engine {
   private detector: PoseDetector | null = null;
   private frameId: number | null = null;
   private lastVideoTime = -1;
+  /** Турник (упражнения на перекладине): последний поиск по пикселям и холст для вырезки. */
+  private bar: { t: number; seen: BarSeen | null } | null = null;
+  private barCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null;
   /** Растёт на каждый start/stop: start, который пережил stop, узнаёт об этом и убирает за собой. */
   private generation = 0;
   /** Кисти (E-36): детектор грузится при входе в упражнение с hands; off — выключен (ошибка или медленно). */
@@ -169,6 +183,7 @@ class RealEngine implements Engine {
       console.warn(`[engine] упражнение ${mode.exercise} движок пока не умеет`);
       return;
     }
+    this.bar = null;
     this.session = new ExerciseSession(def, Math.max(1, Math.round(mode.targetReps)), t);
     this.handSamples = {};
     if (def.hands) this.loadHands();
@@ -275,6 +290,8 @@ class RealEngine implements Engine {
     const aspect =
       video.videoWidth > 0 && video.videoHeight > 0 ? video.videoWidth / video.videoHeight : 4 / 3;
     const frame = detection ? smoothPose(this.smoother, detection.image, detection.world, now, aspect) : null;
+    if (frame && detection && this.session?.def.needsBar)
+      frame.bar = (this.deps.findBar ?? this.findBar.bind(this))(video, detection, now, aspect);
     // Пустой массив = в кадре никого: UI стирает скелет. image — кадр, на котором модель считала точки.
     const image = detector.frame;
     const scale = detection
@@ -289,6 +306,42 @@ class RealEngine implements Engine {
     });
     this.process(frame, video, now);
   };
+
+  /**
+   * Перекладина у кистей по пикселям кадра — не чаще раза в barEveryMs (поиск ~1–2 мс), между поисками —
+   * последний результат. undefined — кисти не видны и искать негде.
+   */
+  private findBar(
+    video: HTMLVideoElement,
+    detection: PoseDetection,
+    now: number,
+    aspect: number,
+  ): BarSeen | null | undefined {
+    const every = ENGINE_CONFIG.exercises.pull_up.barEveryMs;
+    if (this.bar && now - this.bar.t < every) return this.bar.seen;
+    const region = barRegion(detection.image, aspect);
+    if (!region || !video.videoWidth)
+      return this.bar && now - this.bar.t < 4 * every ? this.bar.seen : undefined;
+    try {
+      this.barCtx ??=
+        typeof OffscreenCanvas !== 'undefined'
+          ? new OffscreenCanvas(BAR_W, BAR_H).getContext('2d', { willReadFrequently: true })
+          : Object.assign(document.createElement('canvas'), { width: BAR_W, height: BAR_H }).getContext(
+              '2d',
+              {
+                willReadFrequently: true,
+              },
+            );
+      if (!this.barCtx) return undefined;
+      const gray = sampleBar(video, video.videoWidth, video.videoHeight, region, this.barCtx);
+      this.bar = { t: now, seen: analyzeBar(gray, region) };
+      return this.bar.seen;
+    } catch (err) {
+      // Без доступа к пикселям турник не ищем — счёт по движению тела остаётся.
+      console.warn('[engine] поиск турника недоступен', err);
+      return undefined;
+    }
+  }
 
   /**
    * Медленно даже в среднем — один раз переходим на лёгкую модель, не останавливая камеру:
