@@ -23,14 +23,17 @@ import {
   FIGHT_BOTS,
   FightMatch,
   findFightBot,
+  type BotView,
   type FightBot,
   type FightEvent,
   type FightSnapshot,
+  type PunchResult,
+  type Side,
 } from './fight';
-import { PUNCH_CONTACT_MS, type FpvPunch, type FpvView } from './fpv';
+import { DAZE_MS, PUNCH_CONTACT_MS, type FpvPunch, type FpvState, type FpvView } from './fpv';
 import { FRAMING_HINT, GloveTracker, framing, type Framing, type GloveSide } from './gloves';
 import { PunchDetector } from './punch';
-import { fightSfx, unlockFightAudio } from './sfx';
+import { crowdSfx, fightSfx, unlockFightAudio } from './sfx';
 import { StanceTracker } from './stance';
 
 type Screen = 'menu' | 'setup' | 'arena' | 'result';
@@ -39,9 +42,6 @@ type View = 'fpv' | 'side';
 /** Потолок подхода для движка: раунд держит таймер страницы, не цель по ударам. */
 const ENGINE_TARGET = 1000;
 const HINT_MS = 2200;
-/** Удар бота на экране: от замаха до касания — windupMs матча, сам удар и возврат в стойку. */
-const HIT_MS = 110;
-const RECOVER_MS = 320;
 /** Кадры эталона бокса (athleteMotion.json, 2,4 с): джеб левой и кросс правой — стойка, пик, возврат в стойку. */
 const SWING = {
   left: { start: 0, peak: 240, end: 600 },
@@ -49,9 +49,7 @@ const SWING = {
 } as const;
 /** Бот стоит почти боком и смотрит на тебя — влево. */
 const BOT_YAW = -1.0;
-/** От первого лица: отдача бота от твоего удара, тряска камеры, падение при нокауте, мс. */
-const RECOIL_MS = 260;
-const SHAKE_HIT_MS = 380;
+/** От первого лица: тряска камеры от блока, падение при нокауте, мс. */
 const SHAKE_BLOCK_MS = 180;
 const KO_FALL_MS = 900;
 const VIEW_KEY = 'forma.fight.view.v1';
@@ -59,10 +57,13 @@ const VIEW_KEY = 'forma.fight.view.v1';
 const FRAMING_BAD_MS = 1200;
 const FRAMING_HINT_EVERY_MS = 4000;
 const BOT_ABOUT: Record<FightBot['id'], string> = {
-  novice: 'Редкие атаки, почти не блокирует',
-  athlete: 'Держит темп, каждый пятый удар — в блок',
-  machine: 'Бьёт без пауз, блокирует почти половину',
+  novice: 'Часто опускает руки, замах видно издалека',
+  athlete: 'Держит блок, бьёт двойки',
+  machine: 'Короткие замахи, глухая защита, мощные удары',
 };
+/** Бой стоит дольше — трибуны гудят «буу» (не чаще раза в BOO_EVERY_MS). */
+const BOO_IDLE_MS = 9000;
+const BOO_EVERY_MS = 14000;
 
 const params = new URLSearchParams(location.search);
 const MOBILE = isMobileDevice();
@@ -141,19 +142,21 @@ let shown = {
 };
 let botGhost: GhostMount | null = null;
 let menuGhost: GhostMount | null = null;
-/** Анимация бота: стойка, замах, удар, возврат. */
-let botAnim: { kind: 'idle' | 'windup' | 'hit' | 'recover'; since: number; side: 'left' | 'right' } = {
-  kind: 'idle',
-  since: 0,
-  side: 'left',
-};
-let botAnimGen = 0;
+/** Что делает бот (из матча) — для анимации обоих видов. */
+const BOT_IDLE: BotView = { state: 'guard', since: 0, until: Infinity, attack: null };
+let botView: BotView = BOT_IDLE;
 /** Вид от первого лица: сцена (отдельный чанк three.js), перчатки, сдвиг корпуса, эффекты. */
 let fpv: FpvView | null = null;
 let fpvLoading: Promise<void> | null = null;
 const gloves = new GloveTracker();
 let shift = { x: 0, y: 0 };
-let recoilAt = -Infinity;
+let botHurt: FpvState['botHurt'] = null;
+let botBlockedAt = -Infinity;
+let knock: FpvState['knock'] = null;
+let lastActionAt = 0;
+let booAt = -Infinity;
+/** Сбоку руку удара движок не знает — чередуем (для анимации головы бота). */
+let sideAlt: Side = 'left';
 let shakeAt = -Infinity;
 let shakeMs = 0;
 let koAt = -Infinity;
@@ -253,7 +256,7 @@ function paintBots(): void {
       who.append(name, about);
       const stat = document.createElement('span');
       stat.className = 'bot__stat';
-      stat.textContent = `${b.attacksPerMin} атак/мин · урон ${b.damage}`;
+      stat.textContent = `${b.attacksPerMin} атак/мин · урон ${b.jabDamage}–${b.powerDamage}`;
       btn.append(level, who, stat);
       btn.addEventListener('click', () => {
         bot = b;
@@ -355,7 +358,7 @@ function toSetup(): void {
   ui.setupMeta.textContent = `Против бота «${bot.name}» · до двух побед, раунд 45 с`;
   if (view === 'fpv') ensureFpv();
   else mountBotGhost();
-  botAnim = { kind: 'idle', since: performance.now(), side: 'left' };
+  botView = BOT_IDLE;
   ui.hudBot.textContent = bot.name;
 }
 
@@ -404,7 +407,10 @@ function onEvent(e: EngineEvent): void {
       break;
     case 'rep':
       // От первого лица удары считает детектор (onPunches), повтор движка — только для подсказок по технике.
-      if (view !== 'fpv') onPunch(now, e.errors.length === 0);
+      if (view !== 'fpv') {
+        sideAlt = sideAlt === 'left' ? 'right' : 'left';
+        onPunch(now, e.errors.length === 0, sideAlt, false);
+      }
       break;
     case 'form_error':
       if (page !== 'arena') break;
@@ -456,14 +462,17 @@ function startMatch(): void {
   ui.sideBot.classList.remove('is-ko', 'is-windup');
   ui.floatMe.replaceChildren();
   ui.floatBot.replaceChildren();
-  botAnim = { kind: 'idle', since: performance.now(), side: 'left' };
+  botView = BOT_IDLE;
   koAt = -Infinity;
-  recoilAt = -Infinity;
+  botHurt = null;
+  knock = null;
+  botBlockedAt = -Infinity;
   engine?.setMode('menu');
   show('arena');
   app.dataset.phase = 'prep';
   paintPips(0, 0);
   ui.tips.hidden = false;
+  crowdSfx.start();
   say('Приготовься');
 }
 
@@ -475,6 +484,7 @@ $<HTMLButtonElement>('again').addEventListener('click', startMatch);
 $<HTMLButtonElement>('change').addEventListener('click', () => {
   match = null;
   engine?.setMode('menu');
+  crowdSfx.stop();
   show('menu');
 });
 
@@ -485,24 +495,51 @@ function onPunches(list: ReturnType<PunchDetector['update']>): void {
     punches[p.side] = { start: p.t, low: p.low, hook: p.hook };
     const clean = p.t - lastFormErrorAt > FLAWED_MS;
     setTimeout(() => {
-      if (page === 'arena' && app.dataset.phase === 'fight') onPunch(performance.now(), clean);
+      if (page === 'arena' && app.dataset.phase === 'fight') onPunch(performance.now(), clean, p.side, p.low);
     }, PUNCH_CONTACT_MS);
   }
 }
 
+/** Подпись над ботом для особых попаданий. */
+const PUNCH_WORD: Partial<Record<PunchResult['kind'], string>> = {
+  open: 'Открылся!',
+  counter: 'Контратака!',
+  interrupt: 'Поймал на замахе!',
+  body: 'В корпус!',
+};
+
 /** Твой удар (от первого лица — касание перчатки, сбоку — повтор движка). */
-function onPunch(now: number, clean: boolean): void {
-  const r = match?.punch(now, clean);
+function onPunch(now: number, clean: boolean, side: Side, low: boolean): void {
+  const r = match?.punch(now, clean, low);
   if (!r) return;
+  lastActionAt = now;
   if (view !== 'fpv') gloves.punch(now);
-  if (!r.blocked) recoilAt = now;
   if (r.blocked) {
+    botBlockedAt = now;
     fightSfx.blockedByBot();
     floater(ui.floatBot, 'Блок', 'floater--word');
   } else {
-    fightSfx.punch(r.combo);
-    floater(ui.floatBot, `-${r.damage}`, r.combo >= 3 ? 'floater--big' : 'floater--dmg');
+    botHurt = { at: now, side, low };
+    const heavy = r.kind === 'interrupt' ? 1 : r.kind === 'counter' ? 0.7 : r.kind === 'open' ? 0.45 : 0.3;
+    if (r.kind === 'body') fightSfx.body();
+    else fightSfx.punch(r.combo, heavy);
+    floater(ui.floatBot, `-${r.damage}`, r.combo >= 3 || heavy >= 0.7 ? 'floater--big' : 'floater--dmg');
+    const word = PUNCH_WORD[r.kind];
+    if (word) floater(ui.floatBot, word, 'floater--word floater--good');
     flash(ui.sideBot, 'is-hit', 300);
+    // Трибуны: сорванный замах — рёв и залп вспышек, контратака и серия — рёв, просто попадание — «оох».
+    if (r.kind === 'interrupt') {
+      crowdSfx.roar(0.9);
+      fpv?.crowd(1);
+      fpv?.photoBurst(1400);
+    } else if (r.kind === 'counter' || r.combo >= 3) {
+      crowdSfx.roar(0.55);
+      fpv?.crowd(0.75);
+      fpv?.photoBurst(700);
+    } else if (r.combo >= 2 || r.kind === 'open' || Math.random() < 0.35) {
+      crowdSfx.ooh(0.35 + Math.min(0.4, r.combo * 0.1));
+      fpv?.crowd(0.5);
+    }
   }
   if (r.combo >= 2) {
     ui.comboNum.textContent = `×${r.combo}`;
@@ -513,6 +550,10 @@ function onPunch(now: number, clean: boolean): void {
     koAt = now;
     ui.sideBot.classList.add('is-ko');
     fightSfx.ko();
+    crowdSfx.roar(1);
+    crowdSfx.applause(6);
+    fpv?.crowd(1);
+    fpv?.photoBurst(3500);
   }
 }
 
@@ -522,40 +563,59 @@ function onFightEvent(e: FightEvent, now: number): void {
     case 'phase':
       onPhase(e.phase, e.round);
       break;
+    case 'bot_state':
+      botView = { state: e.state, since: e.at, until: e.until, attack: e.attack };
+      // Знак «!» — пока бот замахивается; мощный — крупнее.
+      ui.sideBot.classList.toggle('is-windup', e.state === 'windup');
+      ui.sideBot.classList.toggle('is-power', e.state === 'windup' && e.attack?.kind === 'power');
+      if (e.state === 'strike') fightSfx.whoosh(e.attack?.kind === 'power');
+      if (e.state === 'stagger') fpv?.crowd(0.8);
+      break;
     case 'bot_windup':
-      ui.sideBot.classList.add('is-windup');
-      botAnim = { kind: 'windup', since: now, side: e.side };
-      fightSfx.whoosh();
+      if (e.kind === 'power') crowdSfx.ooh(0.25);
       break;
     case 'bot_hit': {
-      ui.sideBot.classList.remove('is-windup');
-      const gen = ++botAnimGen;
-      botAnim = { kind: 'hit', since: now, side: botAnim.side };
-      setTimeout(() => {
-        if (gen !== botAnimGen) return;
-        botAnim = { kind: 'recover', since: performance.now(), side: botAnim.side };
-        setTimeout(() => {
-          if (gen === botAnimGen) botAnim = { kind: 'idle', since: performance.now(), side: botAnim.side };
-        }, RECOVER_MS);
-      }, HIT_MS);
+      lastActionAt = now;
+      const power = e.kind === 'power';
       if (e.result === 'landed') {
-        fightSfx.hurt();
+        knock = { at: now, side: e.side, power };
         floater(meFloats(), `-${e.damage}`, 'floater--hurt');
         flash(ui.sideMe, 'is-hurt', 400);
         flash(app, 'is-shake', 300);
-        shake(now, SHAKE_HIT_MS);
-        if (!e.ko) hint('Закройся: кулаки у подбородка', 'bad');
+        if (power) {
+          // Мощный: вспышка, в глазах мутнеет, звук глохнет, трибуны ахают и ревут.
+          fightSfx.heavyHurt();
+          flash(app, 'is-dazed', DAZE_MS);
+          crowdSfx.gasp(0.9);
+          crowdSfx.roar(0.6);
+          fpv?.crowd(0.9);
+          fpv?.photoBurst(1200);
+          if (!e.ko) hint('Мощный видно по замаху — уклонись или поймай его ударом', 'bad');
+        } else {
+          fightSfx.hurt();
+          crowdSfx.gasp(0.4);
+          fpv?.crowd(0.45);
+          if (!e.ko) hint('Закройся: кулаки у подбородка', 'bad');
+        }
       } else if (e.result === 'blocked') {
-        fightSfx.guard();
-        shake(now, SHAKE_BLOCK_MS);
+        fightSfx.guard(power);
+        shake(now, power ? SHAKE_BLOCK_MS * 1.8 : SHAKE_BLOCK_MS);
         floater(meFloats(), 'Блок', 'floater--word');
         flash(ui.sideMe, 'is-guard', 300);
+        if (power) crowdSfx.ooh(0.3);
       } else {
         fightSfx.dodge();
         floater(meFloats(), 'Уклон!', 'floater--word floater--good');
         flash(ui.sideMe, 'is-dodge', 300);
+        crowdSfx.ooh(power ? 0.55 : 0.3);
+        fpv?.crowd(power ? 0.6 : 0.35);
+        hint('Он провалился — бей!', 'ok');
       }
-      if (e.ko) fightSfx.ko();
+      if (e.ko) {
+        fightSfx.ko();
+        crowdSfx.roar(1);
+        fpv?.photoBurst(3000);
+      }
       break;
     }
     case 'round_end': {
@@ -567,7 +627,9 @@ function onFightEvent(e: FightEvent, now: number): void {
         banner('Время!', sub, e.winner === 'me' ? 'win' : e.winner === 'bot' ? 'ko' : '');
         say('Время!');
       }
-      fightSfx.bell();
+      fightSfx.bell(3);
+      crowdSfx.applause(e.why === 'ko' ? 6 : 4, e.why === 'ko' ? 1 : 0.7);
+      fpv?.crowd(e.why === 'ko' ? 1 : 0.6);
       break;
     }
     case 'over':
@@ -584,15 +646,20 @@ function onPhase(phase: FightSnapshot['phase'], round: number): void {
       ui.combo.hidden = true;
       ui.sideBot.classList.remove('is-ko');
       koAt = -Infinity;
-      botAnim = { kind: 'idle', since: performance.now(), side: 'left' };
+      botView = BOT_IDLE;
+      knock = null;
       banner(`Раунд ${round}`, '', '');
       fightSfx.bell();
       say(`Раунд ${numberWord(round)}`);
       break;
     case 'fight':
-      engine?.setMode({ exercise: 'boxing', targetReps: ENGINE_TARGET });
+      // От первого лица кулак не проверяем: удары считает детектор, а модель кистей ждала бы видеокарту.
+      engine?.setMode({ exercise: 'boxing', targetReps: ENGINE_TARGET, hands: view !== 'fpv' });
+      lastActionAt = performance.now();
       banner('Бой!', '', 'fight');
       fightSfx.go();
+      crowdSfx.roar(0.5);
+      fpv?.crowd(0.6);
       say('Бой!');
       setTimeout(() => {
         if (app.dataset.phase === 'fight') ui.banner.hidden = true;
@@ -606,6 +673,7 @@ function onPhase(phase: FightSnapshot['phase'], round: number): void {
       break;
     case 'over':
       engine?.setMode('menu');
+      crowdSfx.stop();
       if (match) showResult(match.snapshot(performance.now()));
       break;
     case 'prep':
@@ -645,9 +713,9 @@ function showResult(s: FightSnapshot): void {
   };
   ui.resultStats.replaceChildren(
     stat('ударов дошло', st.landed),
+    stat('контратак', st.counters),
     stat('лучшая серия', `×${st.bestCombo}`),
-    stat('блоков', st.blocked),
-    stat('уклонов', st.dodged),
+    stat('блоков и уклонов', st.blocked + st.dodged),
   );
   show('result');
   if (s.outcome === 'win') fightSfx.fanfare();
@@ -662,6 +730,7 @@ function frame(): void {
     for (const e of match.tick(now)) onFightEvent(e, now);
     if (page === 'arena') render(match.snapshot(now), now);
   }
+  crowdSfx.update(now);
   if (page === 'arena' && now > hintUntil && !ui.hintBox.hidden) {
     ui.hintBox.hidden = true;
     errorJoints = new Set();
@@ -675,40 +744,23 @@ function shake(now: number, ms: number): void {
   shakeMs = ms;
 }
 
-/** Кадр от первого лица: поза и выпад бота, отдача, нокаут, перчатки, камера за корпусом. */
+/** Кадр от первого лица: что делает бот, его реакции, нокаут, перчатки, камера за корпусом. */
 function renderFpv(now: number): void {
   const since = (t: number, ms: number) => Math.max(0, Math.min(1, (now - t) / ms));
-  const recoil = now - recoilAt < RECOIL_MS ? 1 - since(recoilAt, RECOIL_MS) : 0;
   const shk = now - shakeAt < shakeMs ? 1 - since(shakeAt, shakeMs) : 0;
   fpv!.render({
-    botT: botClock(),
-    botLunge: botLunge(now),
-    botRecoil: recoil * recoil,
+    now,
+    bot: page === 'arena' ? botView : BOT_IDLE,
+    botHurt,
+    botBlockedAt,
     botKo: koAt > -Infinity ? since(koAt, KO_FALL_MS) : 0,
     gloves: gloves.read(now),
     shiftX: shift.x,
     shiftY: shift.y,
     shake: shk,
+    knock,
     punches,
-    now,
   });
-}
-
-/** Шаг бота в удар: на замахе откидывается, в ударе — к тебе, потом обратно. */
-function botLunge(now: number): number {
-  const u = (ms: number) => Math.max(0, Math.min(1, (now - botAnim.since) / ms));
-  switch (botAnim.kind) {
-    case 'idle':
-      return 0;
-    case 'windup': {
-      const k = u(match?.rules.windupMs ?? 700);
-      return -0.2 * k * k;
-    }
-    case 'hit':
-      return -0.2 + 1.2 * u(HIT_MS);
-    case 'recover':
-      return 1 - u(RECOVER_MS);
-  }
 }
 
 function render(s: FightSnapshot, now: number): void {
@@ -753,12 +805,22 @@ function render(s: FightSnapshot, now: number): void {
   const clock = formatClock(s.phase === 'prep' || s.phase === 'intro' ? match!.rules.roundMs : s.timeLeftMs);
   if (ui.clock.textContent !== clock) ui.clock.textContent = clock;
   ui.clock.classList.toggle('is-last', lastTen);
+  fpv?.screen({
+    round: s.round ? `РАУНД ${s.round}` : 'ПОДГОТОВКА',
+    clock,
+    me: s.hpMe,
+    bot: s.hpBot,
+    botName: bot.name,
+    big: s.phase === 'round_over' ? (s.hpBot === 0 || s.hpMe === 0 ? 'НОКАУТ' : 'ВРЕМЯ') : undefined,
+  });
+  // Бой стоит — трибуны недовольны.
+  if (s.phase === 'fight' && now - lastActionAt > BOO_IDLE_MS && now - booAt > BOO_EVERY_MS) {
+    booAt = now;
+    crowdSfx.boo();
+  }
   if (s.combo !== shown.combo) {
     shown.combo = s.combo;
     if (s.combo < 2) ui.combo.hidden = true;
-  }
-  if (!s.windup && botAnim.kind === 'windup' && now - botAnim.since > match!.rules.windupMs + 400) {
-    botAnim = { kind: 'idle', since: now, side: botAnim.side };
   }
   ui.guardPill.hidden = !guardShown || s.phase !== 'fight';
 }
@@ -782,23 +844,24 @@ function paintPips(me: number, botWins: number): void {
   ui.pipsBot.replaceChildren(...make(botWins));
 }
 
-/** Поза бота для 3D-атлета: момент внутри эталона бокса. */
+/** Вид сбоку: поза бота — момент внутри эталона бокса (джеб левой, кросс правой) по его состоянию. */
 function botClock(): number {
   const now = performance.now();
-  const sw = SWING[botAnim.side];
-  const u = (ms: number) => Math.max(0, Math.min(1, (now - botAnim.since) / ms));
-  switch (botAnim.kind) {
-    case 'idle':
+  const b = botView;
+  const sw = SWING[b.attack?.side ?? 'left'];
+  const u = Number.isFinite(b.until)
+    ? Math.max(0, Math.min(1, (now - b.since) / Math.max(1, b.until - b.since)))
+    : 0;
+  switch (b.state) {
+    case 'windup':
+      return sw.start + (sw.peak - sw.start) * 0.55 * u * u;
+    case 'strike':
+      return sw.start + (sw.peak - sw.start) * (0.55 + 0.45 * u);
+    case 'recover':
+      return sw.peak + (sw.end - sw.peak) * u;
+    default:
       // Стойка с лёгким покачиванием.
       return sw.start + 25 * (1 + Math.sin(now / 380));
-    case 'windup': {
-      const k = u(match?.rules.windupMs ?? 700);
-      return sw.start + (sw.peak - sw.start) * 0.55 * k * k;
-    }
-    case 'hit':
-      return sw.start + (sw.peak - sw.start) * (0.55 + 0.45 * u(HIT_MS));
-    case 'recover':
-      return sw.peak + (sw.end - sw.peak) * u(RECOVER_MS);
   }
 }
 

@@ -251,6 +251,71 @@
   animation: flash 0.3s var(--ease-out);
 }
 
+/* Мощный пропущенный удар (U-25): белая вспышка, в глазах мутнеет и темнеет по краям, потом проясняется. */
+.ring__daze {
+  display: none;
+}
+
+.fight[data-view='fpv'] .ring__daze {
+  position: absolute;
+  inset: 0;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      60% 55% at 50% 45%,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(255, 244, 230, 0.55) 45%,
+      rgba(0, 0, 0, 0) 75%
+    ),
+    radial-gradient(90% 85% at 50% 50%, rgba(0, 0, 0, 0) 50%, rgba(40, 0, 0, 0.9) 100%);
+}
+
+.fight[data-view='fpv'].is-dazed .ring__daze {
+  animation: daze-flash 1.6s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.fight[data-view='fpv'].is-dazed .ring__fpv {
+  animation: daze 1.6s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@keyframes daze-flash {
+  0% {
+    opacity: 1;
+  }
+  12% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes daze {
+  0% {
+    filter: blur(2px) brightness(2.6) saturate(0.2);
+  }
+  10% {
+    filter: blur(7px) brightness(1.8) saturate(0.3);
+  }
+  45% {
+    filter: blur(3.5px) brightness(1.05) saturate(0.55);
+  }
+  100% {
+    filter: none;
+  }
+}
+
+/* Мощный замах — «!» красный и крупнее. */
+.ring__bot.is-power .warn {
+  background: var(--bad, #ef4444);
+  color: #fff;
+  width: clamp(56px, 12vmin, 96px);
+  height: clamp(56px, 12vmin, 96px);
+  font-size: clamp(36px, 8vmin, 64px);
+}
+
 /* Твой удар дошёл — короткая вспышка без красного «урона по себе». */
 .fight[data-view='fpv'] .ring__bot.is-hit .ring__flash {
   background: radial-gradient(40% 40% at 50% 45%, rgba(255, 237, 213, 0.35) 0%, rgba(255, 237, 213, 0) 100%);
@@ -1460,6 +1525,8 @@
   .warn,
   .ring__ghost,
   .ring__flash,
+  .ring__daze,
+  .ring__fpv,
   .hp.is-low .hp__fill {
     animation: none !important;
   }

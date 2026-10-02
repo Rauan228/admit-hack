@@ -1,14 +1,15 @@
 // Бой от первого лица по записи (dev/fpv-replay.html): тот же конвейер, что на fight.html, но кадры —
-// из записи позы, без камеры. window.renderFrame(i) рисует кадр i (кадры идут по порядку).
+// из записи позы, без камеры. Идёт настоящий бой с ботом (FightMatch, ?bot=, зерно ?seed=): его стойка,
+// блоки, замахи и удары, твои удары детектора, уклоны и блок по стойке, реакции трибун, «потемнело в
+// глазах» от мощного. window.renderFrame(i) рисует кадр i (кадры идут по порядку).
 // ?fixture=/путь/к/записи.json&video=/путь/к/видео.mp4
 
-import { createExercise } from '../src/engine/exercises';
 import { LandmarkSmoother, RenderSmoother, smoothPose } from '../src/engine/filter';
 import { torsoLength } from '../src/engine/geometry';
 import { decodeDetection, type FixtureFile } from '../src/engine/recorder';
-import { ExerciseSession } from '../src/engine/session';
 import type { Landmark } from '../src/engine/types';
-import { FpvView, PUNCH_CONTACT_MS, type FpvPunch } from '../src/fight/fpv';
+import { FightMatch, findFightBot, type BotView, type PunchResult } from '../src/fight/fight';
+import { DAZE_MS, FpvView, PUNCH_CONTACT_MS, type FpvPunch, type FpvState } from '../src/fight/fpv';
 import { GloveTracker, type GloveSide } from '../src/fight/gloves';
 import { PunchDetector } from '../src/fight/punch';
 import { StanceTracker } from '../src/fight/stance';
@@ -21,23 +22,59 @@ if (q.get('video')) {
   video.src = q.get('video')!;
   await new Promise((r) => video.addEventListener('loadeddata', r, { once: true }));
 }
-const fpv = new FpvView(document.getElementById('fpv') as HTMLCanvasElement, false);
+const fpvCanvas = document.getElementById('fpv') as HTMLCanvasElement;
+const fpv = new FpvView(fpvCanvas, false);
 const pip = (document.getElementById('pip') as HTMLCanvasElement).getContext('2d')!;
 const hud = (document.getElementById('hud') as HTMLCanvasElement).getContext('2d')!;
 
 const smoother = new LandmarkSmoother();
 const render = new RenderSmoother();
-const session = new ExerciseSession(createExercise('boxing')!, 1000, 0);
 const gloves = new GloveTracker();
 const stance = new StanceTracker();
-let reps = 0;
-let hits = 0;
 const punchDet = new PunchDetector();
 const punches: Partial<Record<GloveSide, FpvPunch>> = {};
-let lastHitAt = -Infinity;
+const t0 = file.frames[0]!.t;
+const match = new FightMatch(
+  {
+    bot: findFightBot(q.get('bot') ?? 'athlete'),
+    seed: Number(q.get('seed') ?? 5),
+    rules: { prepMs: 0, introMs: 0 },
+  },
+  t0,
+);
+/** Удары, ждущие касания: время касания, рука, в корпус ли. */
+const contacts: { at: number; side: GloveSide; low: boolean }[] = [];
+let botView: BotView = { state: 'guard', since: t0, until: Infinity, attack: null };
+let botHurt: FpvState['botHurt'] = null;
+let botBlockedAt = -Infinity;
+let knock: FpvState['knock'] = null;
+let words: { text: string; at: number; color: string }[] = [];
 let next = 0;
 let lms: Landmark[] = [];
 let shift = { x: 0, y: 0 };
+let guardUp = false;
+
+const WORD: Partial<Record<PunchResult['kind'], string>> = {
+  open: 'ОТКРЫЛСЯ!',
+  counter: 'КОНТРАТАКА!',
+  interrupt: 'ПОЙМАЛ НА ЗАМАХЕ!',
+  body: 'В КОРПУС!',
+  blocked: 'БЛОК',
+};
+
+function events(t: number): void {
+  for (const e of match.tick(t)) {
+    if (e.type === 'bot_state') botView = { state: e.state, since: e.at, until: e.until, attack: e.attack };
+    if (e.type === 'bot_hit') {
+      if (e.result === 'landed') {
+        knock = { at: t, side: e.side, power: e.kind === 'power' };
+        words.push({ text: `-${e.damage}`, at: t, color: '#ef4444' });
+        fpv.crowd(e.kind === 'power' ? 0.9 : 0.45);
+        if (e.kind === 'power') fpv.photoBurst(1200);
+      } else words.push({ text: e.result === 'dodged' ? 'УКЛОН!' : 'ТВОЙ БЛОК', at: t, color: '#22c55e' });
+    }
+  }
+}
 
 function step(i: number): void {
   const f = file.frames[i]!;
@@ -47,37 +84,63 @@ function step(i: number): void {
   lms = d && frame ? render.apply(d.image, frame.image, f.t, file.aspect, scale) : [];
   const st = stance.update(lms, f.t, file.aspect);
   shift = { x: st.shiftX, y: st.shiftY };
+  guardUp = st.guard;
+  match.setGuard(f.t, st.guard);
+  if (st.dodge) match.dodge(f.t);
   gloves.update(lms, f.t, file.aspect);
   for (const p of punchDet.update(lms, f.t, file.aspect)) {
     punches[p.side] = { start: p.t, low: p.low, hook: p.hook };
-    hits += 1;
-    lastHitAt = p.t + PUNCH_CONTACT_MS;
+    contacts.push({ at: p.t + PUNCH_CONTACT_MS, side: p.side, low: p.low });
   }
-  for (const e of session.update(frame, f.t))
-    if (e.type === 'rep') {
-      reps += 1;
+}
+
+/** Довести бой до t: касания твоих ударов — по порядку вместе с событиями бота. */
+function advance(t: number): void {
+  contacts.sort((a, b) => a.at - b.at);
+  while (contacts.length && contacts[0]!.at <= t) {
+    const c = contacts.shift()!;
+    events(c.at);
+    const r = match.punch(c.at, true, c.low);
+    if (!r) continue;
+    if (r.blocked) botBlockedAt = c.at;
+    else {
+      botHurt = { at: c.at, side: c.side, low: c.low };
+      fpv.crowd(r.kind === 'interrupt' ? 1 : r.kind === 'counter' ? 0.75 : 0.5);
+      if (r.kind === 'interrupt' || r.ko) fpv.photoBurst(1500);
+      words.push({ text: `-${r.damage}`, at: c.at, color: '#fde68a' });
     }
+    const w = WORD[r.kind];
+    if (w) words.push({ text: w, at: c.at, color: r.blocked ? '#a1a1aa' : '#f97316' });
+  }
+  events(t);
 }
 
 const w = window as unknown as { renderFrame: (i: number) => Promise<number>; ready: boolean };
 w.renderFrame = async (i) => {
   while (next <= i && next < file.frames.length) step(next++);
   const t = file.frames[Math.min(i, file.frames.length - 1)]!.t;
-  const g = gloves.read(t);
-  const sinceHit = t - lastHitAt;
-  const recoil = sinceHit >= 0 && sinceHit < 260 ? (1 - sinceHit / 260) ** 2 : 0;
-  const state = {
-    botT: 25 * (1 + Math.sin(t / 380)),
-    botLunge: 0,
-    botRecoil: recoil,
+  advance(t);
+  const s = match.snapshot(t);
+  fpv.screen({ round: 'РАУНД 1', clock: '', me: s.hpMe, bot: s.hpBot, botName: 'Атлет' });
+  const state: FpvState = {
+    now: t,
+    bot: botView,
+    botHurt,
+    botBlockedAt,
     botKo: 0,
-    gloves: g,
+    gloves: gloves.read(t),
     shiftX: shift.x,
     shiftY: shift.y,
-    shake: 0,
+    shake: t - botBlockedAt < 150 ? 0.5 : 0,
+    knock,
     punches,
-    now: t,
   };
+  // «Потемнело в глазах» — как на странице (fight.css, .is-dazed): вспышка и размытие.
+  const dz = knock?.power ? (t - knock.at) / DAZE_MS : 1;
+  fpvCanvas.style.filter =
+    dz >= 0 && dz < 1
+      ? `blur(${(7 * (1 - dz) ** 2).toFixed(2)}px) brightness(${(1 + 1.4 * (1 - dz) ** 3).toFixed(2)}) saturate(${(0.35 + 0.65 * dz).toFixed(2)})`
+      : '';
   // Первый кадр — когда модель бота загрузилась.
   while (!fpv.render(state)) await new Promise((r) => setTimeout(r, 100));
   if (video.src) {
@@ -89,27 +152,46 @@ w.renderFrame = async (i) => {
     pip.scale(-1, 1);
     pip.drawImage(video, v.ox, v.oy, v.dw, v.dh);
     pip.restore();
-    if (lms.length) drawSkeleton(pip, v, lms, { color: '#22c55e', glow: null });
+    if (lms.length) drawSkeleton(pip, v, lms, { color: guardUp ? '#38bdf8' : '#22c55e', glow: null });
   }
   hud.clearRect(0, 0, 1280, 720);
-  hud.fillStyle = 'rgba(0,0,0,0.6)';
-  hud.fillRect(1040, 16, 224, 92);
-  hud.fillStyle = '#fff';
-  hud.font = '600 20px system-ui';
-  hud.fillText(`удары: ${hits} (движок ${reps})`, 1056, 46);
-  hud.font = '14px system-ui';
-  hud.fillText(`${(t / 1000).toFixed(1)} с`, 1056, 70);
-  (['left', 'right'] as const).forEach((side, k) => {
-    hud.fillStyle = '#333';
-    hud.fillRect(1056 + k * 100, 82, 90, 12);
-    hud.fillStyle = '#ef4444';
-    hud.fillRect(1056 + k * 100, 82, 90 * g[side].ext, 12);
-  });
-  if (sinceHit >= 0 && sinceHit < 400) {
-    hud.fillStyle = '#f97316';
-    hud.font = '900 64px system-ui';
-    hud.fillText('УДАР', 560, 120);
+  // Здоровье.
+  const bar = (x: number, v: number, color: string, label: string, right: boolean) => {
+    hud.fillStyle = 'rgba(0,0,0,0.55)';
+    hud.fillRect(x - 6, 14, 432, 44);
+    hud.fillStyle = 'rgba(255,255,255,0.15)';
+    hud.fillRect(x, 36, 420, 14);
+    hud.fillStyle = color;
+    const fw = (420 * v) / 100;
+    hud.fillRect(right ? x + 420 - fw : x, 36, fw, 14);
+    hud.fillStyle = '#fff';
+    hud.font = '700 16px system-ui';
+    hud.textAlign = right ? 'right' : 'left';
+    hud.fillText(label, right ? x + 420 : x, 30);
+  };
+  bar(24, s.hpMe, '#ef4444', `ТЫ ${s.hpMe}`, false);
+  bar(1280 - 24 - 420, s.hpBot, '#3b82f6', `АТЛЕТ ${s.hpBot}`, true);
+  hud.textAlign = 'center';
+  hud.fillStyle = 'rgba(255,255,255,0.8)';
+  hud.font = '600 15px system-ui';
+  const kind = botView.attack
+    ? ` ${botView.attack.kind === 'power' ? 'мощный' : 'джеб'} ${botView.attack.side === 'left' ? 'левой' : 'правой'}`
+    : '';
+  hud.fillText(`бот: ${botView.state}${kind} · ${((t - t0) / 1000).toFixed(1)} с`, 640, 84);
+  if (botView.state === 'windup') {
+    hud.fillStyle = botView.attack?.kind === 'power' ? '#ef4444' : '#f97316';
+    hud.font = `900 ${botView.attack?.kind === 'power' ? 76 : 54}px system-ui`;
+    hud.fillText('!', 640, 170);
   }
+  words = words.filter((x) => t - x.at < 900);
+  words.forEach((x, k) => {
+    const u = (t - x.at) / 900;
+    hud.globalAlpha = 1 - u * u;
+    hud.fillStyle = x.color;
+    hud.font = '900 40px system-ui';
+    hud.fillText(x.text, 640 + ((k % 3) - 1) * 160, 300 - u * 60 - (k % 2) * 46);
+    hud.globalAlpha = 1;
+  });
   return file.frames.length;
 };
 w.ready = true;

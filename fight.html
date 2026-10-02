@@ -31,6 +31,7 @@
         <div class="ring__bot" id="side-bot">
           <canvas class="ring__fpv" id="fpv" aria-hidden="true"></canvas>
           <div class="ring__vignette" aria-hidden="true"></div>
+          <div class="ring__daze" aria-hidden="true"></div>
           <div class="ring__floor" aria-hidden="true"></div>
           <div class="ring__ghost" id="bot-ghost" aria-hidden="true"></div>
           <div class="warn" id="warn" aria-hidden="true">!</div>
@@ -77,9 +78,9 @@
 
       <!-- Подготовка: 5 секунд, что делать -->
       <ul class="tips" id="tips" data-for="arena" hidden>
-        <li><span class="tips__icon">🥊</span>Кулаки у подбородка</li>
-        <li><span class="tips__icon">➡</span>Бей прямые в камеру</li>
-        <li><span class="tips__icon">!</span>Бот замахнулся — закройся или уклонись</li>
+        <li><span class="tips__icon">🥊</span>Кулаки у подбородка — бей, когда он открылся</li>
+        <li><span class="tips__icon">!</span>Замах — закройся, уклонись или поймай его ударом</li>
+        <li><span class="tips__icon">⚡</span>Красный «!» — мощный: лучше уклон, блок он пробивает</li>
       </ul>
 
       <div class="hint" id="hint-box" data-for="arena" data-kind="ok" role="status" hidden>
@@ -101,8 +102,9 @@
             <p class="menu__kicker">Файтинг с камерой</p>
             <h1 class="menu__title">Бокс с ботом</h1>
             <p class="menu__lead">
-              Телефон — горизонтально. Прямые удары снимают боту здоровье, его замах — твой сигнал закрыться
-              или уклониться. До двух побед в раундах по 45 секунд.
+              Телефон — горизонтально. Бот держит блок — бей, когда он опустил руки, замахнулся или
+              провалился после удара. Его замах — твой сигнал закрыться или уклониться. До двух побед в
+              раундах по 45 секунд.
             </p>
             <div class="menu__ghost" id="menu-ghost" aria-hidden="true"></div>
           </div>
