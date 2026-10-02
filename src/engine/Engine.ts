@@ -22,6 +22,7 @@ import { createHandDetector, handRoi, type HandDetector, type HandSample } from 
 import { CALIBRATION_DETAIL_HINTS, CALIBRATION_HINTS } from './hints';
 import { AdaptivePerf } from './perf';
 import { createPoseDetector, type PoseDetection, type PoseDetector, type PoseDetectorOptions } from './pose';
+import { createWorkerPoseDetector, poseWorkerSupported } from './poseWorker';
 import { ExerciseSession } from './session';
 import { sourceSize } from './snapshot';
 import type { Engine, EngineEvent, EngineMode, Side } from './types';
@@ -55,7 +56,17 @@ function browserDeps(): EngineDeps {
   return {
     openCamera,
     stopCamera,
-    createPoseDetector: (options) => createPoseDetector(options),
+    createPoseDetector: async (options) => {
+      // Модель в фоновом потоке, если можно; не поднялась — обычный детектор на основном.
+      if (ENGINE_CONFIG.pose.worker && poseWorkerSupported()) {
+        try {
+          return await createWorkerPoseDetector(options);
+        } catch (err) {
+          console.warn('[engine] модель позы в фоне не запустилась — считаю на основном потоке', err);
+        }
+      }
+      return createPoseDetector(options);
+    },
     requestFrame: (cb) => requestAnimationFrame(cb),
     cancelFrame: (id) => cancelAnimationFrame(id),
     now: () => performance.now(),
@@ -91,6 +102,8 @@ class RealEngine implements Engine {
   private barCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null;
   /** Растёт на каждый start/stop: start, который пережил stop, узнаёт об этом и убирает за собой. */
   private generation = 0;
+  /** Кадров в детекторе в фоновом потоке без ответа (не больше pose.workerInFlight). */
+  private inFlight = 0;
   /** Кисти (E-36): детектор грузится при входе в упражнение с hands; off — выключен (ошибка или медленно). */
   private hands: HandDetector | null = null;
   private handsLoading = false;
@@ -141,6 +154,7 @@ class RealEngine implements Engine {
 
   stop(): void {
     this.generation++;
+    this.inFlight = 0;
     if (this.frameId !== null) this.deps.cancelFrame(this.frameId);
     this.frameId = null;
     this.detector?.close();
@@ -276,6 +290,23 @@ class RealEngine implements Engine {
     this.lastVideoTime = video.currentTime;
 
     const now = this.deps.now();
+    // Детектор в фоновом потоке: кадр за раз, точки обрабатываем, когда придут.
+    if (detector.detectAsync) {
+      if (this.inFlight >= (detector.inFlightLimit ?? 1)) return;
+      this.inFlight += 1;
+      const gen = this.generation;
+      detector
+        .detectAsync(video, now)
+        .then((detection) => {
+          if (gen !== this.generation || this.detector !== detector) return;
+          this.afterDetect(detection, detector, video, now, detector.lastCostMs ?? this.deps.now() - now);
+        })
+        .catch((err: unknown) => console.warn('[engine] кадр пропущен', err))
+        .finally(() => {
+          if (gen === this.generation) this.inFlight = Math.max(0, this.inFlight - 1);
+        });
+      return;
+    }
     // Слабое устройство: не чаще throttleFps, чтобы главный поток оставался интерфейсу.
     if (!this.perf.shouldProcess(now)) return;
     let detection: PoseDetection | null;
@@ -286,7 +317,18 @@ class RealEngine implements Engine {
       console.warn('[engine] кадр пропущен', err);
       return;
     }
-    if (this.perf.record(now, this.deps.now() - now) === 'downgrade') this.downgradeModel(detector);
+    this.afterDetect(detection, detector, video, now, this.deps.now() - now);
+  };
+
+  /** Точки кадра пришли: сглаживание, событие frame для экрана, логика режима. */
+  private afterDetect(
+    detection: PoseDetection | null,
+    detector: PoseDetector,
+    video: HTMLVideoElement,
+    now: number,
+    costMs: number,
+  ): void {
+    if (this.perf.record(now, costMs) === 'downgrade') this.downgradeModel(detector);
     const aspect =
       video.videoWidth > 0 && video.videoHeight > 0 ? video.videoWidth / video.videoHeight : 4 / 3;
     const frame = detection ? smoothPose(this.smoother, detection.image, detection.world, now, aspect) : null;
@@ -305,7 +347,7 @@ class RealEngine implements Engine {
       ...(image ? { image } : {}),
     });
     this.process(frame, video, now);
-  };
+  }
 
   /**
    * Перекладина у кистей по пикселям кадра — не чаще раза в barEveryMs (поиск ~1–2 мс), между поисками —

@@ -32,6 +32,15 @@ export interface PoseDetector {
   detect(video: HTMLVideoElement, timestampMs: number): PoseDetection | null;
   /** Снимок кадра, на котором посчитаны последние точки (snapshot.ts); нет — экран рисует видео. */
   readonly frame?: HTMLCanvasElement | null;
+  /**
+   * Детектор в фоновом потоке (poseWorker.ts): точки приходят позже, основной поток не ждёт. Есть — движок
+   * берёт его вместо detect, по одному кадру за раз.
+   */
+  detectAsync?(video: HTMLVideoElement, timestampMs: number): Promise<PoseDetection | null>;
+  /** Сколько модель считала последний кадр (для воркера — без ожидания в очереди), мс. */
+  readonly lastCostMs?: number;
+  /** Сколько кадров можно держать в detectAsync одновременно (по воркеру на кадр). */
+  readonly inFlightLimit?: number;
   close(): void;
 }
 
@@ -91,7 +100,7 @@ export function preferredDelegate(renderer: string | null = webglRenderer()): Po
 }
 
 /** Модель под устройство: на телефоне и без GPU — lite, full — только на компьютере с видеокартой. */
-function defaultModel(delegate: PoseDelegate): PoseModel {
+export function defaultModel(delegate: PoseDelegate): PoseModel {
   const cfg = ENGINE_CONFIG.pose;
   return delegate === 'GPU' && !isMobileDevice() ? cfg.model : cfg.cpuModel;
 }
