@@ -27,7 +27,8 @@ function punches(file: FixtureFile): PunchEvent[] {
     const scale = torsoLength({ t: f.t, aspect: file.aspect, image: d.image, world: null }) || 0.25;
     out.push(...det.update(rs.apply(d.image, frame.image, f.t, file.aspect, scale), f.t, file.aspect));
   }
-  return out;
+  // Как на странице: удар засчитан к касанию, если это удар, а не мах руками (confirm).
+  return out.filter((e) => det.confirm(e.side, e.t));
 }
 
 /** Удар найден, если срабатывание той же руки — от 0,15 с до начала до 0,45 с после конца. */
@@ -87,9 +88,48 @@ describe('удары от первого лица: записи движка', (
   });
 
   it('анфас — число ударов в пределах разметки движка', () => {
-    expect(count('boxing-front-cage')).toBeGreaterThanOrEqual(15);
+    // Клетка: быстрые серии с боковыми, руки между сериями внизу — строгая проверка «удар, а не мах»
+    // (U-27) пропускает часть боковых: 14 из ~18.
+    expect(count('boxing-front-cage')).toBeGreaterThanOrEqual(13);
     expect(count('boxing-front-cage')).toBeLessThanOrEqual(21);
     expect(count('boxing-front-gym')).toBeGreaterThanOrEqual(13);
     expect(count('boxing-front-gym')).toBeLessThanOrEqual(23);
+  });
+});
+
+describe('удары от первого лица: мах руками — не удар (U-27)', () => {
+  /** Подтверждённых «ударов» на записи, где люди машут руками, но не бьют. */
+  const swings = (n: string) => punches(load<FixtureFile>(`./fixtures/${n}.json`)).length;
+
+  it('«звёздочка», жим над головой, выпады, наклоны, подтягивания, бёрпи — почти ни одного', () => {
+    const files = [
+      'jumping-jack-front',
+      'jumping-jack-front-2',
+      'jumping-jack-slow',
+      'jumping-jack-antiphase',
+      'squat-press-kettlebell',
+      'lunge-front-backlit',
+      'side-bend-front',
+      'pull-up-6',
+      'burpee-side-deck',
+      'squat-side-backlit',
+    ];
+    const per = Object.fromEntries(files.map((n) => [n, swings(n)]));
+    // Было (без проверки): 18–20 на каждой «звёздочке», 40 на выпадах, 38 на подтягиваниях — 246 всего.
+    expect(Object.values(per).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(30);
+    for (const n of [
+      'jumping-jack-slow',
+      'jumping-jack-antiphase',
+      'pull-up-6',
+      'burpee-side-deck',
+      'squat-side-backlit',
+    ])
+      expect(per[n]).toBe(0);
+    expect(per['jumping-jack-front-2']).toBeLessThanOrEqual(2);
+  });
+
+  it('круги руками (самый похожий на удары мах) — в разы меньше прежнего', () => {
+    // Было 21 за 11 с, стало 4.
+    expect(swings('arm-circles-big')).toBeLessThanOrEqual(6);
   });
 });

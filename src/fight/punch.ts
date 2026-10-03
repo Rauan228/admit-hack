@@ -11,6 +11,12 @@
 // - подъём локтя к линии плеч от его уровня в стойке (прямой и боковой в камеру).
 // Удар — признак дошёл до порога, кисть движется быстро и сильнее второй руки (при ударе одной рукой
 // вторая тоже сдвигается — разворот корпуса). После удара рука снова «взводится», когда признак упал.
+//
+// Удар или мах (U-27): срабатывание — в начале движения (перчатка на экране летит сразу), а урон страница
+// засчитывает к касанию, спросив confirm(). Мах руками тоже выносит кисть быстро — но иначе: кисть уходит
+// выше головы или ниже пояса, вторая рука отлетает вбок (машут обеими), рука стартует опущенной. Пороги —
+// по записям: размеченные удары находятся как раньше (≥ 70 %, точность ≥ 75 %), а на кругах руками,
+// «звёздочке», выпадах, наклонах, жиме, подтягиваниях и бёрпи «ударов» 31 вместо 267 (круги руками — 4 из 21).
 
 import type { Landmark } from '../engine/types';
 import type { GloveSide } from './gloves';
@@ -43,6 +49,15 @@ export const PUNCH = {
   /** Кисть ниже плеч больше чем на / выше чем на (ширин плеч) — не удар. */
   maxDrop: 1.0,
   maxRise: 1.4,
+  /** Проверка «удар, а не мах» — по кадрам до стольких мс после начала (касание — через 110). */
+  confirmMs: 130,
+  /** За это время кисть не выше линии плеч больше чем на / не ниже чем на (ширин плеч). */
+  swingMaxRise: 0.8,
+  swingMaxDrop: 1.3,
+  /** Вторая рука не дальше от середины плеч (ширин плеч) — иначе машут обеими. */
+  otherMaxOut: 1.8,
+  /** До удара (0,2–0,5 с) кисть не ниже линии плеч больше чем на — удар идёт от стойки, а не от бедра. */
+  startMaxDrop: 2.4,
 } as const;
 
 export interface PunchEvent {
@@ -54,7 +69,20 @@ export interface PunchEvent {
   hook: boolean;
 }
 
+/** Удар после срабатывания: что делали руки до касания (для confirm). */
+interface Pending {
+  t: number;
+  minY: number;
+  maxY: number;
+  otherOut: number;
+  startY: number;
+}
+
 interface Arm {
+  /** Последние полсекунды кисти (для старта удара). */
+  trail: { t: number; y: number }[];
+  /** Последние срабатывания и их проверка «удар или мах». */
+  pending: Pending[];
   prev: { x: number; y: number } | null;
   anchor: { x: number; y: number } | null;
   speed: number;
@@ -71,6 +99,8 @@ const ARM = {
 } as const;
 
 const fresh = (): Arm => ({
+  trail: [],
+  pending: [],
   prev: null,
   anchor: null,
   speed: 0,
@@ -106,6 +136,21 @@ export class PunchDetector {
     this.arms.right = fresh();
   }
 
+  /**
+   * Удар, начатый в t (событие update), — настоящий, а не мах руками. Спрашивать к касанию: решение — по кадрам
+   * до t + confirmMs. Неизвестное срабатывание — false.
+   */
+  confirm(side: GloveSide, t: number): boolean {
+    const p = this.arms[side].pending.find((q) => q.t === t);
+    if (!p) return false;
+    return (
+      p.minY >= -PUNCH.swingMaxRise &&
+      p.maxY <= PUNCH.swingMaxDrop &&
+      p.otherOut <= PUNCH.otherMaxOut &&
+      p.startY <= PUNCH.startMaxDrop
+    );
+  }
+
   private arm(
     side: GloveSide,
     lms: readonly Landmark[],
@@ -127,6 +172,17 @@ export class PunchDetector {
     const x = (w.x * aspect - mx) / sw;
     const y = (w.y - my) / sw;
     const drop = (e.y - s.y) / sw;
+    // Удар или мах: копим, что делали руки до касания.
+    const ow = lms[ARM[side === 'left' ? 'right' : 'left'].wrist];
+    const oOut = ow ? Math.abs(ow.x * aspect - mx) / sw : 0;
+    for (const p of a.pending) {
+      if (t > p.t + PUNCH.confirmMs) continue;
+      p.minY = Math.min(p.minY, y);
+      p.maxY = Math.max(p.maxY, y);
+      p.otherOut = Math.max(p.otherOut, oOut);
+    }
+    a.trail.push({ t, y });
+    while (a.trail.length > 0 && a.trail[0]!.t < t - 500) a.trail.shift();
     if (!a.prev || !a.anchor || a.elbow0 === null) {
       a.prev = { x, y };
       a.anchor = { x, y };
@@ -154,6 +210,16 @@ export class PunchDetector {
       a.since = t;
       const dx = Math.abs(x - a.anchor.x);
       const dy = Math.abs(y - a.anchor.y);
+      // Откуда пошла рука: самая низкая кисть за 0,2–0,5 с до удара.
+      const before = a.trail.filter((q) => q.t <= t - 200).map((q) => q.y);
+      a.pending.push({
+        t,
+        minY: y,
+        maxY: y,
+        otherOut: oOut,
+        startY: before.length ? Math.max(...before) : y,
+      });
+      if (a.pending.length > 64) a.pending.shift();
       return { side, t, low: y > 0.35, hook: dx > 1.4 * dy && lift > 0.6 };
     }
     if (!a.armed && score < PUNCH.rearm && t - a.since > PUNCH.minGapMs) a.armed = true;
