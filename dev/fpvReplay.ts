@@ -9,7 +9,7 @@ import { torsoLength } from '../src/engine/geometry';
 import { decodeDetection, type FixtureFile } from '../src/engine/recorder';
 import type { Landmark } from '../src/engine/types';
 import { FightMatch, findFightBot, type BotView, type PunchResult } from '../src/fight/fight';
-import { DAZE_MS, FpvView, PUNCH_CONTACT_MS, type FpvPunch, type FpvState } from '../src/fight/fpv';
+import { DAZE_MS, FpvView, PUNCH_DECIDE_MS, type FpvPunch, type FpvState } from '../src/fight/fpv';
 import { GloveTracker, type GloveSide } from '../src/fight/gloves';
 import { PunchDetector } from '../src/fight/punch';
 import { StanceTracker } from '../src/fight/stance';
@@ -42,8 +42,8 @@ const match = new FightMatch(
   },
   t0,
 );
-/** Удары, ждущие касания: время касания, рука, в корпус ли. */
-const contacts: { at: number; side: GloveSide; low: boolean }[] = [];
+/** Удары, ждущие касания: время касания, начало (для проверки «удар или мах»), рука, в корпус ли. */
+const contacts: { at: number; t: number; side: GloveSide; low: boolean }[] = [];
 let botView: BotView = { state: 'guard', since: t0, until: Infinity, attack: null };
 let botHurt: FpvState['botHurt'] = null;
 let botBlockedAt = -Infinity;
@@ -90,7 +90,9 @@ function step(i: number): void {
   gloves.update(lms, f.t, file.aspect);
   for (const p of punchDet.update(lms, f.t, file.aspect)) {
     punches[p.side] = { start: p.t, low: p.low, hook: p.hook };
-    contacts.push({ at: p.t + PUNCH_CONTACT_MS, side: p.side, low: p.low });
+    // Бот видит начало удара — может уйти до касания (U-26).
+    match.incoming(p.t, p.side, p.low);
+    contacts.push({ at: p.t + PUNCH_DECIDE_MS, t: p.t, side: p.side, low: p.low });
   }
 }
 
@@ -100,8 +102,18 @@ function advance(t: number): void {
   while (contacts.length && contacts[0]!.at <= t) {
     const c = contacts.shift()!;
     events(c.at);
+    // Мах руками, а не удар — урона нет (U-27).
+    if (!punchDet.confirm(c.side, c.t)) {
+      match.swing(c.at);
+      words.push({ text: 'МАХ', at: c.at, color: '#a1a1aa' });
+      continue;
+    }
     const r = match.punch(c.at, true, c.low);
     if (!r) continue;
+    if (r.kind === 'miss') {
+      words.push({ text: 'МИМО!', at: c.at, color: '#e4e4e7' });
+      continue;
+    }
     if (r.blocked) botBlockedAt = c.at;
     else {
       botHurt = { at: c.at, side: c.side, low: c.low };
@@ -113,6 +125,9 @@ function advance(t: number): void {
     if (w) words.push({ text: w, at: c.at, color: r.blocked ? '#a1a1aa' : '#f97316' });
   }
   events(t);
+  // Что делает бот и куда идёт по рингу — из снимка.
+  const s = match.snapshot(t);
+  if (s.phase === 'fight' || s.bot.state === 'down') botView = s.bot;
 }
 
 const w = window as unknown as { renderFrame: (i: number) => Promise<number>; ready: boolean };
@@ -121,13 +136,23 @@ w.renderFrame = async (i) => {
   const t = file.frames[Math.min(i, file.frames.length - 1)]!.t;
   advance(t);
   const s = match.snapshot(t);
-  fpv.screen({ round: 'РАУНД 1', clock: '', me: s.hpMe, bot: s.hpBot, botName: 'Атлет' });
+  const full = match.rules.hp;
+  const pct = (v: number) => Math.round((100 * v) / full);
+  fpv.screen({ round: 'РАУНД 1', clock: '', me: pct(s.hpMe), bot: pct(s.hpBot), botName: 'Атлет' });
+  // Нокдаун бота: падает за kdFallMs, встаёт за getUpMs.
+  const u = (from: number, ms: number) => Math.max(0, Math.min(1, (t - from) / ms));
+  const botKo =
+    botView.state === 'down'
+      ? u(botView.since, match.rules.kdFallMs)
+      : botView.state === 'getup'
+        ? 1 - u(botView.since, match.rules.getUpMs)
+        : 0;
   const state: FpvState = {
     now: t,
     bot: botView,
     botHurt,
     botBlockedAt,
-    botKo: 0,
+    botKo,
     gloves: gloves.read(t),
     shiftX: shift.x,
     shiftY: shift.y,
@@ -169,8 +194,8 @@ w.renderFrame = async (i) => {
     hud.textAlign = right ? 'right' : 'left';
     hud.fillText(label, right ? x + 420 : x, 30);
   };
-  bar(24, s.hpMe, '#ef4444', `ТЫ ${s.hpMe}`, false);
-  bar(1280 - 24 - 420, s.hpBot, '#3b82f6', `АТЛЕТ ${s.hpBot}`, true);
+  bar(24, pct(s.hpMe), '#ef4444', `ТЫ ${s.hpMe}`, false);
+  bar(1280 - 24 - 420, pct(s.hpBot), '#3b82f6', `АТЛЕТ ${s.hpBot}`, true);
   hud.textAlign = 'center';
   hud.fillStyle = 'rgba(255,255,255,0.8)';
   hud.font = '600 15px system-ui';

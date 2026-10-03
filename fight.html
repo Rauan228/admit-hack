@@ -18,8 +18,8 @@
     <title>FORMA — бокс с ботом</title>
   </head>
   <body>
-    <main id="app" class="fight" data-screen="menu" data-phase="">
-      <!-- ——— Ринг: слева ты (камера), справа бот (3D-атлет) ——— -->
+    <main id="app" class="fight" data-screen="menu" data-phase="" data-view="fpv">
+      <!-- ——— Ринг от первого лица: весь экран — 3D-ринг, твоя камера — окошко в углу ——— -->
       <div class="ring" id="ring" data-for="setup arena">
         <div class="ring__me" id="side-me">
           <video id="video" playsinline muted></video>
@@ -32,39 +32,61 @@
           <canvas class="ring__fpv" id="fpv" aria-hidden="true"></canvas>
           <div class="ring__vignette" aria-hidden="true"></div>
           <div class="ring__daze" aria-hidden="true"></div>
-          <div class="ring__floor" aria-hidden="true"></div>
-          <div class="ring__ghost" id="bot-ghost" aria-hidden="true"></div>
           <div class="warn" id="warn" aria-hidden="true">!</div>
           <div class="floaters" id="float-bot" aria-hidden="true"></div>
           <div class="ring__flash" aria-hidden="true"></div>
         </div>
       </div>
 
-      <!-- ——— Табло: здоровье, раунды, время ——— -->
+      <!-- ——— Табло как в трансляции UFC: углы (красный — ты, синий — бот), здоровье, выносливость, нокдауны,
+           выигранные раунды; посередине раунд и время ——— -->
       <header class="hud" data-for="arena">
         <div class="hud__side hud__side--me">
-          <div class="hud__row">
+          <div class="hud__plate">
+            <span class="hud__corner" aria-hidden="true"></span>
             <span class="hud__name" id="hud-me">Ты</span>
+            <span class="hud__kd" id="kd-me" title="Нокдауны" hidden></span>
             <span class="pips" id="pips-me" aria-label="Выигранные раунды"></span>
           </div>
           <div class="hp" aria-label="Твоё здоровье">
-            <span class="hp__ghost" id="hp-me-ghost"></span><span class="hp__fill" id="hp-me"></span>
+            <span class="hp__cap" id="hp-me-cap"></span><span class="hp__ghost" id="hp-me-ghost"></span
+            ><span class="hp__fill" id="hp-me"></span><span class="hp__ticks" aria-hidden="true"></span>
+          </div>
+          <div class="st" aria-label="Твоя выносливость">
+            <span class="st__icon" aria-hidden="true">⚡</span>
+            <span class="st__bar"><span class="st__fill" id="st-me"></span></span>
           </div>
         </div>
         <div class="hud__mid">
-          <span class="hud__clock" id="clock" aria-label="Осталось времени">0:45</span>
           <span class="hud__round" id="round-label">Раунд 1</span>
+          <span class="hud__clock" id="clock" aria-label="Осталось времени">1:00</span>
+          <span class="hud__of" id="round-of" aria-hidden="true"></span>
         </div>
         <div class="hud__side hud__side--bot">
-          <div class="hud__row">
-            <span class="pips" id="pips-bot" aria-label="Раунды бота"></span>
+          <div class="hud__plate">
+            <span class="hud__corner" aria-hidden="true"></span>
             <span class="hud__name" id="hud-bot">Атлет</span>
+            <span class="hud__kd" id="kd-bot" title="Нокдауны" hidden></span>
+            <span class="pips" id="pips-bot" aria-label="Раунды бота"></span>
           </div>
           <div class="hp hp--bot" aria-label="Здоровье бота">
-            <span class="hp__ghost" id="hp-bot-ghost"></span><span class="hp__fill" id="hp-bot"></span>
+            <span class="hp__cap" id="hp-bot-cap"></span><span class="hp__ghost" id="hp-bot-ghost"></span
+            ><span class="hp__fill" id="hp-bot"></span><span class="hp__ticks" aria-hidden="true"></span>
+          </div>
+          <div class="st st--bot" aria-label="Выносливость бота">
+            <span class="st__bar"><span class="st__fill" id="st-bot"></span></span>
+            <span class="st__icon" aria-hidden="true">⚡</span>
           </div>
         </div>
       </header>
+
+      <!-- Нокдаун: рефери считает до 10; ты на настиле — подними обе руки или нажми «Встать» -->
+      <div class="kd" id="kd" data-for="arena" data-who="bot" aria-live="assertive" hidden>
+        <span class="kd__label" id="kd-label">Нокдаун</span>
+        <b class="kd__count" id="kd-count"></b>
+        <span class="kd__sub" id="kd-sub"></span>
+        <button class="btn btn--primary btn--lg kd__up" id="kd-up" type="button" hidden>Встать</button>
+      </div>
 
       <div class="combo" id="combo" data-for="arena" aria-live="polite" hidden>
         <b id="combo-num">×3</b><span>комбо</span>
@@ -81,6 +103,7 @@
         <li><span class="tips__icon">🥊</span>Кулаки у подбородка — бей, когда он открылся</li>
         <li><span class="tips__icon">!</span>Замах — закройся, уклонись или поймай его ударом</li>
         <li><span class="tips__icon">⚡</span>Красный «!» — мощный: лучше уклон, блок он пробивает</li>
+        <li><span class="tips__icon">↑</span>Упал — подними обе руки, чтобы встать до счёта 10</li>
       </ul>
 
       <div class="hint" id="hint-box" data-for="arena" data-kind="ok" role="status" hidden>
@@ -102,22 +125,14 @@
             <p class="menu__kicker">Файтинг с камерой</p>
             <h1 class="menu__title">Бокс с ботом</h1>
             <p class="menu__lead">
-              Телефон — горизонтально. Бот держит блок — бей, когда он опустил руки, замахнулся или
-              провалился после удара. Его замах — твой сигнал закрыться или уклониться. До двух побед в
-              раундах по 45 секунд.
+              Телефон — горизонтально. Бот ходит по рингу, держит блок и уходит от одиночных ударов — бей
+              сериями, когда он опустил руки, замахнулся или провалился после удара. Его замах — твой сигнал
+              закрыться или уклониться. Здоровье на нуле — нокдаун и счёт рефери, третий нокдаун — нокаут.
+              Удары тратят выносливость: выдохся — бьёшь слабее. Три раунда по минуте.
             </p>
             <div class="menu__ghost" id="menu-ghost" aria-hidden="true"></div>
           </div>
           <div class="menu__pick">
-            <h2 class="menu__sub">Вид</h2>
-            <div class="views" role="radiogroup" aria-label="Вид боя">
-              <button class="view-pick" type="button" role="radio" data-view-pick="fpv">
-                <b>От первого лица</b><span>Перед тобой ринг и соперник, внизу твои перчатки</span>
-              </button>
-              <button class="view-pick" type="button" role="radio" data-view-pick="side">
-                <b>Сбоку</b><span>Ты слева на камере, бот справа — как в файтинге</span>
-              </button>
-            </div>
             <h2 class="menu__sub">Соперник</h2>
             <div class="bots" id="bots" role="radiogroup" aria-label="Соперник"></div>
             <button class="btn btn--primary btn--lg menu__go" id="camera-on" type="button">Начать бой</button>
@@ -181,7 +196,7 @@
           <path d="M14 52c6 6 30 6 36 0M46 48l4 4-4 4M18 48l-4 4 4 4" />
         </svg>
         <b>Поверни телефон горизонтально</b>
-        <span>Бой идёт на широком экране: ты слева, бот справа.</span>
+        <span>Бой идёт на широком экране: перед тобой ринг и соперник.</span>
       </div>
     </main>
     <script type="module" src="/src/fight/main.ts"></script>

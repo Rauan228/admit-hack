@@ -1,6 +1,6 @@
 /* E-36: бокс с ботом — файтинг на широком экране. Тот же «тёмный премиум» платформы (tokens.css):
-   чёрный фон, без рамок, огромные цифры. Ринг: слева камера с тобой, справа 3D-атлет-бот.
-   Здоровье — две полосы сверху, твоя тает к центру слева, его — к центру справа. */
+   чёрный фон, без рамок, огромные цифры. Ринг от первого лица: весь экран — 3D-ринг, твоя камера — окошко
+   в углу (вид «сбоку» убран). Здоровье — две полосы сверху, твоя тает к центру слева, его — к центру справа. */
 
 [hidden] {
   display: none !important;
@@ -13,6 +13,9 @@
   --bad-text: #fca5a5;
   --hp-me: #22c55e;
   --hp-bot: #ef4444;
+  /* Углы ринга: красный — ты, синий — бот (как на табло над трибунами). */
+  --corner-me: #e11d48;
+  --corner-bot: #2563eb;
   --ring-bot: radial-gradient(70% 60% at 50% 40%, #2a1a12 0%, #120d0b 60%, #09090b 100%);
 }
 
@@ -56,38 +59,6 @@
   background: var(--ring-bot);
 }
 
-.ring__floor {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 14%;
-  background: linear-gradient(180deg, rgba(249, 115, 22, 0) 0%, rgba(249, 115, 22, 0.08) 100%);
-}
-
-.ring__floor::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 6%;
-  left: 6%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(249, 115, 22, 0.55), transparent);
-}
-
-.ring__ghost {
-  position: absolute;
-  inset: 6% 8% 4%;
-  transition:
-    transform 120ms var(--ease),
-    filter 120ms var(--ease);
-}
-
-.ring__ghost canvas {
-  width: 100%;
-  height: 100%;
-}
-
 /* Бот замахивается — подсвечен, «!» над ним. */
 .warn {
   position: absolute;
@@ -116,40 +87,10 @@
   animation: warn-pulse 0.35s ease-in-out infinite alternate;
 }
 
-.ring__bot.is-windup .ring__ghost {
-  filter: drop-shadow(0 0 24px rgba(250, 204, 21, 0.55));
-}
-
 @keyframes warn-pulse {
   to {
     transform: translate(-50%, -6%) scale(1.12);
   }
-}
-
-/* Бот получил — вспышка и отскок. */
-.ring__bot.is-hit .ring__ghost {
-  animation: bot-hit 0.3s var(--ease-out);
-  filter: drop-shadow(0 0 20px rgba(239, 68, 68, 0.8)) brightness(1.4);
-}
-
-@keyframes bot-hit {
-  0% {
-    transform: translateX(0) rotate(0);
-  }
-  35% {
-    transform: translateX(5%) rotate(3deg);
-  }
-  100% {
-    transform: translateX(0) rotate(0);
-  }
-}
-
-.ring__bot.is-ko .ring__ghost {
-  transform: translateY(18%) rotate(78deg) scale(0.92);
-  filter: grayscale(0.7) brightness(0.6);
-  transition:
-    transform 0.7s cubic-bezier(0.5, 0, 0.8, 0.4),
-    filter 0.7s var(--ease);
 }
 
 /* Вспышки по половинам: красная — удар получен. */
@@ -207,11 +148,6 @@
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.fight[data-view='fpv'] .ring__ghost,
-.fight[data-view='fpv'] .ring__floor {
-  display: none;
 }
 
 .fight[data-view='fpv'] .ring__me {
@@ -339,60 +275,6 @@
   top: 8px;
 }
 
-/* Выбор вида в меню. */
-.views {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-2);
-}
-
-.view-pick {
-  display: grid;
-  gap: 4px;
-  min-height: 64px;
-  padding: 12px 16px;
-  border: 0;
-  border-radius: var(--r-lg);
-  background: var(--surface-2);
-  color: var(--fg);
-  font-family: var(--font-body);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background var(--t-fast) var(--ease),
-    color var(--t-fast) var(--ease);
-  -webkit-tap-highlight-color: transparent;
-}
-
-.view-pick b {
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.view-pick span {
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.view-pick:hover {
-  background: var(--surface-3);
-}
-
-.view-pick.is-active {
-  background: var(--fg);
-  color: var(--on-light);
-}
-
-.view-pick.is-active span {
-  color: var(--on-light-muted);
-}
-
-.view-pick:focus-visible {
-  outline: 2px solid var(--fg);
-  outline-offset: 2px;
-}
-
 /* Стойка защиты распознана — метка над тобой. */
 .guard-pill {
   position: absolute;
@@ -497,7 +379,10 @@
   }
 }
 
-/* ——— Табло ——— */
+/* ——— Табло как в трансляции UFC (U-27) ———
+   Слева красный угол (ты), справа синий (бот). Плашка: полоса угла, имя, нокдауны, выигранные раунды. Под ней
+   здоровье — косая полоса с делениями: «призрак» тает за уроном, штриховка в конце — максимум, потерянный в
+   нокдаунах. Под здоровьем — тонкая выносливость: устал — оранжевая и мигает. Посередине — раунд и время. */
 .hud {
   position: absolute;
   top: 0;
@@ -505,56 +390,110 @@
   left: 0;
   z-index: 3;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: var(--s-3);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: clamp(8px, 1.6vmin, 18px);
   align-items: start;
   padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 0
     max(14px, env(safe-area-inset-left));
-  background: linear-gradient(180deg, rgba(9, 9, 11, 0.85) 0%, rgba(9, 9, 11, 0) 100%);
+  background: linear-gradient(180deg, rgba(9, 9, 11, 0.8) 0%, rgba(9, 9, 11, 0) 100%);
   pointer-events: none;
 }
 
 .hud__side {
+  --corner: var(--corner-me);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
-  padding-top: 4px;
+  max-width: 560px;
+  padding-top: 2px;
 }
 
-.hud__row {
+.hud__side--me {
+  justify-self: end;
+  width: 100%;
+}
+
+.hud__side--bot {
+  --corner: var(--corner-bot);
+  align-items: stretch;
+  justify-self: start;
+  width: 100%;
+}
+
+.hud__plate {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2);
+  gap: 8px;
+  align-self: flex-start;
+  min-width: 0;
+  max-width: 100%;
+  height: clamp(22px, 3.4vmin, 30px);
+  padding: 0 14px 0 0;
+  overflow: hidden;
+  background: linear-gradient(90deg, rgba(12, 12, 16, 0.92), rgba(12, 12, 16, 0.7));
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+  transform: skewX(-14deg);
 }
 
-.hud__side--bot .hud__row {
+.hud__plate > * {
+  transform: skewX(14deg);
+}
+
+.hud__side--bot .hud__plate {
   flex-direction: row-reverse;
+  align-self: flex-end;
+  padding: 0 0 0 14px;
+  background: linear-gradient(270deg, rgba(12, 12, 16, 0.92), rgba(12, 12, 16, 0.7));
+}
+
+.hud__corner {
+  align-self: stretch;
+  width: 8px;
+  background: var(--corner);
+  box-shadow: 0 0 14px var(--corner);
+  transform: none;
 }
 
 .hud__name {
   overflow: hidden;
-  font-size: clamp(13px, 1.8vmin, 17px);
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-size: clamp(12px, 1.9vmin, 17px);
+  font-weight: 900;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
+}
+
+/* Нокдауны: «KD» и число — сколько раз этот боец был на настиле. */
+.hud__kd {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--bad);
+  color: #fff;
+  font-size: clamp(10px, 1.4vmin, 12px);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.hud__kd.pop {
+  animation: pop 0.4s var(--ease-out);
 }
 
 .pips {
   display: flex;
+  flex: none;
   gap: 5px;
 }
 
 .pips i {
   display: block;
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .pips i.is-on {
@@ -562,35 +501,71 @@
   box-shadow: 0 0 10px rgba(250, 204, 21, 0.7);
 }
 
-/* Полоса здоровья: подложка, «призрак» прошлого значения (тает медленно) и само здоровье. */
+/* Здоровье: подложка, штриховка потерянного максимума, «призрак», само здоровье, деления. */
 .hp {
   position: relative;
-  height: clamp(12px, 2.4vmin, 20px);
+  height: clamp(13px, 2.6vmin, 22px);
   overflow: hidden;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)), rgba(9, 9, 11, 0.7);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 2px 14px rgba(0, 0, 0, 0.5);
   transform: skewX(-14deg);
 }
 
 .hp__fill,
-.hp__ghost {
+.hp__ghost,
+.hp__cap {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   width: 100%;
-  border-radius: 3px;
 }
 
 .hp__fill {
-  background: linear-gradient(90deg, var(--hp-me) 0%, #86efac 100%);
-  transition: width 140ms var(--ease-out);
+  background: linear-gradient(180deg, #fff7c2 0%, #fde047 38%, #eab308 100%);
+  box-shadow: 0 0 12px rgba(253, 224, 71, 0.45);
+  transition:
+    width 140ms var(--ease-out),
+    background 0.4s;
+}
+
+.hp[data-level='mid'] .hp__fill {
+  background: linear-gradient(180deg, #ffd8a8 0%, #fb923c 40%, #ea580c 100%);
+  box-shadow: 0 0 12px rgba(251, 146, 60, 0.45);
+}
+
+.hp[data-level='low'] .hp__fill {
+  background: linear-gradient(180deg, #fecaca 0%, #ef4444 40%, #b91c1c 100%);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.6);
+  animation: hp-low 0.6s ease-in-out infinite alternate;
 }
 
 .hp__ghost {
-  background: rgba(255, 255, 255, 0.55);
-  transition: width 0.9s 0.25s var(--ease);
+  background: rgba(255, 255, 255, 0.75);
+  transition: width 0.9s 0.3s var(--ease);
+}
+
+.hp__cap {
+  right: 0;
+  left: auto;
+  width: 0;
+  background: repeating-linear-gradient(-45deg, rgba(239, 68, 68, 0.55) 0 4px, rgba(9, 9, 11, 0.6) 4px 8px);
+  transition: width 0.6s var(--ease-out);
+}
+
+.hp__ticks {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(10% - 2px),
+    rgba(9, 9, 11, 0.55) calc(10% - 2px) 10%
+  );
+  pointer-events: none;
 }
 
 .hp--bot .hp__fill,
@@ -599,12 +574,9 @@
   left: auto;
 }
 
-.hp--bot .hp__fill {
-  background: linear-gradient(270deg, var(--hp-bot) 0%, #fca5a5 100%);
-}
-
-.hp.is-low .hp__fill {
-  animation: hp-low 0.6s ease-in-out infinite alternate;
+.hp--bot .hp__cap {
+  right: auto;
+  left: 0;
 }
 
 @keyframes hp-low {
@@ -613,19 +585,85 @@
   }
 }
 
+/* Выносливость: тонкая полоса под здоровьем. */
+.st {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.st--bot {
+  justify-content: flex-end;
+}
+
+.st__icon {
+  flex: none;
+  color: #67e8f9;
+  font-size: clamp(10px, 1.5vmin, 13px);
+  line-height: 1;
+}
+
+.st__bar {
+  position: relative;
+  flex: 0 1 62%;
+  height: clamp(4px, 0.8vmin, 7px);
+  overflow: hidden;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  transform: skewX(-14deg);
+}
+
+.st__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(90deg, #22d3ee, #a5f3fc);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+  transition: width 160ms linear;
+}
+
+.st--bot .st__fill {
+  right: 0;
+  left: auto;
+  background: linear-gradient(270deg, #22d3ee, #a5f3fc);
+}
+
+.st.is-tired .st__fill {
+  background: linear-gradient(90deg, #ea580c, #fdba74);
+  box-shadow: 0 0 8px rgba(234, 88, 12, 0.7);
+  animation: hp-low 0.45s ease-in-out infinite alternate;
+}
+
+.st.is-tired .st__icon {
+  color: #fb923c;
+}
+
 .hud__mid {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: clamp(88px, 14vmin, 140px);
-  padding: 4px 12px 8px;
-  border-radius: 0 0 var(--r-md) var(--r-md);
-  background: var(--hud-bg);
+  min-width: clamp(92px, 15vmin, 150px);
+  padding: 4px 16px 7px;
+  background:
+    linear-gradient(90deg, var(--corner-me) 0 50%, var(--corner-bot) 50% 100%) top / 100% 3px no-repeat,
+    linear-gradient(180deg, rgba(12, 12, 16, 0.95), rgba(12, 12, 16, 0.78));
+  clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+}
+
+.hud__round {
+  color: var(--warn);
+  font-size: clamp(10px, 1.5vmin, 13px);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .hud__clock {
-  font-size: clamp(28px, 6vmin, 52px);
-  font-weight: 800;
+  font-size: clamp(26px, 5.6vmin, 50px);
+  font-weight: 900;
   line-height: 1;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -635,12 +673,142 @@
   color: var(--bad);
 }
 
-.hud__round {
-  color: var(--muted);
-  font-size: clamp(11px, 1.6vmin, 14px);
-  font-weight: 600;
-  letter-spacing: 0.08em;
+.hud__of {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.hud__of i {
+  display: block;
+  width: 14px;
+  height: 3px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.hud__of i.is-done {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.hud__of i.is-now {
+  background: var(--warn);
+}
+
+/* ——— Нокдаун: счёт рефери ——— */
+.kd {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.kd__label {
+  padding: 3px 14px;
+  background: var(--bad);
+  color: #fff;
+  font-size: clamp(14px, 2.6vmin, 22px);
+  font-weight: 900;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
+  transform: skewX(-14deg);
+}
+
+.kd__count {
+  min-height: 1em;
+  color: #fff;
+  font-size: clamp(80px, 22vmin, 200px);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 6px 40px rgba(0, 0, 0, 0.75),
+    0 0 30px rgba(239, 68, 68, 0.4);
+}
+
+.kd__count.pop {
+  animation: kd-pop 0.5s var(--ease-out);
+}
+
+.kd__sub {
+  max-width: min(560px, 80vw);
+  padding: 6px 14px;
+  border-radius: var(--r-md);
+  background: var(--hud-bg);
+  font-size: clamp(14px, 2.4vmin, 20px);
+  font-weight: 700;
+}
+
+.kd__sub:empty {
+  display: none;
+}
+
+.kd__up {
+  margin-top: 8px;
+  pointer-events: auto;
+}
+
+.kd[data-who='bot'] .kd__label {
+  background: var(--warn);
+  color: var(--on-light);
+}
+
+@keyframes kd-pop {
+  0% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Ты на настиле: мир темнеет, теряет цвет и плывёт. */
+.fight.is-down .ring__fpv {
+  filter: grayscale(0.55) brightness(0.62) blur(1.6px);
+  transition: filter 0.6s;
+}
+
+.fight.is-down .ring__vignette {
+  box-shadow: inset 0 0 22vmin 6vmin rgba(60, 0, 0, 0.85) !important;
+}
+
+/* Выдохся: края экрана темнеют в такт сердцу. */
+.fight.is-tired .ring__bot::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.6) 100%);
+  animation: heartbeat 0.9s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes heartbeat {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  15% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 0.7;
+  }
+  45% {
+    opacity: 0.95;
+  }
 }
 
 /* ——— Комбо ——— */
@@ -1523,11 +1691,14 @@
   .result__card,
   .rotate svg,
   .warn,
-  .ring__ghost,
   .ring__flash,
   .ring__daze,
   .ring__fpv,
-  .hp.is-low .hp__fill {
+  .hp[data-level='low'] .hp__fill,
+  .st.is-tired .st__fill,
+  .kd__count,
+  .hud__kd,
+  .fight.is-tired .ring__bot::after {
     animation: none !important;
   }
 

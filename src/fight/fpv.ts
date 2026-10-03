@@ -39,8 +39,8 @@ import {
   type Object3D,
 } from 'three';
 import { canvasScale } from '../engine/perf';
-import { ZAthleteView } from '../ui/three/zanatomy';
 import { Arena } from './arena';
+import { BoxerView } from './boxer3d';
 import { BotPoser, type V3 } from './botPose';
 import type { BotView, Side } from './fight';
 import { makeArm, type ArmMeshes } from './glove3d';
@@ -55,8 +55,12 @@ export interface FpvState {
   botHurt: { at: number; side: Side; low: boolean } | null;
   /** Бот принял твой удар на перчатки. */
   botBlockedAt: number;
-  /** Нокаут: 0…1 — бот падает навзничь. */
+  /** Нокдаун: 0…1 — бот падает навзничь (обратно к 0 — встаёт). */
   botKo: number;
+  /** Ты на настиле: 0…1 — камера падает на канву и смотрит на бота снизу (обратно к 0 — встаёшь). */
+  meDown?: number;
+  /** Твоя усталость 0…1: перчатки ниже, дыхание тяжелее. */
+  tired?: number;
   gloves: Gloves;
   /** Сдвиг корпуса от среднего (stance.ts), в ширинах плеч: x — вправо по кадру камеры, y — вниз. */
   shiftX: number;
@@ -79,14 +83,23 @@ export interface FpvPunch {
 export const PUNCH_ANIM = { outMs: 110, holdMs: 50, backMs: 180 } as const;
 /** Касание — через столько мс после начала удара: тогда урон, отдача бота, звук. */
 export const PUNCH_CONTACT_MS = PUNCH_ANIM.outMs;
+/**
+ * Урон решается чуть позже касания, пока перчатка ещё у цели: к этому моменту детектор видит, удар это
+ * или мах руками (PunchDetector.confirm смотрит кадры до PUNCH.confirmMs после начала).
+ */
+export const PUNCH_DECIDE_MS = PUNCH_ANIM.outMs + PUNCH_ANIM.holdMs - 15;
 const PUNCH_TOTAL = PUNCH_ANIM.outMs + PUNCH_ANIM.holdMs + PUNCH_ANIM.backMs;
 /** Мощный пропущенный удар «ведёт» камеру столько мс. */
 export const DAZE_MS = 1600;
 
-/** Камера — на уровне глаз бота, на таком расстоянии от него (м). */
-const CAM_Y = 1.42;
+/**
+ * Бот (U-26) — человек ростом ~1,66 м: эталонная поза (~1,5 м) × BOT_SCALE. Камера — на уровне его глаз,
+ * на таком расстоянии от центра ринга (м).
+ */
+const BOT_SCALE = 1.1;
+const CAM_Y = 1.52;
 const CAM_Z = 1.4;
-const LOOK_Y = 1.32;
+const LOOK_Y = 1.41;
 const FOV = 60;
 /** Насколько камера идёт за корпусом: м на ширину плеч; наклон — рад на ширину плеч; сглаживание, мс. */
 const CAM_FOLLOW_X = 0.32;
@@ -125,7 +138,7 @@ export class FpvView {
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
   private readonly camera = new PerspectiveCamera(FOV, 16 / 9, 0.03, 120);
-  private readonly bot = new ZAthleteView('boxing');
+  private readonly bot = new BoxerView();
   private readonly botRoot = new Group();
   private readonly poser = new BotPoser();
   private readonly arena: Arena;
@@ -139,6 +152,9 @@ export class FpvView {
   private sx = 0;
   private sy = 0;
   private lastT = 0;
+  /** Ты на настиле (0…1) и усталость — для рук. */
+  private down = 0;
+  private tired = 0;
   /**
    * Адаптивное разрешение: доля от бюджета пикселей. Кадры дольше slowMs — меньше (не ниже min), быстрее
    * fastMs несколько секунд — обратно. Так бой плавный и на слабой видеокарте (распознавание позы тоже
@@ -182,7 +198,10 @@ export class FpvView {
     rim.position.set(-1.6, 2.6, -2.8);
     this.scene.add(key, rim);
 
-    // Бот: группа атлета переедет сюда, когда модель загрузится; перчатки — на его кистях.
+    // Бот: группа бойца переедет сюда, когда модель загрузится; перчатки — на его кистях. Поворот: сначала
+    // падение (нокаут) в его осях, потом — лицом к тебе, где бы он ни стоял на ринге.
+    this.botRoot.scale.setScalar(BOT_SCALE);
+    this.botRoot.rotation.order = 'YXZ';
     this.scene.add(this.botRoot);
     this.botGloves = [-1, 1].map((d) => {
       const g = makeArm(d as -1 | 1, 0.3, 0.27, BOT_BLUE).glove;
@@ -233,6 +252,8 @@ export class FpvView {
       this.camera.updateProjectionMatrix();
     }
     this.arena.update(s.now);
+    this.down = smooth(s.meDown ?? 0);
+    this.tired = clamp01(s.tired ?? 0);
     this.placeCamera(s, dt);
     this.camera.updateMatrixWorld();
     const ready = this.poseBot(s);
@@ -266,7 +287,7 @@ export class FpvView {
     this.botRoot.updateMatrixWorld();
     const cam = this.botRoot.worldToLocal(this.camera.position.clone());
     const aim: V3 = { x: cam.x, y: -cam.y, z: -cam.z };
-    const { pose, step } = this.poser.update({
+    const { pose, step, x, lift } = this.poser.update({
       now: s.now,
       bot: s.bot,
       aim,
@@ -298,11 +319,13 @@ export class FpvView {
       // −Z перчатки — по кулаку, верх — как можно ближе к «вверх».
       m.quaternion.setFromRotationMatrix(new Matrix4().lookAt(new Vector3(), dir, new Vector3(0, 1, 0)));
     });
-    // Шаг — к камере, нокаут — падает навзничь (вокруг стоп).
+    // Шаг — к камере, ходит по рингу и пружинит, всегда лицом к тебе; нокаут — падает навзничь (вокруг стоп).
     const ko = clamp01(s.botKo);
     const koEase = ko * ko;
-    this.botRoot.position.set(0, 0, step - 0.35 * koEase);
-    this.botRoot.rotation.set(-1.35 * koEase, 0, 0.25 * koEase);
+    const z = step - 0.35 * koEase;
+    this.botRoot.position.set(x, lift * (1 - ko), z);
+    const yaw = Math.atan2(this.camera.position.x - x, this.camera.position.z - z);
+    this.botRoot.rotation.set(-1.35 * koEase, yaw, 0.25 * koEase);
     // Цели ударов — нос и середина груди бота в мире.
     this.botRoot.updateMatrixWorld();
     const nose = pose[0];
@@ -366,15 +389,28 @@ export class FpvView {
       this.camera.fov = fov;
       this.camera.updateProjectionMatrix();
     }
-    const x = -sx * CAM_FOLLOW_X + jx;
-    const y = CAM_Y - Math.max(0, sy) * CAM_FOLLOW_Y - Math.min(0, sy) * 0.08 + jy;
-    // Покачивание головы в стойке — живая камера.
-    const breathe = 0.006 * Math.sin(t / 420);
-    this.camera.position.set(x, y + breathe, CAM_Z - 0.05 * lunge);
-    this.camera.lookAt(x * 0.35, LOOK_Y - Math.max(0, sy) * 0.12, 0);
+    let x = -sx * CAM_FOLLOW_X + jx;
+    let y = CAM_Y - Math.max(0, sy) * CAM_FOLLOW_Y - Math.min(0, sy) * 0.08 + jy;
+    // Покачивание головы в стойке — живая камера; устал — дышит тяжело, глубже и реже.
+    const breathe = 0.006 * Math.sin(t / 420) + this.tired * 0.014 * Math.sin(t / 330);
+    let z = CAM_Z - 0.05 * lunge;
+    let lookY = LOOK_Y - Math.max(0, sy) * 0.12 + this.tired * 0.02 * Math.sin(t / 330);
+    // Нокдаун: падаешь на канву, мир заваливается набок, бот стоит над тобой — смотришь снизу вверх.
+    const dn = this.down;
+    if (dn > 0) {
+      const sway = Math.sin(t / 520) * 0.04 * dn;
+      x = x * (1 - dn) + 0.15 * dn + sway;
+      y = y * (1 - dn) + 0.3 * dn;
+      z = z * (1 - dn) + (CAM_Z + 0.35) * dn;
+      lookY = lookY * (1 - dn) + 1.2 * dn;
+      roll += 0.42 * dn + 0.05 * dn * Math.sin(t / 700);
+      pitch += 0.04 * dn * Math.sin(t / 610);
+    }
+    this.camera.position.set(x, y + breathe * (1 - dn), z);
+    this.camera.lookAt(x * 0.35, lookY, 0);
     this.camera.rotateY(yaw);
     this.camera.rotateX(pitch);
-    this.camera.rotateZ(sx * CAM_ROLL + roll + shake * 0.03 * Math.sin(t / 23));
+    this.camera.rotateZ(sx * CAM_ROLL * (1 - dn) + roll + shake * 0.03 * Math.sin(t / 23));
   }
 
   // ——— Твои руки ———
@@ -394,7 +430,13 @@ export class FpvView {
     const fx = clamp((g.x - dir * 0.45) * FOLLOW, -FOLLOW_MAX, FOLLOW_MAX);
     const fy = clamp(-(g.y + 0.35) * FOLLOW, -FOLLOW_MAX, FOLLOW_MAX);
     const bob = 0.006 * Math.sin(now / 260 + dir);
-    const guard = new Vector3(dir * GUARD.x + fx, GUARD.y + fy + bob, GUARD.z - 0.08 * ext);
+    // Устал — перчатки тяжелеют и опускаются; на настиле — руки вниз, из кадра.
+    const sag = 0.06 * this.tired + 0.42 * this.down;
+    const guard = new Vector3(
+      dir * (GUARD.x + 0.05 * this.down) + fx,
+      GUARD.y + fy + bob - sag,
+      GUARD.z - 0.08 * ext + 0.1 * this.down,
+    );
     let wrist = guard;
     let k = 0;
     // Куда смотрят костяшки: в стойке — вперёд и чуть внутрь-вверх, в ударе — в цель.

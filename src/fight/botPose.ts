@@ -2,7 +2,8 @@
 // Эталон умеет только джеб и кросс в пустоту; здесь — живой боец: покачивается в стойке, закрывается
 // глухим блоком, опускает руки, замахивается (джеб — коротко, мощный — широко: корпус закручен, задняя
 // рука у уха — это видно и можно поймать), бьёт в тебя (кулак летит в камеру), проваливается после
-// промаха, «плывёт», когда потрясён, дёргает головой от твоих попаданий.
+// промаха, «плывёт», когда потрясён, дёргает головой от твоих попаданий. U-26: уходит от твоих ударов
+// (уклон влево-вправо, нырок, отход), пружинит на носках и ходит по рингу челноком — шаги в фазе подскока.
 //
 // Координаты — как в athleteMotion.json: метры, y вниз, лицом к зрителю −z, x+ — левая сторона бота.
 // Корпус выше таза поворачиваем вокруг середины таза (закрутка, наклон вперёд, вбок), руки — двухзвенные
@@ -29,9 +30,18 @@ export interface BotPoseInput {
 
 export interface BotPoseOut {
   pose: (V3 | null)[];
-  /** Шаг вперёд (к тебе), м. */
+  /** Шаг вперёд (к тебе), м: удары, отход и перемещение по рингу. */
   step: number;
+  /** Сдвиг вбок по рингу, м (x+ — его левая сторона). */
+  x: number;
+  /** Подскок над полом, м. */
+  lift: number;
 }
+
+/** Ринг для бота: насколько далеко ходит вбок, вперёд и назад, м; скорость, м/с. */
+const RING = { x: 0.55, zIn: 0.14, zOut: -0.42, speed: 0.85 };
+/** Подскок: период, мс; высота в стойке и в движении, м. */
+const HOP = { periodMs: 440, rest: 0.018, moving: 0.034 };
 
 /** Длины плеча и предплечья эталона, м; вытянутая рука чуть короче суммы. */
 const UPPER = 0.3;
@@ -55,6 +65,10 @@ interface Params {
   /** Локти: куда сгиб (вниз-наружу или в сторону — боковой). */
   lPole: V3;
   rPole: V3;
+  /** Уклон вбок — сдвиг всего бота, м. */
+  slipX: number;
+  /** На носках: пятки подняты, м. */
+  heel: number;
 }
 
 const BASE = athletePose('boxing', 0).map((p) => (p ? { ...p } : null));
@@ -80,20 +94,70 @@ const POLE_OUT = { left: v(1, 0.15, 0.2), right: v(-1, 0.15, 0.2) };
 export class BotPoser {
   private p: Params | null = null;
   private lastT = 0;
+  /** Где бот на ринге (сдвиг от центра), скорость, фаза подскока, высота подскока. */
+  private x = 0;
+  private z = 0;
+  private vx = 0;
+  private vz = 0;
+  private hop = 0;
+  private hopAmp: number = HOP.rest;
 
   /** Поза в момент input.now. */
   update(input: BotPoseInput): BotPoseOut {
     const want = target(input);
     const dt = this.p ? Math.min(100, Math.max(0, input.now - this.lastT)) : 0;
     this.lastT = input.now;
-    // Удар и замах — быстро, остальное — мягко.
-    const tau = input.bot.state === 'strike' ? 22 : input.bot.state === 'windup' ? 55 : 90;
+    // Удар, уклон и замах — быстро, остальное — мягко.
+    const st = input.bot.state;
+    const tau = st === 'strike' ? 22 : st === 'dodge' ? 35 : st === 'windup' ? 55 : 90;
     this.p = this.p ? blend(this.p, want, 1 - Math.exp(-dt / tau)) : want;
-    return { pose: build(this.p), step: this.p.step };
+    const air = this.footwork(input, dt);
+    // Приземление — колени пружинят.
+    const land = 0.016 * (1 - air) * (this.hopAmp / HOP.moving);
+    return {
+      pose: build({ ...this.p, crouch: this.p.crouch + land }),
+      step: this.p.step + this.z,
+      x: this.x + this.p.slipX,
+      lift: this.hopAmp * air,
+    };
   }
 
   reset(): void {
     this.p = null;
+    this.x = this.z = this.vx = this.vz = this.hop = 0;
+    this.hopAmp = HOP.rest;
+  }
+
+  /**
+   * Перемещение по рингу: к цели хода (кружит, сближается, отходит) с разгоном; подскок на носках, шаг — в
+   * основном в воздухе (челнок). Замах, удар, уклон, потрясение — ноги стоят. Возвращает долю «в воздухе» 0…1.
+   */
+  private footwork(input: BotPoseInput, dt: number): number {
+    const st = input.bot.state;
+    const planted = st === 'windup' || st === 'strike' || st === 'dodge' || st === 'stagger' || input.ko > 0;
+    const move = input.bot.move ?? 'hold';
+    const tx = move === 'circle_left' ? RING.x : move === 'circle_right' ? -RING.x : this.x;
+    // Сближается, отходит — или потихоньку к своей дистанции.
+    const tz = move === 'in' ? RING.zIn : move === 'out' ? RING.zOut : this.z + (-0.05 - this.z) * 0.5;
+    const max = planted ? 0.12 : RING.speed;
+    const want = (d: number) => clamp(d * 2.6, -max, max);
+    const k = 1 - Math.exp(-dt / 140);
+    this.vx += (want(tx - this.x) - this.vx) * k;
+    this.vz += (want(tz - this.z) - this.vz) * k;
+    // Подскок: пружинит всегда, в движении — выше; стоя в замахе и ударе — нет.
+    this.hop += (dt / HOP.periodMs) * Math.PI;
+    const air = Math.abs(Math.sin(this.hop));
+    const speed = Math.hypot(this.vx, this.vz);
+    const amp = planted
+      ? 0
+      : st === 'open'
+        ? HOP.moving
+        : HOP.rest + (HOP.moving - HOP.rest) * clamp01(speed / 0.5);
+    this.hopAmp += (amp - this.hopAmp) * (1 - Math.exp(-dt / 120));
+    const glide = 0.35 + 0.65 * air;
+    this.x = clamp(this.x + this.vx * (dt / 1000) * glide, -RING.x, RING.x);
+    this.z = clamp(this.z + this.vz * (dt / 1000) * glide, RING.zOut, RING.zIn);
+    return air;
   }
 }
 
@@ -121,6 +185,8 @@ function target(input: BotPoseInput): Params {
     rf: FIST.guard,
     lPole: POLE_DOWN.left,
     rPole: POLE_DOWN.right,
+    slipX: 0,
+    heel: 0.028,
   };
   // Перчатки в стойке чуть ходят — живой боец.
   p.lw = add(p.lw, v(0, 0.012 * Math.sin(now / 260), 0.015 * Math.sin(now / 330)));
@@ -163,11 +229,44 @@ function target(input: BotPoseInput): Params {
       break;
     }
     case 'windup':
+      p.heel = 0.012;
       if (bot.attack) windup(p, bot.attack.kind, bot.attack.side, u);
       break;
     case 'strike':
+      p.heel = 0.02;
       if (bot.attack) strike(p, bot.attack.kind, bot.attack.side, ease(u), input.aim);
       break;
+    case 'dodge': {
+      // Уклон: быстро ушёл, подержал, вернулся; руки плотнее к лицу.
+      const e = u < 0.3 ? smooth(u / 0.3) : u > 0.72 ? smooth((1 - u) / 0.28) : 1;
+      p.lw = lerp(p.lw, OFF.shell.left, 0.35 * e);
+      p.rw = lerp(p.rw, OFF.shell.right, 0.35 * e);
+      p.heel = 0.012;
+      switch (bot.dodge) {
+        case 'slip_left':
+        case 'slip_right': {
+          const d = bot.dodge === 'slip_left' ? 1 : -1;
+          p.side += d * 0.3 * e;
+          p.twist += d * 0.12 * e;
+          p.crouch += 0.06 * e;
+          p.headTurn += d * 0.1 * e;
+          p.slipX = d * 0.1 * e;
+          break;
+        }
+        case 'duck':
+          p.crouch += 0.2 * e;
+          p.lean += 0.38 * e;
+          p.headBack -= 0.1 * e;
+          break;
+        case 'back':
+          p.lean -= 0.3 * e;
+          p.step -= 0.22 * e;
+          p.headBack += 0.12 * e;
+          p.crouch += 0.02 * e;
+          break;
+      }
+      break;
+    }
     case 'recover':
       if (bot.attack) {
         // Возврат из удара в стойку; долгий (промах) — провалился вперёд.
@@ -203,6 +302,19 @@ function target(input: BotPoseInput): Params {
     p.lw = add(p.lw, v(0, 0, 0.06 * k));
     p.rw = add(p.rw, v(0, 0, 0.06 * k));
     p.lean -= 0.05 * k;
+  }
+  // Устал (U-27): перчатки ниже, корпус наклонён вперёд, плечи ходят от тяжёлого дыхания.
+  const f = bot.fatigue ?? 0;
+  if (
+    f > 0 &&
+    (bot.state === 'guard' || bot.state === 'open' || bot.state === 'recover' || bot.state === 'shell')
+  ) {
+    const breath = Math.sin(now / 340);
+    p.lw = add(p.lw, v(0, 0.08 * f + 0.012 * f * breath, -0.02 * f));
+    p.rw = add(p.rw, v(0, 0.08 * f + 0.012 * f * breath, -0.02 * f));
+    p.lean += 0.07 * f;
+    p.crouch += 0.025 * f + 0.012 * f * breath;
+    p.headBack -= 0.06 * f;
   }
   if (input.ko > 0) {
     const k = clamp01(input.ko * 1.5);
@@ -297,6 +409,8 @@ function build(p: Params): (V3 | null)[] {
   for (const i of [23, 24]) out[i] = { ...out[i]!, y: out[i]!.y + p.crouch };
   for (const i of [25, 26])
     out[i] = { ...out[i]!, y: out[i]!.y + p.crouch * 0.5, z: out[i]!.z - p.crouch * 0.8 };
+  // На носках: лодыжки и пятки приподняты, носки на полу.
+  for (const i of [27, 28, 29, 30]) if (out[i]) out[i] = { ...out[i]!, y: out[i]!.y - p.heel };
   const ls = T(LS0);
   const rs = T(RS0);
   out[11] = ls;
@@ -405,6 +519,8 @@ function params0(): Params {
     rf: FIST.guard,
     lPole: POLE_DOWN.left,
     rPole: POLE_DOWN.right,
+    slipX: 0,
+    heel: 0.028,
   };
 }
 
@@ -424,6 +540,8 @@ function blend(a: Params, b: Params, k: number): Params {
     rf: lerp(a.rf, b.rf, k),
     lPole: lerp(a.lPole, b.lPole, k),
     rPole: lerp(a.rPole, b.rPole, k),
+    slipX: n(a.slipX, b.slipX),
+    heel: n(a.heel, b.heel),
   };
 }
 
