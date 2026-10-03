@@ -111,6 +111,8 @@ const CAM_TAU_MS = 70;
 const SHOULDER = { x: 0.2, y: -0.25, z: 0.05 };
 const UPPER = 0.31;
 const FORE = 0.3;
+/** Перчатка в ударе: доля наклона от луча взгляда к предплечью (0 — по взгляду, 1 — по предплечью). */
+const GLOVE_TILT = 0.8;
 /** Кулак в стойке — у подбородка, перед глазами. */
 const GUARD = { x: 0.15, y: -0.19, z: -0.4 };
 /** Насколько стойка повторяет твои кисти: м на ширину плеч, и предел. */
@@ -145,7 +147,7 @@ export class FpvView {
   private readonly botGloves: Group[];
   private readonly arms: Record<GloveSide, ArmMeshes>;
   private botGroup: Group | null = null;
-  /** Голова и грудь бота в мире — цели ударов. */
+  /** Подбородок и грудь бота в мире — цели ударов. */
   private readonly botHead = new Vector3(0, 1.38, 0);
   private readonly botChest = new Vector3(0, 1.1, 0);
   /** Сглаженный сдвиг корпуса (позы приходят ~20 раз в секунду, камера — каждый кадр). */
@@ -331,7 +333,8 @@ export class FpvView {
     const nose = pose[0];
     const ls = pose[11];
     const rs = pose[12];
-    if (nose) this.botHead.set(nose.x, -nose.y, -nose.z).applyMatrix4(this.botRoot.matrixWorld);
+    // Удар в голову — в подбородок (чуть ниже носа): рука идёт к цели не так круто вверх.
+    if (nose) this.botHead.set(nose.x, -nose.y - 0.06, -nose.z).applyMatrix4(this.botRoot.matrixWorld);
     if (ls && rs)
       this.botChest
         .set((ls.x + rs.x) / 2, -(ls.y + rs.y) / 2 - 0.16, -(ls.z + rs.z) / 2)
@@ -439,8 +442,8 @@ export class FpvView {
     );
     let wrist = guard;
     let k = 0;
-    // Куда смотрят костяшки: в стойке — вперёд и чуть внутрь-вверх, в ударе — в цель.
-    let aimDir = new Vector3(-dir * 0.22, 0.3, -1).normalize();
+    // Куда смотрят костяшки в стойке: вперёд и чуть внутрь-вверх.
+    const guardAim = new Vector3(-dir * 0.22, 0.3, -1).normalize();
     if (punch) {
       const t = now - punch.start;
       if (t >= 0 && t < PUNCH_TOTAL) {
@@ -455,7 +458,6 @@ export class FpvView {
         // на экране он ложится ровно на соперника, а рука остаётся своей длины.
         const aim = this.camera.worldToLocal((punch.low ? this.botChest : this.botHead).clone());
         const target = onEyeRay(aim.normalize(), shoulder, UPPER + FORE - 0.06);
-        aimDir = aimDir.lerp(target.clone().normalize(), k).normalize();
         if (punch.hook) {
           // Боковой: дуга снаружи — контрольная точка сбоку от середины пути.
           const ctrl = guard
@@ -473,7 +475,12 @@ export class FpvView {
     place(upper, shoulder, elbow);
     place(fore, elbow, reached);
     elbowMesh.position.copy(elbow);
-    // Перчатка — на кисти, костяшками туда, куда бьёт; в прямом — доворот кулака ладонью вниз.
+    // Перчатка — на кисти; в ударе — между лучом взгляда и предплечьем (как надета на руку): глаз выше плеча
+    // и видит её тыл и костяшки. Ровно по лучу взгляда из глаза видна только открытая манжета («пустая
+    // труба»), ровно по предплечью кулак задирается вверх, как в апперкоте. В прямом — доворот кулака ладонью вниз.
+    const foreDir = reached.clone().sub(elbow).normalize();
+    const hitDir = reached.clone().normalize().lerp(foreDir, GLOVE_TILT).normalize();
+    const aimDir = k > 0 ? guardAim.clone().lerp(hitDir, k).normalize() : guardAim;
     glove.position.copy(reached);
     glove.quaternion.setFromUnitVectors(new Vector3(0, 0, -1), aimDir);
     glove.rotateZ(-dir * (0.35 + (punch?.hook ? 0.5 : 1.1) * k));

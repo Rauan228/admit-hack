@@ -506,6 +506,8 @@ function onPunches(list: ReturnType<PunchDetector['update']>): void {
 
 /** Мах руками, а не удар: урона нет, силы тратятся, подсказка — как бить. */
 function onSwing(now: number): void {
+  // Во время счёта рефери махи не в счёт: ни подсказки, ни траты сил.
+  if (!ui.kd.hidden) return;
   match?.swing(now);
   fightSfx.whoosh(false);
   if (now - swingHintAt > SWING_HINT_EVERY_MS) {
