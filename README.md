@@ -125,4 +125,6 @@ npm run api    # во втором терминале: аккаунты, рей�
 
 Весь код написан после старта хакатона (28.09, 07:00), заготовок нет. Сторонние материалы: модель распознавания
 позы MediaPipe (Google, Apache 2.0), языковая модель OpenAI для ИИ-тренера, анатомическая 3D-модель [Z-Anatomy](https://github.com/Z-Anatomy/Models-of-human-anatomy)
-(CC BY-SA 4.0, лицензия — `public/models/LICENSE.txt`) и ролики с [Pexels](https://www.pexels.com/license/) в GIF выше.
+(CC BY-SA 4.0, лицензия — `public/models/LICENSE.txt`), боец в боксе с ботом — на основе
+[Microsoft Rocketbox](https://github.com/microsoft/Microsoft-Rocketbox) (MIT, `public/models/boxer-LICENSE.txt`;
+экипировку и пропорции собирает `scripts/build-boxer.mjs`) и ролики с [Pexels](https://www.pexels.com/license/) в GIF выше.
